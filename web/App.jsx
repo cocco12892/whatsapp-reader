@@ -66,6 +66,38 @@ const Message = styled.div`
   background-color: ${props => props.$isSent ? '#dcf8c6' : '#f0f0f0'};
   float: ${props => props.$isSent ? 'right' : 'left'};
   clear: both;
+  cursor: context-menu;
+  
+  &:hover {
+    background-color: ${props => props.$isSent ? '#c5e8b7' : '#e0e0e0'};
+  }
+`;
+
+const NoteIndicator = styled.div`
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #ffeb3b;
+  color: #000;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+`;
+
+const NotePopup = styled.div`
+  position: absolute;
+  z-index: 100;
+  background: white;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  min-width: 200px;
+  display: ${props => props.$visible ? 'block' : 'none'};
 `;
 
 const MessageSender = styled.div`
@@ -135,6 +167,12 @@ function App() {
   const [error, setError] = useState(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [modalImage, setModalImage] = useState(null);
+  const [notePopup, setNotePopup] = useState({
+    visible: false,
+    messageId: null,
+    position: { x: 0, y: 0 },
+    note: ''
+  });
 
   const fetchChats = async () => {
     try {
@@ -212,6 +250,39 @@ function App() {
     setModalImage(null);
   }, []);
 
+  const saveNote = useCallback((messageId, note) => {
+    const notes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+    notes[messageId] = note;
+    localStorage.setItem('messageNotes', JSON.stringify(notes));
+  }, []);
+
+  const getNote = useCallback((messageId) => {
+    const notes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+    return notes[messageId] || '';
+  }, []);
+
+  const handleMessageRightClick = useCallback((e, messageId) => {
+    e.preventDefault();
+    setNotePopup({
+      visible: true,
+      messageId,
+      position: { x: e.clientX, y: e.clientY },
+      note: getNote(messageId)
+    });
+  }, [getNote]);
+
+  const handleNoteChange = useCallback((e) => {
+    setNotePopup(prev => ({
+      ...prev,
+      note: e.target.value
+    }));
+  }, []);
+
+  const handleSaveNote = useCallback(() => {
+    saveNote(notePopup.messageId, notePopup.note);
+    setNotePopup(prev => ({ ...prev, visible: false }));
+  }, [notePopup, saveNote]);
+
   if (isLoading) {
     return (
       <Container>
@@ -247,7 +318,15 @@ function App() {
                 <ChatMessages onScroll={handleScroll}>
                   {chat.messages.map((message) => (
                     <MessageWrapper key={message.id}>
-                      <Message $isSent={false}>
+                      <Message 
+                        $isSent={false}
+                        onContextMenu={(e) => handleMessageRightClick(e, message.id)}
+                      >
+                        {getNote(message.id) && (
+                          <NoteIndicator onClick={(e) => handleMessageRightClick(e, message.id)}>
+                            !
+                          </NoteIndicator>
+                        )}
                         <MessageSender>{message.senderName}</MessageSender>
                         <MessageContent>
                           {message.isMedia && message.content.includes('📷 Immagine') && (
@@ -293,6 +372,23 @@ function App() {
           </ModalContent>
         </ModalOverlay>
       )}
+
+      <NotePopup 
+        $visible={notePopup.visible}
+        style={{
+          left: notePopup.position.x,
+          top: notePopup.position.y
+        }}
+      >
+        <textarea
+          value={notePopup.note}
+          onChange={handleNoteChange}
+          rows={4}
+          style={{ width: '100%' }}
+          placeholder="Aggiungi una nota..."
+        />
+        <button onClick={handleSaveNote}>Salva</button>
+      </NotePopup>
     </>
   );
 }
