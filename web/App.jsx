@@ -16,6 +16,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState({});
   const [modalImage, setModalImage] = useState(null);
   const [notePopup, setNotePopup] = useState({
     visible: false,
@@ -50,6 +51,21 @@ function App() {
       const orderedChats = chatOrder.length > 0 
         ? chatOrder.map(id => preparedChats.find(c => c.id === id)).filter(c => c)
         : preparedChats;
+
+      // Aggiorna i messaggi non letti
+      setUnreadMessages(prev => {
+        const newUnread = { ...prev };
+        orderedChats.forEach(chat => {
+          const chatElement = document.querySelector(`[data-chat-id="${chat.id}"]`);
+          if (chatElement) {
+            const isAtBottom = Math.abs(chatElement.scrollHeight - chatElement.scrollTop - chatElement.clientHeight) < 50;
+            if (!isAtBottom) {
+              newUnread[chat.id] = (newUnread[chat.id] || 0) + 1;
+            }
+          }
+        });
+        return newUnread;
+      });
       
       if (chatOrder.length !== orderedChats.length) {
         setChatOrder(orderedChats.map(c => c.id));
@@ -80,6 +96,13 @@ function App() {
     const element = e.target;
     const isAtBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 50;
     setIsUserScrolling(!isAtBottom);
+    
+    if (isAtBottom) {
+      setUnreadMessages(prev => ({
+        ...prev,
+        [element.dataset.chatId]: 0
+      }));
+    }
   };
 
   const formatTime = (timestamp) => {
@@ -178,16 +201,49 @@ function App() {
                       p: 2,
                       borderBottom: '1px solid',
                       borderColor: 'divider',
-                      bgcolor: 'background.paper'
+                      bgcolor: 'primary.main',
+                      color: 'primary.contrastText'
                     }}>
                       <Typography variant="h6">{chat.name || 'Chat'}</Typography>
                     </Box>
-                    <Box sx={{
-                      flex: 1,
-                      overflowY: 'auto',
-                      p: 2,
-                      bgcolor: 'background.default'
-                    }} onScroll={handleScroll}>
+                    <Box 
+                      sx={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        p: 2,
+                        bgcolor: 'background.default',
+                        position: 'relative'
+                      }} 
+                      onScroll={handleScroll}
+                      data-chat-id={chat.id}
+                    >
+                      {unreadMessages[chat.id] > 0 && (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            bottom: 16,
+                            right: 16,
+                            bgcolor: 'primary.main',
+                            color: 'primary.contrastText',
+                            borderRadius: '50%',
+                            width: 24,
+                            height: 24,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                            zIndex: 1,
+                            boxShadow: 2
+                          }}
+                          onClick={() => {
+                            const element = document.querySelector(`[data-chat-id="${chat.id}"]`);
+                            element.scrollTop = element.scrollHeight;
+                          }}
+                        >
+                          {unreadMessages[chat.id]}
+                        </Box>
+                      )}
                       {chat.messages.map((message) => (
                         <Box key={message.id} sx={{ mb: 2 }}>
                           <Box 
@@ -198,7 +254,8 @@ function App() {
                               position: 'relative',
                               maxWidth: '80%',
                               float: 'left',
-                              clear: 'both'
+                              clear: 'both',
+                              mb: 2
                             }}
                             onContextMenu={(e) => handleMessageRightClick(e, message.id)}
                           >
@@ -228,27 +285,25 @@ function App() {
                               {message.senderName}
                             </Typography>
                             <Box>
-                              {message.isMedia && message.content.includes('📷 Immagine') && (
-                                <Box>
-                                  {message.mediaPath && (
-                                    <img 
-                                      src={message.mediaPath} 
-                                      alt="Immagine" 
-                                      style={{ 
-                                        maxWidth: '100%', 
-                                        borderRadius: '5px', 
-                                        marginTop: '10px',
-                                        cursor: 'pointer'
-                                      }}
-                                      onClick={() => handleImageClick(message.mediaPath)}
-                                      onError={(e) => e.target.style.display = 'none'}
-                                    />
-                                  )}
-                                </Box>
+                              {message.isMedia && message.mediaPath && (
+                                <img 
+                                  src={message.mediaPath} 
+                                  alt="Immagine" 
+                                  style={{ 
+                                    maxWidth: '100%', 
+                                    borderRadius: '5px', 
+                                    marginTop: '10px',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={() => handleImageClick(message.mediaPath)}
+                                  onError={(e) => e.target.style.display = 'none'}
+                                />
                               )}
-                              <Typography variant="body2">
-                                {message.content}
-                              </Typography>
+                              {!message.isMedia && (
+                                <Typography variant="body2">
+                                  {message.content}
+                                </Typography>
+                              )}
                             </Box>
                             <Typography variant="caption" color="text.secondary" sx={{ 
                               display: 'block',
