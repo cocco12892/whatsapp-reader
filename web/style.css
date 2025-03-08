@@ -1,0 +1,113 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f0f2f5;
+}
+
+.container {
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    color: #128c7e;
+    margin-bottom: 20px;
+}
+
+.chat-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.chat-column {
+    flex: 1;
+    min-width: 300px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.chat-header {
+    background-color: #128c7e;
+    color: white;
+    padding: 10px;
+    position: sticky;
+    top: 0;
+}
+
+.chat-header h2 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.chat-messages {
+    padding: 10px;
+    height: calc(100vh - 150px);
+    overflow-y: auto;
+}
+
+.message {
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    max-width: 80%;
+    position: relative;
+}
+
+.message-sender {
+    font-weight: bold;
+    font-size: 12px;
+    margin-bottom: 5px;
+}
+
+.message-content {
+    word-break: break-word;
+}
+
+.message-time {
+    font-size: 10px;
+    color: #999;
+    text-align: right;
+    margin-top: 5px;
+}
+
+.message-received {
+    background-color: #f0f0f0;
+    float: left;
+    clear: both;
+}
+
+.message-sent {
+    background-color: #dcf8c6;
+    float: right;
+    clear: both;
+}
+
+.message-media {
+    cursor: pointer;
+    color: #128c7e;
+}
+
+.clearfix::after {
+    content: "";
+    clear: both;
+    display: table;
+}
+
+/* Aggiungi questo al file CSS */
+.media-preview {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 5px 10px;
+    border-radius: 5px;
+    margin-top: 5px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.media-preview:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
