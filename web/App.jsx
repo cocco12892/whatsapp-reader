@@ -4,7 +4,8 @@ import { Helmet } from 'react-helmet';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { theme } from './styles/theme';
-import { Box, Typography, CircularProgress, Paper } from '@mui/material';
+import { Box, Typography, CircularProgress, Paper, Dialog, DialogContent, IconButton } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 
 const API_BASE_URL = '/api';
 const POLLING_INTERVAL = 5000; // 5 secondi
