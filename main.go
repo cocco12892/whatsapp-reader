@@ -239,6 +239,7 @@ func main() {
 			mutex.Unlock()
 			
 			fmt.Printf("Nuovo messaggio da %s in %s: %s\n", senderName, chatName, content)
+			fmt.Printf("Dettagli messaggio: %+v\n", message)
 		
 		case *events.Connected:
 			fmt.Println("Client connesso!")

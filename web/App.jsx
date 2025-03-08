@@ -12,12 +12,22 @@ function App() {
   useEffect(() => {
     const initializeChats = async () => {
       try {
+        console.log("Fetching chats from:", `${API_BASE_URL}/chats`);
         const response = await fetch(`${API_BASE_URL}/chats`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const chatsData = await response.json();
+        console.log("Received chats data:", chatsData);
         
         const preparedChats = await Promise.all(chatsData.map(async (chat) => {
+          console.log("Fetching messages for chat:", chat.id);
           const messagesResponse = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chat.id)}/messages`);
+          if (!messagesResponse.ok) {
+            throw new Error(`HTTP error! status: ${messagesResponse.status}`);
+          }
           const messages = await messagesResponse.json();
+          console.log("Received messages for chat", chat.id, ":", messages);
           
           if (!clientJID && messages.length > 0) {
             setClientJID(messages[0].chat.includes('@g.us') 
@@ -96,11 +106,17 @@ function App() {
                           <div className="media-preview">
                             Anteprima immagine
                           </div>
-                          <img 
-                            src={message.mediaPath} 
-                            alt="Immagine" 
-                            style={{ maxWidth: '100%', borderRadius: '5px', marginTop: '10px' }}
-                          />
+                          {message.mediaPath && (
+                            <img 
+                              src={message.mediaPath} 
+                              alt="Immagine" 
+                              style={{ maxWidth: '100%', borderRadius: '5px', marginTop: '10px' }}
+                              onError={(e) => {
+                                console.error("Errore nel caricamento dell'immagine:", message.mediaPath);
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          )}
                         </div>
                       )}
                       <span>{message.content}</span>
