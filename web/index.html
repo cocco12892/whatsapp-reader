@@ -1,68 +1,13 @@
 <!DOCTYPE html>
-<html lang="it" x-data="chatApp()" x-init="initializeChats()">
+<html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WhatsApp Web Viewer</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>WhatsApp Web Viewer</h1>
-        
-        <div class="chat-container" id="chat-container">
-            <template x-for="(chat, index) in chats" :key="chat.id">
-                <div class="chat-column" :id="`chat-${chat.id.replace(/[@:.]/g, '_')}`">
-                    <div class="chat-header">
-                        <h2 x-text="chat.name || 'Chat'"></h2>
-                    </div>
-                    <div class="chat-messages" 
-                         x-ref="`chatMessages${index}`"
-                         @scroll.debounce.250ms="checkScrollPosition">
-                        <template x-for="message in chat.messages" :key="message.id">
-                            <div class="clearfix">
-                                <div 
-                                    class="message" 
-                                    :class="message.sender === clientJID ? 'message-sent' : 'message-received'"
-                                    :data-timestamp="message.timestamp">
-                                    
-                                    <!-- Nome mittente per messaggi ricevuti -->
-                                    <template x-if="message.sender !== clientJID">
-                                        <div class="message-sender" x-text="message.senderName || 'Mittente'"></div>
-                                    </template>
-                                    
-                                    <!-- Contenuto messaggio -->
-                                    <div class="message-content">
-                                        <template x-if="message.isMedia && message.content.includes('📷 Immagine')">
-                                            <div>
-                                                <div class="media-preview" @click="toggleMediaPreview($el)">
-                                                    Anteprima immagine
-                                                </div>
-                                                <img 
-                                                    x-show="false" 
-                                                    :src="message.mediaPath" 
-                                                    alt="Immagine" 
-                                                    style="max-width: 100%; border-radius: 5px; margin-top: 10px;"
-                                                />
-                                            </div>
-                                        </template>
-                                        <span x-text="message.content"></span>
-                                    </div>
-                                    
-                                    <!-- Timestamp -->
-                                    <div class="message-time" 
-                                         x-text="formatTime(message.timestamp)">
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </template>
-        </div>
-    </div>
-    
-    <script src="script.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
