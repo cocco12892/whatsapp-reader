@@ -53,8 +53,8 @@ function chatApp() {
                     });
                 });
                 
-                // Avvia l'aggiornamento periodico
-                this.startPeriodicUpdate();
+                // Aggiornamento disabilitato
+                // this.startPeriodicUpdate();
             } catch (error) {
                 console.error('Errore nel caricamento iniziale delle chat:', error);
             }
