@@ -6,6 +6,8 @@ const API_BASE_URL = 'http://localhost:8080/api';
 function App() {
   const [chats, setChats] = useState([]);
   const [clientJID, setClientJID] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const initializeChats = async () => {
@@ -32,6 +34,9 @@ function App() {
         setChats(preparedChats);
       } catch (error) {
         console.error('Errore nel caricamento iniziale delle chat:', error);
+        setError(error.message);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -43,11 +48,32 @@ function App() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  if (isLoading) {
+    return (
+      <div className="container">
+        <h1>WhatsApp Web Viewer</h1>
+        <div className="loading">Caricamento chat in corso...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container">
+        <h1>WhatsApp Web Viewer</h1>
+        <div className="loading" style={{color: 'red'}}>
+          Errore: {error}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container">
       <h1>WhatsApp Web Viewer</h1>
       
-      <div className="chat-container" id="chat-container">
+      {chats.length > 0 ? (
+        <div className="chat-container" id="chat-container">
         {chats.map((chat) => (
           <div className="chat-column" key={chat.id} id={`chat-${chat.id.replace(/[@:.]/g, '_')}`}>
             <div className="chat-header">
@@ -90,6 +116,9 @@ function App() {
           </div>
         ))}
       </div>
+      ) : (
+        <div className="loading">Nessuna chat trovata</div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,14 @@ body {
     margin: 0;
     padding: 20px;
     background-color: #f0f2f5;
+    min-height: 100vh;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-size: 1.2em;
 }
 
 .container {
