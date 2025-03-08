@@ -269,7 +269,7 @@ function App() {
             )}
           </>
         )}
-      </Container>
+      </Box>
       
       {modalImage && (
         <ModalOverlay onClick={closeModal}>
