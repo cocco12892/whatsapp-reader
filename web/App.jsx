@@ -15,6 +15,8 @@ const Title = styled.h1`
   text-align: center;
   color: #128c7e;
   margin-bottom: 20px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
 `;
 
 const LoadingMessage = styled.div`
