@@ -44,7 +44,14 @@ function App() {
         setChats(preparedChats);
       } catch (error) {
         console.error('Errore nel caricamento iniziale delle chat:', error);
-        setError(error.message);
+        setError(`
+          Errore: ${error.message}
+          URL API: ${API_BASE_URL}
+          Controlla:
+          1. Che il backend sia attivo
+          2. Che non ci siano errori CORS
+          3. La console del browser per dettagli
+        `);
       } finally {
         setIsLoading(false);
       }

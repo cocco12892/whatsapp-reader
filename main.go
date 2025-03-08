@@ -286,8 +286,9 @@ func main() {
 	// Abilita CORS
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -302,8 +303,13 @@ func main() {
 	
 	// API per ottenere le ultime chat
 	router.GET("/api/chats", func(c *gin.Context) {
+		fmt.Println("Richiesta API /api/chats ricevuta")
+		fmt.Println("Headers:", c.Request.Header)
+		
 		mutex.RLock()
 		defer mutex.RUnlock()
+		
+		fmt.Println("Numero di chat trovate:", len(chats))
 		
 		// Converti la mappa in slice per ordinarla
 		var chatList []*Chat
@@ -326,6 +332,14 @@ func main() {
 	})
 	
 	// API per ottenere i messaggi di una chat specifica
+	// Endpoint di test
+	router.GET("/api/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"message": "Il backend funziona correttamente",
+		})
+	})
+
 	router.GET("/api/chats/:id/messages", func(c *gin.Context) {
 		chatID := c.Param("id")
 		
