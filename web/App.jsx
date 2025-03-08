@@ -359,14 +359,48 @@ function App() {
         )}
       </Box>
       
-      {modalImage && (
-        <ModalOverlay onClick={closeModal}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
-            <img src={modalImage} alt="Immagine ingrandita" />
-            <CloseButton onClick={closeModal}>&times;</CloseButton>
-          </ModalContent>
-        </ModalOverlay>
-      )}
+      <Dialog
+        open={!!modalImage}
+        onClose={closeModal}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            maxWidth: '90vw',
+            maxHeight: '90vh',
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <DialogContent sx={{ p: 0, position: 'relative' }}>
+          <IconButton
+            aria-label="close"
+            onClick={closeModal}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+              color: 'white',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              '&:hover': {
+                backgroundColor: 'rgba(0, 0, 0, 0.7)'
+              }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+          <img 
+            src={modalImage} 
+            alt="Immagine ingrandita" 
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              borderRadius: '4px'
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       <NotePopup
         open={notePopup.visible}
