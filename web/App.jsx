@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Helmet } from 'react-helmet';
 import './style.css';
 
 const API_BASE_URL = 'http://localhost:8080/api';
@@ -86,7 +87,11 @@ function App() {
   }
 
   return (
-    <div className="container">
+    <>
+      <Helmet>
+        <title>WhatsApp Web Viewer</title>
+      </Helmet>
+      <div className="container">
       <h1>WhatsApp Web Viewer</h1>
       
       {chats.length > 0 ? (
@@ -142,7 +147,8 @@ function App() {
       ) : (
         <div className="loading">Nessuna chat trovata</div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
