@@ -189,20 +189,47 @@ function App() {
                       bgcolor: 'background.default'
                     }} onScroll={handleScroll}>
                       {chat.messages.map((message) => (
-                        <MessageWrapper key={message.id}>
-                          <Message 
-                            $isSent={false}
+                        <Box key={message.id} sx={{ mb: 2 }}>
+                          <Box 
+                            sx={{
+                              p: 1.5,
+                              borderRadius: 2,
+                              bgcolor: 'background.paper',
+                              position: 'relative',
+                              maxWidth: '80%',
+                              float: 'left',
+                              clear: 'both'
+                            }}
                             onContextMenu={(e) => handleMessageRightClick(e, message.id)}
                           >
                             {getNote(message.id) && (
-                              <NoteIndicator onClick={(e) => handleMessageRightClick(e, message.id)}>
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  top: -5,
+                                  right: -5,
+                                  bgcolor: 'warning.main',
+                                  color: 'text.primary',
+                                  width: 16,
+                                  height: 16,
+                                  borderRadius: '50%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: 10,
+                                  cursor: 'pointer'
+                                }}
+                                onClick={(e) => handleMessageRightClick(e, message.id)}
+                              >
                                 !
-                              </NoteIndicator>
+                              </Box>
                             )}
-                            <MessageSender>{message.senderName}</MessageSender>
-                            <MessageContent>
+                            <Typography variant="caption" color="text.secondary">
+                              {message.senderName}
+                            </Typography>
+                            <Box>
                               {message.isMedia && message.content.includes('📷 Immagine') && (
-                                <div>
+                                <Box>
                                   {message.mediaPath && (
                                     <img 
                                       src={message.mediaPath} 
@@ -217,20 +244,26 @@ function App() {
                                       onError={(e) => e.target.style.display = 'none'}
                                     />
                                   )}
-                                </div>
+                                </Box>
                               )}
-                              <span>{message.content}</span>
-                            </MessageContent>
-                            <MessageTime>
+                              <Typography variant="body2">
+                                {message.content}
+                              </Typography>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ 
+                              display: 'block',
+                              textAlign: 'right',
+                              mt: 0.5
+                            }}>
                               {formatTime(message.timestamp)}
-                            </MessageTime>
-                          </Message>
-                        </MessageWrapper>
+                            </Typography>
+                          </Box>
+                        </Box>
                       ))}
-                    </ChatMessages>
-                  </ChatColumn>
+                    </Box>
+                  </Paper>
                 ))}
-              </ChatContainer>
+              </Box>
             ) : (
               <Typography variant="body1">Nessuna chat trovata</Typography>
             )}
