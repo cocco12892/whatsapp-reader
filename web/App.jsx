@@ -4,24 +4,7 @@ import { Helmet } from 'react-helmet';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { theme } from './styles/theme';
-import {
-  Container,
-  Title,
-  LoadingMessage,
-  ChatContainer,
-  ChatColumn,
-  ChatHeader,
-  ChatMessages,
-  Message,
-  NoteIndicator,
-  MessageSender,
-  MessageContent,
-  MessageTime,
-  ModalOverlay,
-  ModalContent,
-  CloseButton,
-  MessageWrapper
-} from './styles/components';
+import { Box, Typography, CircularProgress, Paper } from '@mui/material';
 
 const API_BASE_URL = '/api';
 const POLLING_INTERVAL = 5000; // 5 secondi
@@ -151,28 +134,60 @@ function App() {
       <Helmet>
         <title>WhatsApp Web Viewer</title>
       </Helmet>
-      <Container>
+      <Box sx={{ 
+        p: 3,
+        height: '100vh',
+        bgcolor: 'background.default'
+      }}>
         {isLoading ? (
-          <>
-            <Title>WhatsApp Web Viewer</Title>
-            <LoadingMessage>Caricamento chat in corso...</LoadingMessage>
-          </>
+          <Box sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%'
+          }}>
+            <Typography variant="h1" gutterBottom>WhatsApp Web Viewer</Typography>
+            <CircularProgress />
+            <Typography variant="body1" sx={{ mt: 2 }}>Caricamento chat in corso...</Typography>
+          </Box>
         ) : error ? (
           <>
-            <Title>WhatsApp Web Viewer</Title>
-            <LoadingMessage>Errore: {error}</LoadingMessage>
+            <Typography variant="h1" gutterBottom>WhatsApp Web Viewer</Typography>
+            <Typography color="error">Errore: {error}</Typography>
           </>
         ) : (
           <>
-            <Title>WhatsApp Web Viewer</Title>
+            <Typography variant="h1" gutterBottom>WhatsApp Web Viewer</Typography>
             {chats.length > 0 ? (
-              <ChatContainer>
+              <Box sx={{
+                display: 'flex',
+                gap: 3,
+                overflowX: 'auto',
+                pb: 2
+              }}>
                 {chats.map((chat) => (
-                  <ChatColumn key={chat.id}>
-                    <ChatHeader>
-                      <h2>{chat.name || 'Chat'}</h2>
-                    </ChatHeader>
-                    <ChatMessages onScroll={handleScroll}>
+                  <Paper key={chat.id} sx={{
+                    minWidth: 300,
+                    maxWidth: 400,
+                    height: '80vh',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <Box sx={{
+                      p: 2,
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'background.paper'
+                    }}>
+                      <Typography variant="h6">{chat.name || 'Chat'}</Typography>
+                    </Box>
+                    <Box sx={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      p: 2,
+                      bgcolor: 'background.default'
+                    }} onScroll={handleScroll}>
                       {chat.messages.map((message) => (
                         <MessageWrapper key={message.id}>
                           <Message 
@@ -217,7 +232,7 @@ function App() {
                 ))}
               </ChatContainer>
             ) : (
-              <LoadingMessage>Nessuna chat trovata</LoadingMessage>
+              <Typography variant="body1">Nessuna chat trovata</Typography>
             )}
           </>
         )}
