@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Helmet } from 'react-helmet';
 import styled from 'styled-components';
 
@@ -85,6 +85,40 @@ const MessageTime = styled.div`
   margin-top: 5px;
 `;
 
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  max-width: 90%;
+  max-height: 90%;
+  img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 5px;
+  }
+`;
+
+const CloseButton = styled.button`
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+`;
+
 const MessageWrapper = styled.div`
   &::after {
     content: "";
@@ -100,6 +134,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [modalImage, setModalImage] = useState(null);
 
   const fetchChats = async () => {
     try {
@@ -169,6 +204,14 @@ function App() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const handleImageClick = useCallback((imageSrc) => {
+    setModalImage(imageSrc);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalImage(null);
+  }, []);
+
   if (isLoading) {
     return (
       <Container>
@@ -213,7 +256,13 @@ function App() {
                                 <img 
                                   src={message.mediaPath} 
                                   alt="Immagine" 
-                                  style={{ maxWidth: '100%', borderRadius: '5px', marginTop: '10px' }}
+                                  style={{ 
+                                    maxWidth: '100%', 
+                                    borderRadius: '5px', 
+                                    marginTop: '10px',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={() => handleImageClick(message.mediaPath)}
                                   onError={(e) => e.target.style.display = 'none'}
                                 />
                               )}
@@ -235,6 +284,15 @@ function App() {
           <LoadingMessage>Nessuna chat trovata</LoadingMessage>
         )}
       </Container>
+      
+      {modalImage && (
+        <ModalOverlay onClick={closeModal}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <img src={modalImage} alt="Immagine ingrandita" />
+            <CloseButton onClick={closeModal}>&times;</CloseButton>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </>
   );
 }
