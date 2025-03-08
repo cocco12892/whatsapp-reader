@@ -61,14 +61,41 @@ function chatApp() {
         },
         
         // Avvia aggiornamento periodico
+        intervalId: null,
         startPeriodicUpdate() {
-            setInterval(() => this.updateChats(), 5000);
+            // Se c'è già un intervallo attivo, non crearne un altro
+            if (this.intervalId !== null) {
+                console.log('Aggiornamento periodico già attivo');
+                return;
+            }
+            
+            console.log('Avvio aggiornamento periodico ogni 5 secondi');
+            this.intervalId = setInterval(() => {
+                console.log('Esecuzione aggiornamento periodico...');
+                this.updateChats().catch(error => {
+                    console.error('Errore durante l\'aggiornamento:', error);
+                });
+            }, 5000);
+        },
+        
+        // Ferma l'aggiornamento periodico
+        stopPeriodicUpdate() {
+            if (this.intervalId !== null) {
+                console.log('Fermo aggiornamento periodico');
+                clearInterval(this.intervalId);
+                this.intervalId = null;
+            }
         },
         
         // Aggiorna le chat
         async updateChats() {
             // Esci se l'utente sta leggendo
-            if (this.isUserReading) return;
+            if (this.isUserReading) {
+                console.log('Aggiornamento saltato: utente sta leggendo');
+                return;
+            }
+            
+            console.log('Inizio aggiornamento chat...');
             
             try {
                 // Ottieni le chat
