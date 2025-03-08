@@ -363,17 +363,27 @@ function App() {
       <Dialog
         open={!!modalImage}
         onClose={closeModal}
-        maxWidth="lg"
+        maxWidth={false}
         fullWidth
         PaperProps={{
           sx: {
+            width: 'auto',
             maxWidth: '90vw',
             maxHeight: '90vh',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }
         }}
       >
-        <DialogContent sx={{ p: 0, position: 'relative' }}>
+        <DialogContent sx={{ 
+          p: 0, 
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
           <IconButton
             aria-label="close"
             onClick={closeModal}
@@ -390,16 +400,28 @@ function App() {
           >
             <CloseIcon />
           </IconButton>
-          <img 
-            src={modalImage} 
-            alt="Immagine ingrandita" 
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              borderRadius: '4px'
+          <Box
+            sx={{
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
-          />
+          >
+            <img 
+              src={modalImage} 
+              alt="Immagine ingrandita" 
+              style={{
+                maxWidth: '100%',
+                maxHeight: '90vh',
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+                borderRadius: '4px'
+              }}
+            />
+          </Box>
         </DialogContent>
       </Dialog>
 
