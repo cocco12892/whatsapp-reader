@@ -1,11 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
-  plugins: [react({
-    jsxRuntime: 'classic' // Per compatibilità con React 18
-  })],
-  logLevel: 'info',
+  plugins: [react()],
+  root: 'web',
   server: {
     port: 3000,
     proxy: {
@@ -15,10 +14,10 @@ export default defineConfig({
         secure: false,
       },
       '/images': {
-        target: 'http://localhost:8080', 
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
       }
     }
-  },
+  }
 });
