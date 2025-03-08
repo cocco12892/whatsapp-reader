@@ -77,7 +77,24 @@ function chatApp() {
                 
                 // Usa $nextTick per assicurare reattività
                 this.$nextTick(async () => {
-                    // Aggiorna ogni chat
+                    // Controlla se ci sono nuove chat
+                    const newChats = chats.filter(newChat => 
+                        !this.chats.some(existingChat => exisitingChat.id === newChat.id)
+                    );
+                    
+                    // Aggiungi nuove chat con i loro messaggi
+                    for (const newChat of newChats) {
+                        const messagesResponse = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(newChat.id)}/messages`);
+                        const messages = await messagesResponse.json();
+                        
+                        this.chats.push({
+                            ...newChat,
+                            messages: messages,
+                            isNew: true // Flag per evidenziare la nuova chat
+                        });
+                    }
+                    
+                    // Aggiorna le chat esistenti
                     for (let i = 0; i < chats.length; i++) {
                         const chat = chats[i];
                         
@@ -108,6 +125,11 @@ function chatApp() {
                                     ...this.chats[existingChatIndex].messages, 
                                     ...newMessages
                                 ];
+                                
+                                // Rimuovi il flag "isNew" se presente
+                                if (this.chats[existingChatIndex].isNew) {
+                                    this.chats[existingChatIndex].isNew = false;
+                                }
                                 
                                 // Scrolla all'ultimo messaggio
                                 this.$nextTick(() => {

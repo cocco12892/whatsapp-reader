@@ -37,6 +37,18 @@ h1 {
     padding: 10px;
     position: sticky;
     top: 0;
+    transition: background-color 0.3s ease;
+}
+
+.chat-header.new-chat {
+    background-color: #0d6e63;
+    animation: pulse 1s ease-in-out;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
 }
 
 .chat-header h2 {
