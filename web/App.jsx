@@ -118,11 +118,8 @@ function App() {
         }
         const messages = await messagesResponse.json();
         
-        if (!clientJID && messages.length > 0) {
-          setClientJID(messages[0].chat.includes('@g.us') 
-            ? messages[0].sender 
-            : messages[0].chat);
-        }
+        // Non impostiamo clientJID automaticamente
+        // Tutti i messaggi sono considerati ricevuti
         
         return {
           ...chat,
@@ -207,10 +204,8 @@ function App() {
                 <ChatMessages onScroll={handleScroll}>
                   {chat.messages.map((message) => (
                     <MessageWrapper key={message.id}>
-                      <Message $isSent={message.sender === clientJID}>
-                        {message.sender !== clientJID && (
-                          <MessageSender>{message.senderName}</MessageSender>
-                        )}
+                      <Message $isSent={false}>
+                        <MessageSender>{message.senderName}</MessageSender>
                         <MessageContent>
                           {message.isMedia && message.content.includes('📷 Immagine') && (
                             <div>
