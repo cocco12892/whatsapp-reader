@@ -17,6 +17,7 @@ function App() {
   const [error, setError] = useState(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState({});
+  const [lastSeenMessages, setLastSeenMessages] = useState({});
   const [modalImage, setModalImage] = useState(null);
   const [notePopup, setNotePopup] = useState({
     visible: false,
@@ -94,13 +95,42 @@ function App() {
 
   const handleScroll = (e) => {
     const element = e.target;
+    const chatId = element.dataset.chatId;
     const isAtBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 50;
     setIsUserScrolling(!isAtBottom);
-    
+
+    // Trova l'ultimo messaggio visibile
+    const visibleMessages = chat.messages.filter(message => {
+      const messageElement = document.getElementById(`message-${message.id}`);
+      if (messageElement) {
+        const rect = messageElement.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= window.innerHeight;
+      }
+      return false;
+    });
+
+    if (visibleMessages.length > 0) {
+      const lastVisibleMessage = visibleMessages[visibleMessages.length - 1];
+      setLastSeenMessages(prev => ({
+        ...prev,
+        [chatId]: lastVisibleMessage.timestamp
+      }));
+
+      // Aggiorna i messaggi non letti
+      const totalMessages = chats.find(c => c.id === chatId)?.messages.length || 0;
+      const seenMessages = chats.find(c => c.id === chatId)?.messages
+        .filter(m => new Date(m.timestamp) <= new Date(lastVisibleMessage.timestamp)).length || 0;
+
+      setUnreadMessages(prev => ({
+        ...prev,
+        [chatId]: Math.max(0, totalMessages - seenMessages)
+      }));
+    }
+
     if (isAtBottom) {
       setUnreadMessages(prev => ({
         ...prev,
-        [element.dataset.chatId]: 0
+        [chatId]: 0
       }));
     }
   };
@@ -246,7 +276,8 @@ function App() {
                       )}
                       {chat.messages.map((message) => (
                         <Box key={message.id} sx={{ mb: 2 }}>
-                          <Box 
+                          <Box
+                            id={`message-${message.id}`}
                             sx={{
                               p: 1.5,
                               borderRadius: 2,
@@ -255,7 +286,9 @@ function App() {
                               maxWidth: '80%',
                               float: 'left',
                               clear: 'both',
-                              mb: 2
+                              mb: 2,
+                              opacity: lastSeenMessages[chat.id] && 
+                                new Date(message.timestamp) <= new Date(lastSeenMessages[chat.id]) ? 0.8 : 1
                             }}
                             onContextMenu={(e) => handleMessageRightClick(e, message.id)}
                           >
