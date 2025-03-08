@@ -100,6 +100,23 @@ const NotePopup = styled.div`
   display: ${props => props.$visible ? 'block' : 'none'};
 `;
 
+const NoteCloseButton = styled.button`
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  
+  &:hover {
+    color: #000;
+  }
+`;
+
 const MessageSender = styled.div`
   font-weight: bold;
   font-size: 12px;
@@ -380,11 +397,14 @@ function App() {
           top: notePopup.position.y
         }}
       >
+        <NoteCloseButton onClick={() => setNotePopup(prev => ({ ...prev, visible: false }))}>
+          &times;
+        </NoteCloseButton>
         <textarea
           value={notePopup.note}
           onChange={handleNoteChange}
           rows={4}
-          style={{ width: '100%' }}
+          style={{ width: '100%', marginBottom: '10px' }}
           placeholder="Aggiungi una nota..."
         />
         <button onClick={handleSaveNote}>Salva</button>
