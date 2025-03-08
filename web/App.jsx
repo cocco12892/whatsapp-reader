@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import NotePopup from './components/NotePopup';
 import { Helmet } from 'react-helmet';
 import styled from 'styled-components';
 
@@ -89,33 +90,6 @@ const NoteIndicator = styled.div`
   cursor: pointer;
 `;
 
-const NotePopup = styled.div`
-  position: absolute;
-  z-index: 100;
-  background: white;
-  padding: 10px;
-  border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  min-width: 200px;
-  display: ${props => props.$visible ? 'block' : 'none'};
-`;
-
-const NoteCloseButton = styled.button`
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background: none;
-  border: none;
-  color: #666;
-  font-size: 16px;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  
-  &:hover {
-    color: #000;
-  }
-`;
 
 const MessageSender = styled.div`
   font-weight: bold;
@@ -390,25 +364,14 @@ function App() {
         </ModalOverlay>
       )}
 
-      <NotePopup 
-        $visible={notePopup.visible}
-        style={{
-          left: notePopup.position.x,
-          top: notePopup.position.y
-        }}
-      >
-        <NoteCloseButton onClick={() => setNotePopup(prev => ({ ...prev, visible: false }))}>
-          &times;
-        </NoteCloseButton>
-        <textarea
-          value={notePopup.note}
-          onChange={handleNoteChange}
-          rows={4}
-          style={{ width: '100%', marginBottom: '10px' }}
-          placeholder="Aggiungi una nota..."
-        />
-        <button onClick={handleSaveNote}>Salva</button>
-      </NotePopup>
+      <NotePopup
+        open={notePopup.visible}
+        onClose={() => setNotePopup(prev => ({ ...prev, visible: false }))}
+        note={notePopup.note}
+        onChange={handleNoteChange}
+        onSave={handleSaveNote}
+        position={notePopup.position}
+      />
     </>
   );
 }
