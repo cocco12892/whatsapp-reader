@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+console.log('Componente App caricato');
 import { Helmet } from 'react-helmet';
 import './style.css';
 
