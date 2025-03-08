@@ -1,56 +1,160 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
-import './style.css';
+import styled from 'styled-components';
 
 const API_BASE_URL = '/api';
+const POLLING_INTERVAL = 5000; // 5 secondi
+
+const Container = styled.div`
+  max-width: 1600px;
+  margin: 0 auto;
+`;
+
+const Title = styled.h1`
+  text-align: center;
+  color: #128c7e;
+  margin-bottom: 20px;
+`;
+
+const LoadingMessage = styled.div`
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-size: 1.2em;
+`;
+
+const ChatContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+`;
+
+const ChatColumn = styled.div`
+  flex: 1;
+  min-width: 300px;
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+`;
+
+const ChatHeader = styled.div`
+  background-color: #128c7e;
+  color: white;
+  padding: 10px;
+  position: sticky;
+  top: 0;
+  
+  h2 {
+    margin: 0;
+    font-size: 16px;
+  }
+`;
+
+const ChatMessages = styled.div`
+  padding: 10px;
+  height: calc(100vh - 150px);
+  overflow-y: auto;
+`;
+
+const Message = styled.div`
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  max-width: 80%;
+  position: relative;
+  background-color: ${props => props.$isSent ? '#dcf8c6' : '#f0f0f0'};
+  float: ${props => props.$isSent ? 'right' : 'left'};
+  clear: both;
+`;
+
+const MessageSender = styled.div`
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 5px;
+`;
+
+const MessageContent = styled.div`
+  word-break: break-word;
+`;
+
+const MessageTime = styled.div`
+  font-size: 10px;
+  color: #999;
+  text-align: right;
+  margin-top: 5px;
+`;
+
+const MessageWrapper = styled.div`
+  &::after {
+    content: "";
+    clear: both;
+    display: table;
+  }
+`;
 
 function App() {
   const [chats, setChats] = useState([]);
   const [clientJID, setClientJID] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+
+  const fetchChats = async () => {
+    try {
+      console.log("Fetching chats...");
+      const response = await fetch(`${API_BASE_URL}/chats`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const chatsData = await response.json();
+      console.log("Received chats data:", chatsData);
+      
+      const preparedChats = await Promise.all(chatsData.map(async (chat) => {
+        const messagesResponse = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chat.id)}/messages`);
+        if (!messagesResponse.ok) {
+          throw new Error(`HTTP error! status: ${messagesResponse.status}`);
+        }
+        const messages = await messagesResponse.json();
+        
+        if (!clientJID && messages.length > 0) {
+          setClientJID(messages[0].chat.includes('@g.us') 
+            ? messages[0].sender 
+            : messages[0].chat);
+        }
+        
+        return {
+          ...chat,
+          messages: messages
+        };
+      }));
+      
+      setChats(preparedChats);
+    } catch (error) {
+      console.error('Errore nel caricamento delle chat:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const initializeChats = async () => {
-      try {
-        console.log("Fetching chats...");
-        const response = await fetch(`${API_BASE_URL}/chats`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const chatsData = await response.json();
-        console.log("Received chats data:", chatsData);
-        
-        const preparedChats = await Promise.all(chatsData.map(async (chat) => {
-          const messagesResponse = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chat.id)}/messages`);
-          if (!messagesResponse.ok) {
-            throw new Error(`HTTP error! status: ${messagesResponse.status}`);
-          }
-          const messages = await messagesResponse.json();
-          
-          if (!clientJID && messages.length > 0) {
-            setClientJID(messages[0].chat.includes('@g.us') 
-              ? messages[0].sender 
-              : messages[0].chat);
-          }
-          
-          return {
-            ...chat,
-            messages: messages
-          };
-        }));
-        
-        setChats(preparedChats);
-      } catch (error) {
-        console.error('Errore nel caricamento delle chat:', error);
-        setError(error.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    fetchChats();
 
-    initializeChats();
-  }, [clientJID]);
+    const intervalId = setInterval(() => {
+      if (!isUserScrolling) {
+        fetchChats();
+      }
+    }, POLLING_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [clientJID, isUserScrolling]);
+
+  const handleScroll = (e) => {
+    const element = e.target;
+    const isAtBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 50;
+    setIsUserScrolling(!isAtBottom);
+  };
 
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
@@ -59,19 +163,19 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="container">
-        <h1>WhatsApp Web Viewer</h1>
-        <div className="loading">Caricamento chat in corso...</div>
-      </div>
+      <Container>
+        <Title>WhatsApp Web Viewer</Title>
+        <LoadingMessage>Caricamento chat in corso...</LoadingMessage>
+      </Container>
     );
   }
 
   if (error) {
     return (
-      <div className="container">
-        <h1>WhatsApp Web Viewer</h1>
-        <div className="error">Errore: {error}</div>
-      </div>
+      <Container>
+        <Title>WhatsApp Web Viewer</Title>
+        <LoadingMessage>Errore: {error}</LoadingMessage>
+      </Container>
     );
   }
 
@@ -80,23 +184,23 @@ function App() {
       <Helmet>
         <title>WhatsApp Web Viewer</title>
       </Helmet>
-      <div className="container">
-        <h1>WhatsApp Web Viewer</h1>
+      <Container>
+        <Title>WhatsApp Web Viewer</Title>
         {chats.length > 0 ? (
-          <div className="chat-container">
+          <ChatContainer>
             {chats.map((chat) => (
-              <div className="chat-column" key={chat.id}>
-                <div className="chat-header">
+              <ChatColumn key={chat.id}>
+                <ChatHeader>
                   <h2>{chat.name || 'Chat'}</h2>
-                </div>
-                <div className="chat-messages">
+                </ChatHeader>
+                <ChatMessages onScroll={handleScroll}>
                   {chat.messages.map((message) => (
-                    <div className="clearfix" key={message.id}>
-                      <div className={`message ${message.sender === clientJID ? 'message-sent' : 'message-received'}`}>
+                    <MessageWrapper key={message.id}>
+                      <Message $isSent={message.sender === clientJID}>
                         {message.sender !== clientJID && (
-                          <div className="message-sender">{message.senderName}</div>
+                          <MessageSender>{message.senderName}</MessageSender>
                         )}
-                        <div className="message-content">
+                        <MessageContent>
                           {message.isMedia && message.content.includes('📷 Immagine') && (
                             <div>
                               {message.mediaPath && (
@@ -110,21 +214,21 @@ function App() {
                             </div>
                           )}
                           <span>{message.content}</span>
-                        </div>
-                        <div className="message-time">
+                        </MessageContent>
+                        <MessageTime>
                           {formatTime(message.timestamp)}
-                        </div>
-                      </div>
-                    </div>
+                        </MessageTime>
+                      </Message>
+                    </MessageWrapper>
                   ))}
-                </div>
-              </div>
+                </ChatMessages>
+              </ChatColumn>
             ))}
-          </div>
+          </ChatContainer>
         ) : (
-          <div className="loading">Nessuna chat trovata</div>
+          <LoadingMessage>Nessuna chat trovata</LoadingMessage>
         )}
-      </div>
+      </Container>
     </>
   );
 }
