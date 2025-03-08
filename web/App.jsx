@@ -95,6 +95,7 @@ const MessageWrapper = styled.div`
 
 function App() {
   const [chats, setChats] = useState([]);
+  const [chatOrder, setChatOrder] = useState([]);
   const [clientJID, setClientJID] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -129,7 +130,17 @@ function App() {
         };
       }));
       
-      setChats(preparedChats);
+      // Manteniamo l'ordine esistente delle chat
+      const orderedChats = chatOrder.length > 0 
+        ? chatOrder.map(id => preparedChats.find(c => c.id === id)).filter(c => c)
+        : preparedChats;
+      
+      // Aggiorniamo l'ordine se ci sono nuove chat
+      if (chatOrder.length !== orderedChats.length) {
+        setChatOrder(orderedChats.map(c => c.id));
+      }
+      
+      setChats(orderedChats);
     } catch (error) {
       console.error('Errore nel caricamento delle chat:', error);
       setError(error.message);
