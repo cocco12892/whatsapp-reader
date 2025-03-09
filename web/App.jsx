@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import NotePopup from './components/NotePopup';
+import ChatWindow from './components/ChatWindow';
 import { Helmet } from 'react-helmet';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
