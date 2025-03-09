@@ -2,7 +2,16 @@ import React from 'react';
 import { Box, Paper, Typography } from '@mui/material';
 import MessageList from './MessageList';
 
-function ChatWindow({ chat, unreadMessages, handleScroll, handleImageClick, handleMessageRightClick, getNote }) {
+function ChatWindow({ 
+  chat, 
+  unreadMessages, 
+  handleScroll, 
+  handleImageClick, 
+  handleMessageRightClick, 
+  getNote,
+  lastSeenMessages,
+  seenMessages
+}) {
   return (
     <Paper sx={{
       minWidth: 300,
@@ -65,6 +74,8 @@ function ChatWindow({ chat, unreadMessages, handleScroll, handleImageClick, hand
           handleImageClick={handleImageClick}
           handleMessageRightClick={handleMessageRightClick}
           getNote={getNote}
+          lastSeenMessages={lastSeenMessages}
+          seenMessages={seenMessages}
         />
       </Box>
     </Paper>

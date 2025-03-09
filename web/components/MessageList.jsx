@@ -40,7 +40,7 @@ function MessageList({ messages, handleImageClick, handleMessageRightClick, getN
 
   return (
     <Box onClick={closeContextMenu}>
-      {[...messages].reverse().map((message) => (
+      {messages.map((message) => (
         <Box key={message.id} sx={{ mb: 2 }}>
           <Box
             id={`message-${message.id}`}
@@ -53,6 +53,14 @@ function MessageList({ messages, handleImageClick, handleMessageRightClick, getN
               float: 'left',
               clear: 'both',
               mb: 2,
+              opacity: lastSeenMessages[chat.id] && 
+                new Date(message.timestamp) <= new Date(lastSeenMessages[chat.id]) ? 0.8 : 1,
+              animation: seenMessages.has(message.id) ? 'none' : 'blink 1.5s infinite',
+              '@keyframes blink': {
+                '0%': { backgroundColor: 'background.paper' },
+                '50%': { backgroundColor: '#fff9c4' },
+                '100%': { backgroundColor: 'background.paper' }
+              },
               '&:hover': {
                 animation: 'none'
               }
