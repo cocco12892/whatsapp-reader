@@ -97,15 +97,15 @@ function App() {
   const handleScroll = (e) => {
     const element = e.target;
     const chatId = element.dataset.chatId;
-    const isAtBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 50;
-    setIsUserScrolling(!isAtBottom);
+    const isAtTop = element.scrollTop < 50;
+    setIsUserScrolling(!isAtTop);
 
     // Trova l'ultimo messaggio visibile
     const visibleMessages = chat.messages.filter(message => {
       const messageElement = document.getElementById(`message-${message.id}`);
       if (messageElement) {
         const rect = messageElement.getBoundingClientRect();
-        return rect.top >= 0 && rect.bottom <= window.innerHeight;
+        return rect.top >= 0 && rect.bottom <= element.clientHeight;
       }
       return false;
     });
@@ -243,10 +243,18 @@ function App() {
                         overflowY: 'auto',
                         p: 2,
                         bgcolor: 'background.default',
-                        position: 'relative'
+                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'column-reverse'
                       }} 
                       onScroll={handleScroll}
                       data-chat-id={chat.id}
+                      ref={element => {
+                        if (element) {
+                          // Scroll automatico in fondo al caricamento
+                          element.scrollTop = element.scrollHeight;
+                        }
+                      }}
                     >
                       {unreadMessages[chat.id] > 0 && (
                         <Box
@@ -275,7 +283,7 @@ function App() {
                           {unreadMessages[chat.id]}
                         </Box>
                       )}
-                      {chat.messages.map((message) => (
+                      {[...chat.messages].reverse().map((message) => (
                         <Box key={message.id} sx={{ mb: 2 }}>
                           <Box
                             id={`message-${message.id}`}
