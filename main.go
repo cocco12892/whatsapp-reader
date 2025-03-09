@@ -322,8 +322,8 @@ func main() {
 			return chatList[i].LastMessage.Timestamp.After(chatList[j].LastMessage.Timestamp)
 		})
 		
-		// Prendi solo le ultime 5 (o meno se ce ne sono meno di 5)
-		limit := 5
+		// Prendi solo le ultime 10 (o meno se ce ne sono meno di 10)
+		limit := 10
 		if len(chatList) < limit {
 			limit = len(chatList)
 		}
