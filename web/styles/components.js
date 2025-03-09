@@ -67,14 +67,14 @@ export const Message = styled.div`
   clear: both;
   cursor: context-menu;
   overflow: visible;
+  outline: none;
   
   &:hover {
     background-color: ${props => props.$isSent ? '#c5e8b7' : '#e0e0e0'};
-    
-    .quick-actions {
-      opacity: 1;
-      pointer-events: auto;
-    }
+  }
+  
+  &:focus {
+    box-shadow: 0 0 0 2px rgba(18, 140, 126, 0.5);
   }
 `;
 
