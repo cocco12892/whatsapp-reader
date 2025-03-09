@@ -65,20 +65,29 @@ function MessageList({
                 new Date(message.timestamp) <= new Date(lastSeenMessages[chat.id]) ? 0.8 : 1,
               transform: 'translateY(0)',
               transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              animation: seenMessages.has(message.id) ? 'none' : 'blink 1.5s infinite',
+              '@keyframes blink': {
+                '0%': { backgroundColor: 'background.paper' },
+                '50%': { backgroundColor: '#fff9c4' },
+                '100%': { backgroundColor: 'background.paper' }
+              },
               '&:hover': {
                 transform: 'translateY(-2px)',
-                boxShadow: 2
+                boxShadow: 2,
+                animation: 'none'
               }
             }}
             onContextMenu={(e) => handleContextMenu(e, message.id)}
             tabIndex={0}
             onKeyDown={(e) => handleKeyDown(e, message.id)}
             onMouseEnter={() => {
-              setSeenMessages(prev => new Set([...prev, message.id]));
-              // Rimuovi l'animazione quando il mouse entra
-              const messageElement = document.getElementById(`message-${message.id}`);
-              if (messageElement) {
-                messageElement.style.animation = 'none';
+              if (!seenMessages.has(message.id)) {
+                setSeenMessages(prev => new Set([...prev, message.id]));
+                // Aggiorna lastSeenMessages per questa chat
+                setLastSeenMessages(prev => ({
+                  ...prev,
+                  [chat.id]: message.timestamp
+                }));
               }
             }}
           >
