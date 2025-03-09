@@ -63,16 +63,9 @@ function MessageList({
               mb: 2,
               opacity: lastSeenMessages && chat && lastSeenMessages[chat.id] && 
                 new Date(message.timestamp) <= new Date(lastSeenMessages[chat.id]) ? 0.8 : 1,
-              animation: seenMessages.has(message.id) ? 'none' : 'blink 1.5s infinite',
               transform: 'translateY(0)',
-              transition: 'transform 0.2s ease',
-              '@keyframes blink': {
-                '0%': { backgroundColor: 'background.paper' },
-                '50%': { backgroundColor: '#fff9c4' },
-                '100%': { backgroundColor: 'background.paper' }
-              },
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
               '&:hover': {
-                animation: 'none',
                 transform: 'translateY(-2px)',
                 boxShadow: 2
               }
@@ -82,6 +75,11 @@ function MessageList({
             onKeyDown={(e) => handleKeyDown(e, message.id)}
             onMouseEnter={() => {
               setSeenMessages(prev => new Set([...prev, message.id]));
+              // Rimuovi l'animazione quando il mouse entra
+              const messageElement = document.getElementById(`message-${message.id}`);
+              if (messageElement) {
+                messageElement.style.animation = 'none';
+              }
             }}
           >
             {getNote(message.id) && (
