@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import { Box, Typography } from '@mui/material';
 
-function MessageList({ messages, handleImageClick, handleMessageRightClick, getNote }) {
+function MessageList({ 
+  messages, 
+  handleImageClick, 
+  handleMessageRightClick, 
+  getNote,
+  lastSeenMessages,
+  seenMessages,
+  chat // Aggiungiamo chat per accedere all'ID
+}) {
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null });
 
   const handleContextMenu = (e, messageId) => {
@@ -53,7 +61,7 @@ function MessageList({ messages, handleImageClick, handleMessageRightClick, getN
               float: 'left',
               clear: 'both',
               mb: 2,
-              opacity: lastSeenMessages[chat.id] && 
+              opacity: lastSeenMessages && chat && lastSeenMessages[chat.id] && 
                 new Date(message.timestamp) <= new Date(lastSeenMessages[chat.id]) ? 0.8 : 1,
               animation: seenMessages.has(message.id) ? 'none' : 'blink 1.5s infinite',
               '@keyframes blink': {

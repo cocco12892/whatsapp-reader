@@ -76,6 +76,7 @@ function ChatWindow({
           getNote={getNote}
           lastSeenMessages={lastSeenMessages}
           seenMessages={seenMessages}
+          chat={chat} // Passiamo chat al componente
         />
       </Box>
     </Paper>
