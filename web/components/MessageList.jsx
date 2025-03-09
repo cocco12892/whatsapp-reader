@@ -3,13 +3,15 @@ import styled from 'styled-components';
 
 const QuickActions = styled.div`
   position: absolute;
-  right: 10px;
+  right: -80px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   gap: 8px;
   opacity: 0;
   transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 1;
 `;
 
 const QuickButton = styled.button`

@@ -66,12 +66,14 @@ export const Message = styled.div`
   float: ${props => props.$isSent ? 'right' : 'left'};
   clear: both;
   cursor: context-menu;
+  overflow: visible;
   
   &:hover {
     background-color: ${props => props.$isSent ? '#c5e8b7' : '#e0e0e0'};
     
     .quick-actions {
       opacity: 1;
+      pointer-events: auto;
     }
   }
 `;
