@@ -139,7 +139,15 @@ function App() {
 
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const today = new Date();
+
+    // Controlla se è oggi
+    if (date.toDateString() === today.toDateString()) {
+      return `Oggi ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      return `${date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} ${date.toLocaleTimeString([], { hour:
+'2-digit', minute: '2-digit' })}`;
+    }
   };
 
   const handleImageClick = useCallback((imageSrc) => {
@@ -252,8 +260,10 @@ function App() {
                       data-chat-id={chat.id}
                       ref={element => {
                         if (element) {
-                          // Scroll automatico in fondo al caricamento
-                          element.scrollTop = element.scrollHeight;
+                          // Scroll automatico in fondo solo al primo caricamento
+                          if (chats.length === 0) {
+                            element.scrollTop = element.scrollHeight;
+                          }
                         }
                       }}
                     >
