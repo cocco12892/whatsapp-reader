@@ -6,10 +6,20 @@ function MessageList({
   handleImageClick, 
   handleMessageRightClick, 
   getNote,
-  lastSeenMessages,
-  seenMessages,
-  chat // Aggiungiamo chat per accedere all'ID
+  lastSeenMessages: initialLastSeen,
+  seenMessages: initialSeen,
+  chat
 }) {
+  // Carica lo stato iniziale da localStorage
+  const [seenMessages, setSeenMessages] = useState(() => {
+    const stored = localStorage.getItem(`seenMessages_${chat.id}`);
+    return new Set(stored ? JSON.parse(stored) : initialSeen);
+  });
+
+  const [lastSeenMessages, setLastSeenMessages] = useState(() => {
+    const stored = localStorage.getItem('lastSeenMessages');
+    return stored ? JSON.parse(stored) : initialLastSeen;
+  });
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null });
 
   const handleContextMenu = (e, messageId) => {
@@ -82,12 +92,23 @@ function MessageList({
             onKeyDown={(e) => handleKeyDown(e, message.id)}
             onMouseEnter={() => {
               if (!seenMessages.has(message.id)) {
-                setSeenMessages(prev => new Set([...prev, message.id]));
+                // Aggiungi il messaggio ai visti
+                setSeenMessages(prev => {
+                  const newSet = new Set([...prev, message.id]);
+                  // Salva nello storage per persistenza
+                  localStorage.setItem(`seenMessages_${chat.id}`, JSON.stringify([...newSet]));
+                  return newSet;
+                });
+                
                 // Aggiorna lastSeenMessages per questa chat
-                setLastSeenMessages(prev => ({
-                  ...prev,
-                  [chat.id]: message.timestamp
-                }));
+                setLastSeenMessages(prev => {
+                  const newLastSeen = {
+                    ...prev,
+                    [chat.id]: message.timestamp
+                  };
+                  localStorage.setItem('lastSeenMessages', JSON.stringify(newLastSeen));
+                  return newLastSeen;
+                });
               }
             }}
           >
