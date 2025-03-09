@@ -19,6 +19,7 @@ function App() {
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState({});
   const [lastSeenMessages, setLastSeenMessages] = useState({});
+  const [seenMessages, setSeenMessages] = useState(new Set());
   const [modalImage, setModalImage] = useState(null);
   const [notePopup, setNotePopup] = useState({
     visible: false,
@@ -297,7 +298,19 @@ function App() {
                               clear: 'both',
                               mb: 2,
                               opacity: lastSeenMessages[chat.id] && 
-                                new Date(message.timestamp) <= new Date(lastSeenMessages[chat.id]) ? 0.8 : 1
+                                new Date(message.timestamp) <= new Date(lastSeenMessages[chat.id]) ? 0.8 : 1,
+                              animation: seenMessages.has(message.id) ? 'none' : 'blink 1.5s infinite',
+                              '@keyframes blink': {
+                                '0%': { backgroundColor: 'background.paper' },
+                                '50%': { backgroundColor: '#fff9c4' },
+                                '100%': { backgroundColor: 'background.paper' }
+                              },
+                              '&:hover': {
+                                animation: 'none'
+                              }
+                            }}
+                            onMouseEnter={() => {
+                              setSeenMessages(prev => new Set([...prev, message.id]));
                             }}
                             onContextMenu={(e) => handleMessageRightClick(e, message.id)}
                           >
