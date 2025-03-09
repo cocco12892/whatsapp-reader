@@ -69,6 +69,10 @@ export const Message = styled.div`
   
   &:hover {
     background-color: ${props => props.$isSent ? '#c5e8b7' : '#e0e0e0'};
+    
+    .quick-actions {
+      opacity: 1;
+    }
   }
 `;
 
