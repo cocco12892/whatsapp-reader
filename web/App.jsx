@@ -239,6 +239,8 @@ function App() {
                     handleImageClick={handleImageClick}
                     handleMessageRightClick={handleMessageRightClick}
                     getNote={getNote}
+                    lastSeenMessages={lastSeenMessages}
+                    seenMessages={seenMessages}
                   />
                 ))}
               </Box>
