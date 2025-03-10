@@ -1,6 +1,39 @@
 import React, { useState } from 'react';
 import { Box, Typography } from '@mui/material';
 
+function ReplyContext({ message }) {
+  // Se non è un messaggio di risposta, non mostrare nulla
+  if (!message.isReply) return null;
+
+  return (
+    <Box 
+      sx={{
+        bgcolor: 'action.hover',
+        borderLeft: '4px solid',
+        borderColor: 'primary.main',
+        p: 1,
+        mb: 1,
+        borderRadius: 1,
+        maxWidth: '100%',
+        overflow: 'hidden'
+      }}
+    >
+      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+        Risposta a: {message.replyToSender}
+      </Typography>
+      <Typography 
+        variant="body2" 
+        sx={{ 
+          whiteSpace: 'nowrap', 
+          overflow: 'hidden', 
+          textOverflow: 'ellipsis' 
+        }}
+      >
+        {message.replyToContent}
+      </Typography>
+    </Box>
+  );
+}
 function MessageList({ 
   messages, 
   handleImageClick, 
@@ -134,6 +167,7 @@ function MessageList({
                 !
               </Box>
             )}
+            <ReplyContext message={message} />
             <Typography variant="caption" color="text.secondary">
               {message.senderName}
             </Typography>
