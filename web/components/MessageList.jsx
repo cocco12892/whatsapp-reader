@@ -1,39 +1,8 @@
-import React, { useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Badge } from '@mui/material';
+import MicIcon from '@mui/icons-material/Mic';
+import ReplyContext from './ReplyContext';
 
-function ReplyContext({ message }) {
-  // Se non è un messaggio di risposta, non mostrare nulla
-  if (!message.isReply) return null;
-
-  return (
-    <Box 
-      sx={{
-        bgcolor: 'action.hover',
-        borderLeft: '4px solid',
-        borderColor: 'primary.main',
-        p: 1,
-        mb: 1,
-        borderRadius: 1,
-        maxWidth: '100%',
-        overflow: 'hidden'
-      }}
-    >
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>
-        Risposta a: {message.replyToSender}
-      </Typography>
-      <Typography 
-        variant="body2" 
-        sx={{ 
-          whiteSpace: 'nowrap', 
-          overflow: 'hidden', 
-          textOverflow: 'ellipsis' 
-        }}
-      >
-        {message.replyToContent}
-      </Typography>
-    </Box>
-  );
-}
 function MessageList({ 
   messages, 
   handleImageClick, 
@@ -53,6 +22,13 @@ function MessageList({
     const stored = localStorage.getItem('lastSeenMessages');
     return stored ? JSON.parse(stored) : initialLastSeen;
   });
+
+  // Stato per i messaggi registrati
+  const [recordedMessages, setRecordedMessages] = useState(() => {
+    const stored = localStorage.getItem(`recordedMessages_${chat.id}`);
+    return new Set(stored ? JSON.parse(stored) : []);
+  });
+
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null });
 
   const handleContextMenu = (e, messageId) => {
@@ -74,6 +50,46 @@ function MessageList({
 
   const handleRecord = (messageId) => {
     console.log('Registrazione per messaggio:', messageId);
+    
+    // Aggiungi o rimuovi il messaggio dai registrati (toggle)
+    setRecordedMessages(prev => {
+      const newSet = new Set([...prev]);
+      
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      
+      // Salva nello storage per persistenza
+      localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
+      return newSet;
+    });
+    
+    // Aggiungi un effetto visivo temporaneo al messaggio
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (messageElement) {
+      messageElement.style.animation = 'recordPulse 0.8s';
+      
+      // Se non esiste lo stile per l'animazione, aggiungilo
+      if (!document.getElementById('record-animation')) {
+        const styleTag = document.createElement('style');
+        styleTag.id = 'record-animation';
+        styleTag.innerHTML = `
+          @keyframes recordPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); background-color: rgba(233, 30, 99, 0.2); }
+            100% { transform: scale(1); }
+          }
+        `;
+        document.head.appendChild(styleTag);
+      }
+      
+      // Rimuovi l'animazione dopo che è finita
+      setTimeout(() => {
+        messageElement.style.animation = '';
+      }, 800);
+    }
   };
 
   const closeContextMenu = () => {
@@ -90,7 +106,7 @@ function MessageList({
   };
 
   return (
-    <Box onClick={closeContextMenu}>
+    <Box onClick={closeContextMenu} className="message-container">
       {messages.map((message) => (
         <Box key={message.id} sx={{ mb: 2 }}>
           <Box
@@ -98,7 +114,7 @@ function MessageList({
             sx={{
               p: 1.5,
               borderRadius: 2,
-              bgcolor: 'background.paper',
+              bgcolor: recordedMessages.has(message.id) ? 'rgba(233, 30, 99, 0.1)' : 'background.paper',
               position: 'relative',
               maxWidth: '80%',
               float: 'left',
@@ -107,7 +123,7 @@ function MessageList({
               opacity: lastSeenMessages && chat && lastSeenMessages[chat.id] && 
                 new Date(message.timestamp) <= new Date(lastSeenMessages[chat.id]) ? 0.8 : 1,
               transform: 'translateY(0)',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease',
               animation: seenMessages.has(message.id) ? 'none' : 'blink 1.5s infinite',
               '@keyframes blink': {
                 '0%': { backgroundColor: 'background.paper' },
@@ -118,7 +134,8 @@ function MessageList({
                 transform: 'translateY(-2px)',
                 boxShadow: 2,
                 animation: 'none'
-              }
+              },
+              border: recordedMessages.has(message.id) ? '2px solid rgba(233, 30, 99, 0.5)' : 'none'
             }}
             onContextMenu={(e) => handleContextMenu(e, message.id)}
             tabIndex={0}
@@ -145,32 +162,59 @@ function MessageList({
               }
             }}
           >
-            {getNote(message.id) && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: -5,
-                  right: -5,
-                  bgcolor: 'warning.main',
-                  color: 'text.primary',
-                  width: 16,
-                  height: 16,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 10,
-                  cursor: 'pointer'
-                }}
-                onClick={(e) => handleMessageRightClick(e, message.id)}
-              >
-                !
-              </Box>
-            )}
-            <ReplyContext message={message} />
+            {/* Indicatori in alto a destra del messaggio */}
+            <Box sx={{ position: 'absolute', top: -5, right: -5, display: 'flex', gap: 1 }}>
+              {getNote(message.id) && (
+                <Box
+                  sx={{
+                    bgcolor: 'warning.main',
+                    color: 'text.primary',
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 10,
+                    cursor: 'pointer'
+                  }}
+                  onClick={(e) => handleMessageRightClick(e, message.id)}
+                >
+                  !
+                </Box>
+              )}
+              
+              {recordedMessages.has(message.id) && (
+                <Box
+                  sx={{
+                    bgcolor: '#e91e63', // Pink-500
+                    color: 'white',
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 10,
+                    cursor: 'pointer'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRecord(message.id);
+                  }}
+                  title="Messaggio registrato"
+                >
+                  <MicIcon sx={{ fontSize: 10 }} />
+                </Box>
+              )}
+            </Box>
+            
+            <ReplyContext message={message} messages={messages} />
+            
             <Typography variant="caption" color="text.secondary">
               {message.senderName}
             </Typography>
+            
             <Box>
               {message.isMedia && message.mediaPath && (
                 <img 
@@ -192,6 +236,7 @@ function MessageList({
                 </Typography>
               )}
             </Box>
+            
             <Typography variant="caption" color="text.secondary" sx={{ 
               display: 'block',
               textAlign: 'right',
@@ -238,14 +283,17 @@ function MessageList({
               cursor: 'pointer',
               '&:hover': {
                 bgcolor: 'action.hover'
-              }
+              },
+              display: 'flex',
+              alignItems: 'center',
+              color: recordedMessages.has(contextMenu.messageId) ? '#e91e63' : 'inherit'
             }}
             onClick={() => {
               handleRecord(contextMenu.messageId);
               closeContextMenu();
             }}
           >
-            🎙 Registra
+            🎙 {recordedMessages.has(contextMenu.messageId) ? 'Rimuovi registrazione' : 'Registra'}
           </Box>
         </Box>
       )}
