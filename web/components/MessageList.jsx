@@ -13,6 +13,26 @@ function MessageList({
   seenMessages: initialSeen,
   chat
 }) {
+  // Lista dei mittenti speciali
+  const SPECIAL_SENDERS = {
+    '393937049799:28@s.whatsapp.net': { color: 'rgba(0, 51, 102, 0.1)', name: 'Jhs' }, // Jhs - dark blue
+    '393297425198:35@s.whatsapp.net': { color: 'rgba(51, 153, 204, 0.1)', name: 'Ivan' }  // Ivan - lighter blue/aqua
+  };
+
+  // Funzione per verificare se è un mittente speciale
+  const isSpecialSender = (sender) => {
+    return !!SPECIAL_SENDERS[sender];
+  };
+
+  // Funzione per ottenere lo stile del mittente speciale
+  const getSpecialSenderStyle = (sender) => {
+    return SPECIAL_SENDERS[sender]?.color || 'background.paper';
+  };
+
+  const filteredMessages = messages.filter(message => 
+    message.content !== " (tipo: sconosciuto)"
+  );
+
   // Carica lo stato iniziale da localStorage
   const [seenMessages, setSeenMessages] = useState(() => {
     const stored = localStorage.getItem(`seenMessages_${chat.id}`);
@@ -124,15 +144,6 @@ function MessageList({
     setContextMenu({ visible: false, x: 0, y: 0, messageId: null });
   };
 
-  // Funzione per identificare i mittenti speciali
-  const isSpecialSender = (sender) => {
-    const specialSenders = [
-      '393937049799:28@s.whatsapp.net', // Jhs
-      '393297425198:35@s.whatsapp.net'  // Ivan
-    ];
-    return specialSenders.includes(sender);
-  };
-
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     const today = new Date();
@@ -144,8 +155,9 @@ function MessageList({
 
   return (
     <Box onClick={closeContextMenu} className="message-container">
-      {messages.map((message) => {
+      {filteredMessages.map((message) => {
         const hasNote = getNote(message.id) !== '';
+        const isRecorded = recordedMessages.has(message.id);
         
         return (
           <Box key={message.id} sx={{ mb: 2 }}>
@@ -154,13 +166,12 @@ function MessageList({
               sx={{
                 p: 1.5,
                 borderRadius: 2,
-                bgcolor: isSpecialSender(message.sender)
-                  ? 'rgba(18, 140, 126, 0.1)' // Colore WhatsApp per messaggi speciali
-                  : recordedMessages.has(message.id) 
-                    ? 'rgba(233, 30, 99, 0.1)' 
-                    : hasNote 
+                backgroundColor: isRecorded 
+                  ? 'rgba(255, 192, 203, 0.3)' // Soft pink background for recorded messages
+                  : getSpecialSenderStyle(message.sender) || 
+                    (hasNote 
                       ? 'rgba(255, 193, 7, 0.05)' 
-                      : 'background.paper',
+                      : 'background.paper'),
                 position: 'relative',
                 maxWidth: '80%',
                 float: isSpecialSender(message.sender) ? 'right' : 'left',
@@ -181,8 +192,8 @@ function MessageList({
                   boxShadow: 2,
                   animation: 'none'
                 },
-                border: recordedMessages.has(message.id) 
-                  ? '2px solid rgba(233, 30, 99, 0.5)' 
+                border: isRecorded
+                  ? '2px solid rgba(255, 20, 147, 0.5)' // More vibrant pink border for recorded messages
                   : hasNote 
                     ? '2px solid rgba(255, 193, 7, 0.5)' 
                     : 'none'
@@ -235,7 +246,7 @@ function MessageList({
                   </Box>
                 )}
                 
-                {recordedMessages.has(message.id) && (
+                {isRecorded && (
                   <Box
                     sx={{
                       bgcolor: '#e91e63', // Pink-500
@@ -330,7 +341,7 @@ function MessageList({
               closeContextMenu();
             }}
           >
-            📝 {getNote(contextMenu.messageId) ? 'Modifica nota' : 'Aggiungi nota'}
+            📝 {getNote(contextMenu.messageId) ? 'Modifica nota' : 'Aggiungi nota2'}
           </Box>
           <Box
             sx={{

@@ -7,6 +7,12 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { theme } from './styles/theme';
 import { Box, Typography, CircularProgress, Paper, Dialog, DialogContent, IconButton } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import RotateLeftIcon from '@mui/icons-material/RotateLeft';
+import RotateRightIcon from '@mui/icons-material/RotateRight';
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import ZoomOutIcon from '@mui/icons-material/ZoomOut';
+import RefreshIcon from '@mui/icons-material/Refresh';
+
 
 const API_BASE_URL = '/api';
 const POLLING_INTERVAL = 5000; // 5 secondi
@@ -22,6 +28,8 @@ function App() {
   const [lastSeenMessages, setLastSeenMessages] = useState({});
   const [seenMessages, setSeenMessages] = useState(new Set());
   const [modalImage, setModalImage] = useState(null);
+  const [rotation, setRotation] = useState(0);
+  const [zoom, setZoom] = useState(1);
   const [notePopup, setNotePopup] = useState({
     visible: false,
     messageId: null,
@@ -251,6 +259,7 @@ function App() {
         )}
       </Box>
       
+
       <Dialog
         open={!!modalImage}
         onClose={closeModal}
@@ -264,7 +273,8 @@ function App() {
             overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            bgcolor: 'rgba(18, 18, 18, 0.9)'
           }
         }}
       >
@@ -275,9 +285,95 @@ function App() {
           alignItems: 'center',
           justifyContent: 'center'
         }}>
+          {/* Componenti di controllo */}
+          <Paper
+            elevation={3}
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: 1,
+              p: '4px 12px',
+              bgcolor: 'rgba(0, 0, 0, 0.7)',
+              borderRadius: 20,
+              zIndex: 1100
+            }}
+          >
+            <IconButton 
+              onClick={() => {
+                // Ruota a sinistra (antiorario)
+                setRotation((prevRotation) => (prevRotation - 90) % 360);
+              }}
+              size="small" 
+              sx={{ color: 'white' }}
+              title="Ruota a sinistra"
+            >
+              <RotateLeftIcon />
+            </IconButton>
+            
+            <IconButton 
+              onClick={() => {
+                // Ruota a destra (orario)
+                setRotation((prevRotation) => (prevRotation + 90) % 360);
+              }} 
+              size="small" 
+              sx={{ color: 'white' }}
+              title="Ruota a destra"
+            >
+              <RotateRightIcon />
+            </IconButton>
+            
+            <IconButton 
+              onClick={() => {
+                // Aumenta zoom
+                setZoom((prevZoom) => Math.min(prevZoom + 0.25, 3));
+              }}
+              size="small" 
+              sx={{ color: 'white' }}
+              title="Zoom avanti"
+            >
+              <ZoomInIcon />
+            </IconButton>
+            
+            <IconButton 
+              onClick={() => {
+                // Diminuisci zoom
+                setZoom((prevZoom) => Math.max(prevZoom - 0.25, 0.5));
+              }}
+              size="small" 
+              sx={{ color: 'white' }}
+              title="Zoom indietro"
+            >
+              <ZoomOutIcon />
+            </IconButton>
+            
+            <IconButton 
+              onClick={() => {
+                // Reset rotazione e zoom
+                setRotation(0);
+                setZoom(1);
+              }}
+              size="small" 
+              sx={{ color: 'white' }}
+              title="Ripristina"
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Paper>
+
+          {/* Pulsante di chiusura */}
           <IconButton
             aria-label="close"
-            onClick={closeModal}
+            onClick={() => {
+              closeModal();
+              // Reset valori dopo la chiusura
+              setTimeout(() => {
+                setRotation(0);
+                setZoom(1);
+              }, 300);
+            }}
             sx={{
               position: 'absolute',
               right: 8,
@@ -286,11 +382,14 @@ function App() {
               backgroundColor: 'rgba(0, 0, 0, 0.5)',
               '&:hover': {
                 backgroundColor: 'rgba(0, 0, 0, 0.7)'
-              }
+              },
+              zIndex: 1100
             }}
           >
             <CloseIcon />
           </IconButton>
+          
+          {/* Immagine con rotazione */}
           <Box
             sx={{
               maxWidth: '90vw',
@@ -309,7 +408,10 @@ function App() {
                 width: 'auto',
                 height: 'auto',
                 objectFit: 'contain',
-                borderRadius: '4px'
+                borderRadius: '4px',
+                transform: `rotate(${rotation}deg) scale(${zoom})`,
+                paddingTop: '60px',
+                transition: 'transform 0.3s ease'
               }}
             />
           </Box>

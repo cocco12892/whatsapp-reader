@@ -33,7 +33,7 @@ function NotePopup({
       }}
     >
       <DialogTitle>
-        Aggiungi nota
+        Aggiungi nota1
         <IconButton
           aria-label="close"
           onClick={onClose}
