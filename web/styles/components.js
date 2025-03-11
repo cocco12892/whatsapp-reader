@@ -62,8 +62,8 @@ export const Message = styled.div`
   border-radius: 8px;
   max-width: 80%;
   position: relative;
-  background-color: ${props => props.$isSent ? '#dcf8c6' : '#f0f0f0'};
-  float: ${props => props.$isSent ? 'right' : 'left'};
+  background-color: ${props => props.$isSent || props.$isSpecial ? '#dcf8c6' : '#f0f0f0'};
+  float: ${props => props.$isSent || props.$isSpecial ? 'right' : 'left'};
   clear: both;
   cursor: context-menu;
   overflow: visible;

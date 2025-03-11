@@ -124,6 +124,15 @@ function MessageList({
     setContextMenu({ visible: false, x: 0, y: 0, messageId: null });
   };
 
+  // Funzione per identificare i mittenti speciali
+  const isSpecialSender = (sender) => {
+    const specialSenders = [
+      '393937049799:28@s.whatsapp.net', // Jhs
+      '393297425198:35@s.whatsapp.net'  // Ivan
+    ];
+    return specialSenders.includes(sender);
+  };
+
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     const today = new Date();
@@ -145,14 +154,16 @@ function MessageList({
               sx={{
                 p: 1.5,
                 borderRadius: 2,
-                bgcolor: recordedMessages.has(message.id) 
-                  ? 'rgba(233, 30, 99, 0.1)' 
-                  : hasNote 
-                    ? 'rgba(255, 193, 7, 0.05)' 
-                    : 'background.paper',
+                bgcolor: isSpecialSender(message.sender)
+                  ? 'rgba(18, 140, 126, 0.1)' // Colore WhatsApp per messaggi speciali
+                  : recordedMessages.has(message.id) 
+                    ? 'rgba(233, 30, 99, 0.1)' 
+                    : hasNote 
+                      ? 'rgba(255, 193, 7, 0.05)' 
+                      : 'background.paper',
                 position: 'relative',
                 maxWidth: '80%',
-                float: 'left',
+                float: isSpecialSender(message.sender) ? 'right' : 'left',
                 clear: 'both',
                 mb: 2,
                 opacity: lastSeenMessages && chat && lastSeenMessages[chat.id] && 
