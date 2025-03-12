@@ -17,6 +17,27 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 const API_BASE_URL = '/api';
 const POLLING_INTERVAL = 5000; // 5 secondi
 
+// Funzione per codificare in modo sicuro i percorsi delle immagini
+const safeImagePath = (path) => {
+  if (!path) return '';
+  
+  // Split the path to handle each component correctly
+  const pathParts = path.split('/');
+  
+  // Encode each part of the path except the slashes
+  const encodedParts = pathParts.map(part => {
+    // Don't encode simple filenames with extension
+    if (part.match(/^[^\/]+\.(jpg|jpeg|png|gif)$/i)) {
+      return part;
+    }
+    // Encode directory names that might contain special characters
+    return encodeURIComponent(part);
+  });
+  
+  // Join the path back together
+  return encodedParts.join('/');
+};
+
 function App() {
   const [chats, setChats] = useState([]);
   const [chatOrder, setChatOrder] = useState([]);
@@ -160,6 +181,7 @@ function App() {
   };
 
   const handleImageClick = useCallback((imageSrc) => {
+    // Utilizziamo safeImagePath per codificare il percorso dell'immagine
     setModalImage(imageSrc);
   }, []);
 
@@ -283,7 +305,9 @@ function App() {
           position: 'relative',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          width: '100%',
+          height: '90vh' // Fixed height for the dialog content
         }}>
           {/* Componenti di controllo */}
           <Paper
@@ -389,29 +413,31 @@ function App() {
             <CloseIcon />
           </IconButton>
           
-          {/* Immagine con rotazione */}
+          {/* Immagine con rotazione - Utilizziamo safeImagePath */}
           <Box
             sx={{
-              maxWidth: '90vw',
-              maxHeight: '90vh',
+              width: '100%',
+              height: '100%',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              // Spazio per adattarsi alla rotazione
+              padding: Math.abs(rotation) % 180 === 90 ? '15% 15%' : '0%'
             }}
           >
             <img 
-              src={modalImage} 
+              src={safeImagePath(modalImage)} 
               alt="Immagine ingrandita" 
               style={{
-                maxWidth: '100%',
-                maxHeight: '90vh',
+                maxWidth: Math.abs(rotation) % 180 === 90 ? '70vh' : '90vw',
+                maxHeight: Math.abs(rotation) % 180 === 90 ? '70vw' : '90vh',
                 width: 'auto',
                 height: 'auto',
                 objectFit: 'contain',
                 borderRadius: '4px',
                 transform: `rotate(${rotation}deg) scale(${zoom})`,
-                paddingTop: '60px',
-                transition: 'transform 0.3s ease'
+                padding: '60px 20px 20px 20px',
+                transition: 'transform 0.3s ease, max-width 0.3s ease, max-height 0.3s ease'
               }}
             />
           </Box>
