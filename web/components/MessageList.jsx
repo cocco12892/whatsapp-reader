@@ -211,34 +211,25 @@ const handleRecord = (messageId) => {
 };
 
 // Handle noting a message
-const handleNote = (messageId) => {
-  console.log('Noting/Removing note for message:', messageId);
+const addMessageNote = (messageId) => {
+  console.log('Adding note for message:', messageId);
   
+  const note = prompt("Inserisci una nota per il messaggio:");
+  if (!note) return;
+
   const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+  messageNotes[messageId] = note;
   
+  // Save updated notes to storage
+  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+  
+  // Update state
   setNotedMessages(prev => {
-    const newSet = new Set([...prev]);
-    
-    if (newSet.has(messageId)) {
-      // Remove the note
-      newSet.delete(messageId);
-      delete messageNotes[messageId];
-    } else {
-      // Add a new note
-      const note = prompt("Inserisci una nota per il messaggio:");
-      if (note) {
-        newSet.add(messageId);
-        messageNotes[messageId] = note;
-      }
-    }
-    
-    // Save updated notes to storage
-    localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
-    
+    const newSet = new Set([...prev, messageId]);
     return newSet;
   });
 
-  // Mantieni l'effetto visivo
+  // Visual effect
   const messageElement = document.getElementById(`message-${messageId}`);
   if (messageElement) {
     messageElement.style.animation = 'notePulse 0.8s';
@@ -261,6 +252,61 @@ const handleNote = (messageId) => {
     setTimeout(() => {
       messageElement.style.animation = '';
     }, 800);
+  }
+};
+
+const removeMessageNote = (messageId) => {
+  console.log('Removing note for message:', messageId);
+  
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+  
+  // Remove the note for this specific message
+  delete messageNotes[messageId];
+  
+  // Save updated notes to storage
+  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+  
+  // Update state
+  setNotedMessages(prev => {
+    const newSet = new Set([...prev]);
+    newSet.delete(messageId);
+    return newSet;
+  });
+
+  // Visual effect
+  const messageElement = document.getElementById(`message-${messageId}`);
+  if (messageElement) {
+    messageElement.style.animation = 'noteRemovePulse 0.8s';
+    
+    // If the animation style doesn't exist, add it
+    if (!document.getElementById('note-remove-animation')) {
+      const styleTag = document.createElement('style');
+      styleTag.id = 'note-remove-animation';
+      styleTag.innerHTML = `
+        @keyframes noteRemovePulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(0.97); background-color: rgba(244, 67, 54, 0.1); }
+          100% { transform: scale(1); }
+        }
+      `;
+      document.head.appendChild(styleTag);
+    }
+    
+    // Remove the animation after it finishes
+    setTimeout(() => {
+      messageElement.style.animation = '';
+    }, 800);
+  }
+};
+
+// Replace handleNote with these two functions
+const handleNote = (messageId) => {
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+  
+  if (messageNotes[messageId]) {
+    removeMessageNote(messageId);
+  } else {
+    addMessageNote(messageId);
   }
 };
 
