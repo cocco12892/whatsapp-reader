@@ -70,19 +70,26 @@ function ChatWindow({
             }}
           />
         )}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="h6">
-            {chatSynonym || chat.name || 'Chat'}
-          </Typography>
-          <Tooltip title="Imposta sinonimo per questa chat">
-            <IconButton 
-              size="small" 
-              onClick={() => setSynonymDialogOpen(true)}
-              sx={{ color: 'white', opacity: 0.8 }}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h6">
+              {chatSynonym ? chatSynonym : chat.name || 'Chat'}
+            </Typography>
+            <Tooltip title="Imposta sinonimo per questa chat">
+              <IconButton 
+                size="small" 
+                onClick={() => setSynonymDialogOpen(true)}
+                sx={{ color: 'white', opacity: 0.8 }}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          {chatSynonym && (
+            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: -0.5 }}>
+              {chat.name}
+            </Typography>
+          )}
         </Box>
       </Box>
       <Box 
