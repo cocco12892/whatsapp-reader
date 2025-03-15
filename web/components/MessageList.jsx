@@ -411,6 +411,27 @@ return (
                   title={`Messaggio annotato: ${messageNotes[message.id]}`}
                 >
                   <NoteIcon sx={{ fontSize: 10 }} />
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      position: 'absolute', 
+                      top: '100%', 
+                      left: 0, 
+                      bgcolor: 'background.paper', 
+                      p: 0.5, 
+                      borderRadius: 1,
+                      boxShadow: 1,
+                      fontSize: 10,
+                      color: 'text.secondary',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: 150,
+                      zIndex: 10
+                    }}
+                  >
+                    {messageNotes[message.id]}
+                  </Typography>
                 </Box>
               )}
             </Box>
