@@ -30,6 +30,7 @@ require (
 	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
+	go.etcd.io/bbolt v1.4.0 // indirect
 	go.mau.fi/libsignal v0.1.2 // indirect
 	go.mau.fi/util v0.8.5 // indirect
 	go.mau.fi/whatsmeow v0.0.0-20250307203951-daf102be9698 // indirect
