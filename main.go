@@ -48,7 +48,7 @@ type Message struct {
 	ProtocolMessageType int    `json:"protocolMessageType,omitempty"`
     ProtocolMessageName string `json:"protocolMessageName,omitempty"`
 
-	ImageHash       string    `json:"imageHash,omitempty"`
+	ImageHash       string    `json:"imageHash"`
 }
 
 
@@ -446,7 +446,7 @@ func main() {
 				if err == nil {
 					// Calcola l'hash SHA-256 dell'immagine
 					imageHash := sha256.Sum256(imgData)
-					imageHashString := hex.EncodeToString(imageHash[:])
+					imageHashString = hex.EncodeToString(imageHash[:])
 					
 					// Il resto del codice esistente per salvare l'immagine...
 					dataDir := v.Info.Timestamp.Format("2006-01-02")
@@ -477,9 +477,6 @@ func main() {
 					} else {
 						// Crea URL per il browser
 						mediaPath = fmt.Sprintf("/images/%s/%s/%s", sanitizedChatName, dataDir, fileName)
-						
-						// Assegna l'hash al messaggio - questa è la riga aggiunta
-						imageHashString = imageHashString
 						
 						fmt.Printf("Immagine salvata: %s, Hash: %s\n", mediaPath, imageHashString)
 					}

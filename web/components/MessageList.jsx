@@ -418,47 +418,56 @@ return (
             </Typography>
             
             <Box>
-              {message.isMedia && message.mediaPath && (
-                <>
-                {/* Gestisci i diversi tipi di media */}
-                {message.content.includes("🔊 Messaggio vocale") ? (
-                  <AudioMessageWrapper message={message} />
-                ) : (
-                  <Box>
-                    <img 
-                      src={safeImagePath(message.mediaPath)} 
-                      alt="Media content" 
-                      style={{ 
-                        maxWidth: '100%', 
-                        borderRadius: '5px', 
-                        marginTop: '10px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => handleImageClick(message.mediaPath)}
-                      onError={(e) => e.target.style.display = 'none'}
-                    />
-                  </Box>
-                  )}
-                </>
-              )}
-              {!message.isMedia && (
-                <Typography variant="body2">
-                  {message.content}
-                  {message.isEdited && (
-                    <Typography 
-                      component="span" 
-                      sx={{ 
-                        fontSize: '0.75rem', 
-                        ml: 1, 
-                        color: 'text.secondary',
-                        fontStyle: 'italic' 
-                      }}
-                    >
-                      (modificato)
-                    </Typography>
-                  )}
-                </Typography>
-              )}
+              {message.isDeleted ? (
+              // Se il messaggio è stato eliminato, mostra solo il testo standard 
+              <Typography variant="body2">
+                (Questo messaggio è stato eliminato)
+              </Typography>
+              ) : (
+              <>
+                {message.isMedia && message.mediaPath && (
+                  <>
+                  {/* Gestisci i diversi tipi di media */}
+                  {message.content.includes("🔊 Messaggio vocale") ? (
+                    <AudioMessageWrapper message={message} />
+                  ) : (
+                    <Box>
+                      <img 
+                        src={safeImagePath(message.mediaPath)} 
+                        alt="Media content" 
+                        style={{ 
+                          maxWidth: '100%', 
+                          borderRadius: '5px', 
+                          marginTop: '10px',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => handleImageClick(message.mediaPath)}
+                        onError={(e) => e.target.style.display = 'none'}
+                      />
+                    </Box>
+                    )}
+                  </>
+                )}
+                {!message.isMedia && (
+                  <Typography variant="body2">
+                    {message.content}
+                    {message.isEdited && (
+                      <Typography 
+                        component="span" 
+                        sx={{ 
+                          fontSize: '0.75rem', 
+                          ml: 1, 
+                          color: 'text.secondary',
+                          fontStyle: 'italic' 
+                        }}
+                      >
+                        (modificato)
+                      </Typography>
+                    )}
+                  </Typography>
+                )}
+              </>
+            )}
               
               {/* Display image content if available */}
               {imageContent && (
