@@ -408,7 +408,7 @@ return (
                     e.stopPropagation();
                     handleNote(message.id);
                   }}
-                  title="Messaggio annotato"
+                  title={`Messaggio annotato: ${messageNotes[message.id]}`}
                 >
                   <NoteIcon sx={{ fontSize: 10 }} />
                 </Box>
