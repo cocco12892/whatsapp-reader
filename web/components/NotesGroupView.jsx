@@ -7,35 +7,46 @@ import {
   Box, 
   Chip, 
   IconButton, 
-  Divider,
-  Tooltip
+  Tooltip,
+  List,
+  ListItem,
+  ListItemText
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import FilterListIcon from '@mui/icons-material/FilterList';
 
-const NotesGroupView = ({ open, onClose }) => {
+const NotesGroupView = ({ open, onClose, chats }) => {
   const [notes, setNotes] = useState({});
   const [groupedNotes, setGroupedNotes] = useState({});
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
-    if (open) {
+    if (open && chats) {
       // Load notes from localStorage
       const storedNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
       setNotes(storedNotes);
       
-      // Group notes by their content
+      // Group notes by their content with chat information
       const grouped = {};
-      Object.entries(storedNotes).forEach(([messageId, note]) => {
-        if (!grouped[note]) {
-          grouped[note] = [];
-        }
-        grouped[note].push(messageId);
+      chats.forEach(chat => {
+        chat.messages.forEach(message => {
+          const note = storedNotes[message.ID];
+          if (note) {
+            if (!grouped[note]) {
+              grouped[note] = [];
+            }
+            grouped[note].push({
+              messageId: message.ID,
+              chatId: chat.id,
+              chatName: chat.name
+            });
+          }
+        });
       });
       
       setGroupedNotes(grouped);
     }
-  }, [open]);
+  }, [open, chats]);
 
   // Filter notes based on input
   const filteredGroupedNotes = Object.entries(groupedNotes)
@@ -73,27 +84,27 @@ const NotesGroupView = ({ open, onClose }) => {
       </DialogTitle>
       
       <DialogContent>
-        {filteredGroupedNotes.map(([note, messageIds], index) => (
+        {filteredGroupedNotes.map(([note, messageDetails], index) => (
           <Box key={index} sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 2 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
               "{note}"
             </Typography>
             <Chip 
-              label={`${messageIds.length} messaggi`} 
+              label={`${messageDetails.length} messaggi`} 
               color="secondary" 
               size="small" 
               sx={{ mb: 2 }}
             />
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {messageIds.map(messageId => (
-                <Chip 
-                  key={messageId} 
-                  label={messageId} 
-                  variant="outlined" 
-                  size="small" 
-                />
+            <List dense>
+              {messageDetails.map(detail => (
+                <ListItem key={detail.messageId} sx={{ pl: 0 }}>
+                  <ListItemText
+                    primary={`Chat: ${detail.chatName}`}
+                    secondary={`Message ID: ${detail.messageId}`}
+                  />
+                </ListItem>
               ))}
-            </Box>
+            </List>
           </Box>
         ))}
       </DialogContent>

@@ -502,6 +502,7 @@ function App() {
       <NotesGroupView 
         open={notesGroupViewOpen} 
         onClose={() => setNotesGroupViewOpen(false)} 
+        chats={chats}
       />
     </ThemeProvider>
   );
