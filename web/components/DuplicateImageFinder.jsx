@@ -350,12 +350,12 @@ const DuplicateImageFinder = ({ chats }) => {
                                 <Box sx={{ 
                                   mt: 1, 
                                   p: 1, 
-                                  bgcolor: 'rgba(76, 175, 80, 0.1)', 
+                                  bgcolor: 'rgba(103, 58, 183, 0.1)', 
                                   borderRadius: '4px', 
-                                  borderLeft: '4px solid #4caf50',
+                                  borderLeft: '4px solid #673ab7',
                                   position: 'relative'
                                 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#4a148c' }}>
                                     Nota:
                                   </Typography>
                                   <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
