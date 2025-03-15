@@ -118,15 +118,15 @@ const NotesGroupView = ({ open, onClose, chats }) => {
           notesByChatId[noteEntry.chatId].push(noteEntry);
         });
         
-        // Per ogni chat, verifica se ha già almeno una registrazione
+        // Per ogni chat, verifica se ha già almeno una registrazione per questa nota specifica
         Object.entries(notesByChatId).forEach(([chatId, chatNotes]) => {
-          // Controlla se questa chat ha già una registrazione per questa nota
-          const chatHasRecording = Object.values(storedRecorded).some(
+          // Controlla se questa chat ha già una registrazione per questa nota specifica
+          const chatHasRecordingForThisNote = Object.values(storedRecorded).some(
             record => record.chatId === chatId && record.note === noteText
           );
           
           // Se la chat non ha registrazioni per questa nota, aggiungi solo una nota senza registrazione
-          if (!chatHasRecording && chatNotes.length > 0) {
+          if (!chatHasRecordingForThisNote && chatNotes.length > 0) {
             // Prendi la prima nota di questa chat per questa nota
             const noteEntry = chatNotes[0];
             
