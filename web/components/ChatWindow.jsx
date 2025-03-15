@@ -73,7 +73,7 @@ function ChatWindow({
         <Box sx={{ display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="h6">
-              {chatSynonym ? chatSynonym : chat.name || 'Chat'}
+              {chat.name}
             </Typography>
             <Tooltip title="Imposta sinonimo per questa chat">
               <IconButton 
@@ -86,8 +86,8 @@ function ChatWindow({
             </Tooltip>
           </Box>
           {chatSynonym && (
-            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: -0.5 }}>
-              {chat.name}
+            <Typography variant="label" sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: -0.5 }}>
+              {chatSynonym}
             </Typography>
           )}
         </Box>
