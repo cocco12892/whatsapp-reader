@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
-import NotePopup from './components/NotePopup';
+
 import ChatWindow from './components/ChatWindow';
 import { Helmet } from 'react-helmet';
 import { ThemeProvider } from '@mui/material/styles';
@@ -55,13 +55,6 @@ function App() {
   const [modalImage, setModalImage] = useState(null);
   const [rotation, setRotation] = useState(0);
   const [zoom, setZoom] = useState(1);
-  const [notePopup, setNotePopup] = useState({
-    visible: false,
-    messageId: null,
-    message: null,
-    position: { x: 0, y: 0 },
-    note: ''
-  });
   const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
 
   const fetchChats = async () => {
@@ -211,44 +204,6 @@ function App() {
     return null;
   }, [chats]);
 
-  const saveNote = useCallback((messageId, note) => {
-    const notes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-    notes[messageId] = note;
-    localStorage.setItem('messageNotes', JSON.stringify(notes));
-  }, []);
-
-  const getNote = useCallback((messageId) => {
-    const notes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-    return notes[messageId] || '';
-  }, []);
-
-  const handleMessageRightClick = useCallback((e, messageId) => {
-    e.preventDefault();
-    
-    const message = findMessageById(messageId);
-    
-    if (message) {
-      setNotePopup({
-        visible: true,
-        messageId: messageId,
-        message: message,
-        position: { x: e.clientX, y: e.clientY },
-        note: getNote(messageId)
-      });
-    }
-  }, [findMessageById, getNote]);
-
-  const handleNoteChange = useCallback((e) => {
-    setNotePopup(prev => ({
-      ...prev,
-      note: e.target.value
-    }));
-  }, []);
-
-  const handleSaveNote = useCallback(() => {
-    saveNote(notePopup.messageId, notePopup.note);
-    setNotePopup(prev => ({ ...prev, visible: false }));
-  }, [notePopup, saveNote]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -310,8 +265,6 @@ function App() {
                     unreadMessages={unreadMessages}
                     handleScroll={handleScroll}
                     handleImageClick={handleImageClick}
-                    handleMessageRightClick={handleMessageRightClick}
-                    getNote={getNote}
                     lastSeenMessages={lastSeenMessages}
                     seenMessages={seenMessages}
                   />
@@ -486,18 +439,6 @@ function App() {
           </Box>
         </DialogContent>
       </Dialog>
-
-      <NotePopup
-        open={notePopup.visible}
-        onClose={() => setNotePopup(prev => ({ ...prev, visible: false }))}
-        note={notePopup.note}
-        onChange={handleNoteChange}
-        onSave={handleSaveNote}
-        position={notePopup.position}
-        message={notePopup.message}
-        chats={chats}
-        currentMessageId={notePopup.messageId}
-      />
 
       <NotesGroupView 
         open={notesGroupViewOpen} 

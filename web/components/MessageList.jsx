@@ -24,7 +24,6 @@ import ReplyContext from './ReplyContext';
 function MessageList({ 
 messages, 
 handleImageClick, 
-handleMessageRightClick, 
 lastSeenMessages: initialLastSeen,
 seenMessages: initialSeen,
 chat
@@ -132,13 +131,6 @@ const [lastSeenMessages, setLastSeenMessages] = useState(() => {
 const [recordedMessages, setRecordedMessages] = useState(() => {
   const stored = localStorage.getItem(`recordedMessages_${chat.id}`);
   return new Set(stored ? JSON.parse(stored) : []);
-});
-
-// State for noted messages
-const [notedMessages, setNotedMessages] = useState(() => {
-  const stored = localStorage.getItem('messageNotes');
-  const notes = stored ? JSON.parse(stored) : [];
-  return new Set(notes.map(note => note.messageId));
 });
 
 // State for notes group view
@@ -318,31 +310,7 @@ const removeMessageNote = (messageId) => {
       messageElement.style.animation = '';
     }, 800);
   }
-
-  // Visual effect
-  const messageElement = document.getElementById(`message-${messageId}`);
-  if (messageElement) {
-    messageElement.style.animation = 'noteRemovePulse 0.8s';
-    
-    // If the animation style doesn't exist, add it
-    if (!document.getElementById('note-remove-animation')) {
-      const styleTag = document.createElement('style');
-      styleTag.id = 'note-remove-animation';
-      styleTag.innerHTML = `
-        @keyframes noteRemovePulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(0.97); background-color: rgba(244, 67, 54, 0.1); }
-          100% { transform: scale(1); }
-        }
-      `;
-      document.head.appendChild(styleTag);
-    }
-    
-    // Remove the animation after it finishes
-    setTimeout(() => {
-      messageElement.style.animation = '';
-    }, 800);
-  }
+ 
 };
 
 // Replace handleNote with these two functions

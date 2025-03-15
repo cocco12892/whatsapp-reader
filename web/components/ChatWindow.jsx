@@ -7,8 +7,6 @@ function ChatWindow({
   unreadMessages, 
   handleScroll, 
   handleImageClick, 
-  handleMessageRightClick, 
-  getNote,
   lastSeenMessages,
   seenMessages
 }) {
@@ -96,9 +94,7 @@ function ChatWindow({
         )}
         <MessageList 
           messages={chat.messages}
-          handleImageClick={handleImageClick}
-          handleMessageRightClick={handleMessageRightClick}
-          getNote={getNote}
+          handleImageClick={handleImageClick}          
           lastSeenMessages={lastSeenMessages}
           seenMessages={seenMessages}
           chat={chat} // Passiamo chat al componente
