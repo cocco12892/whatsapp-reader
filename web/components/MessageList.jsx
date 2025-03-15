@@ -262,13 +262,13 @@ const addMessageNote = (messageId) => {
 const removeMessageNote = (messageId) => {
   console.log('Removing note for message:', messageId);
   
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
   
   // Remove the note for this specific message
-  delete messageNotes[messageId];
+  const updatedNotes = messageNotes.filter(note => note.messageId !== messageId);
   
   // Save updated notes to storage
-  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+  localStorage.setItem('messageNotes', JSON.stringify(updatedNotes));
   
   // Update state
   setNotedMessages(prev => {
