@@ -373,7 +373,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                 filteredGroupedRecorded.map(([note, recordedItems], index) => (
                   <Box key={index} sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 1 }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                      "Nota: {note}"
+                      Gruppo: "{note}"
                     </Typography>
                     <Chip 
                       label={`${recordedItems.length} importi/quote`} 
@@ -385,7 +385,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                     {/* Intestazione tabella */}
                     <Box sx={{ 
                       display: 'grid', 
-                      gridTemplateColumns: '1fr 1fr 1fr auto',
+                      gridTemplateColumns: '1fr 1fr 1fr 0.7fr 0.7fr auto',
                       bgcolor: 'primary.main',
                       color: 'white',
                       p: 1,
@@ -393,9 +393,11 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                       fontWeight: 'bold',
                       mb: 1
                     }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Chat</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Importo/Quota</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Data</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Chat</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Nota</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Quota</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Importo</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Azioni</Typography>
                     </Box>
                     
@@ -418,7 +420,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                             key={item.messageId}
                             sx={{ 
                               display: 'grid',
-                              gridTemplateColumns: '1fr 1fr 1fr auto',
+                              gridTemplateColumns: '1fr 1fr 1fr 0.7fr 0.7fr auto',
                               p: 1,
                               borderBottom: '1px solid',
                               borderColor: 'divider',
@@ -427,21 +429,20 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                               }
                             }}
                           >
+                            <Typography variant="body2" color="text.secondary">
+                              {item.timestamp ? formatTime(item.timestamp) : ''}
+                            </Typography>
                             <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {item.chatName}
                             </Typography>
-                            <Box>
-                              <Typography variant="body2" component="span" sx={{ fontWeight: 'medium' }}>
-                                {importo}
-                              </Typography>
-                              {quota && (
-                                <Typography variant="body2" component="span" color="text.secondary">
-                                  @{quota}
-                                </Typography>
-                              )}
-                            </Box>
+                            <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {note}
+                            </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              {item.timestamp ? formatTime(item.timestamp) : ''}
+                              {quota}
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                              {importo}
                             </Typography>
                             <IconButton 
                               edge="end" 
