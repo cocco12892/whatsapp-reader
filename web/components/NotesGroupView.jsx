@@ -235,8 +235,8 @@ const NotesGroupView = ({ open, onClose, chats }) => {
   
   // Copia i dati in formato tabellare per Excel
   const copyToClipboard = (noteGroup, recordedItems) => {
-    // Crea l'intestazione della tabella
-    let tableContent = "Data\tChat\tNota\tQuota\tImporto\n";
+    // Inizializza la stringa della tabella senza intestazione
+    let tableContent = "";
     
     // Aggiungi ogni riga di dati
     recordedItems.forEach(item => {
@@ -251,8 +251,17 @@ const NotesGroupView = ({ open, onClose, chats }) => {
         importo = item.data;
       }
       
-      // Formatta la data
-      const formattedDate = item.timestamp ? formatTime(item.timestamp) : '';
+      // Formatta la data e l'ora separatamente
+      let formattedDate = '';
+      let formattedTime = '';
+      
+      if (item.timestamp) {
+        const date = new Date(item.timestamp);
+        // Solo data in formato italiano
+        formattedDate = date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        // Solo ora
+        formattedTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
       
       // Prepara i campi, sostituendo eventuali tab con spazi
       const prepareField = (text) => {
@@ -261,13 +270,14 @@ const NotesGroupView = ({ open, onClose, chats }) => {
       };
       
       // Aggiungi la riga alla tabella (usando tab come separatore per Excel)
-      tableContent += `${prepareField(formattedDate)}\t${prepareField(item.chatName)}\t${prepareField(noteGroup)}\t${prepareField(quota)}\t${prepareField(importo)}\n`;
+      // Data e ora sono ora in celle separate
+      tableContent += `${prepareField(formattedDate)}\t${prepareField(formattedTime)}\t${prepareField(item.chatName)}\t${prepareField(noteGroup)}\t${prepareField(quota)}\t${prepareField(importo)}\n`;
     });
     
     // Copia negli appunti
     navigator.clipboard.writeText(tableContent)
       .then(() => {
-        setSnackbarMessage('Tabella copiata negli appunti! Ora puoi incollarla in Excel');
+        setSnackbarMessage('Dati copiati negli appunti! Ora puoi incollarli in Excel');
         setSnackbarOpen(true);
       })
       .catch(err => {
