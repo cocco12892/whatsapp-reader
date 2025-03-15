@@ -133,6 +133,12 @@ const [recordedMessages, setRecordedMessages] = useState(() => {
   return new Set(stored ? JSON.parse(stored) : []);
 });
 
+// State for noted messages
+const [notedMessages, setNotedMessages] = useState(() => {
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+  return new Set(Object.keys(messageNotes));
+});
+
 // State for notes group view
 const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
 
@@ -213,7 +219,7 @@ const addMessageNote = (messageId) => {
   const note = prompt("Inserisci una nota per il messaggio:");
   if (!note) return;
 
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
   
   // Find the message in chats
   const message = chats.reduce((foundMessage, chat) => {
@@ -221,16 +227,7 @@ const addMessageNote = (messageId) => {
   }, null);
 
   if (message) {
-    const newNoteEntry = {
-      messageId: message.ID,
-      note: note,
-      type: 'nota',
-      chatName: chats.find(chat => 
-        chat.messages.some(m => m.ID === message.ID)
-      )?.name || 'Chat sconosciuta'
-    };
-
-    messageNotes.push(newNoteEntry);
+    messageNotes[messageId] = note;
     
     // Save updated notes to storage
     localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
@@ -271,13 +268,13 @@ const addMessageNote = (messageId) => {
 const removeMessageNote = (messageId) => {
   console.log('Removing note for message:', messageId);
   
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
   
   // Remove the note for this specific message
-  const updatedNotes = messageNotes.filter(note => note.messageId !== messageId);
+  delete messageNotes[messageId];
   
   // Save updated notes to storage
-  localStorage.setItem('messageNotes', JSON.stringify(updatedNotes));
+  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
   
   // Update state
   setNotedMessages(prev => {
