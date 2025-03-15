@@ -248,6 +248,11 @@ const addMessageNote = (messageId) => {
     // Save updated notes to storage
     localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
     
+    // Debug logging
+    console.log('New note entry:', newNoteEntry);
+    console.log('All message notes:', messageNotes);
+    console.log('Stored message notes:', localStorage.getItem('messageNotes'));
+    
     // Update state
     setNotedMessages(prev => new Set([...prev, messageId]));
 
@@ -277,6 +282,9 @@ const addMessageNote = (messageId) => {
         }, 800);
       });
     }
+  } else {
+    console.error('Message not found for ID:', messageId);
+    console.log('Available chats:', chats);
   }
 };
 
