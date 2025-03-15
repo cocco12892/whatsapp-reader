@@ -863,45 +863,67 @@ return (
       <DialogTitle>Inserisci Importo e Quota</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', mt: 1, gap: 2 }}>
-          {/* Colonna sinistra con l'immagine */}
-          <Box sx={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {/* Colonna sinistra SOLO con l'immagine */}
+          <Box sx={{ flex: '0 0 45%' }}>
             {(() => {
               // Trova il messaggio corrente
               const currentMessage = messages.find(m => m.id === currentMessageId);
               
               if (currentMessage) {
-                if (currentMessage.isMedia && currentMessage.mediaPath) {
-                  // Mostra l'immagine se è un media
+                // Cerca il messaggio media associato (stesso ID)
+                const mediaMessage = messages.find(m => 
+                  m.id === currentMessage.id && m.isMedia && m.mediaPath
+                );
+                
+                // Se abbiamo trovato un messaggio media, mostra l'immagine
+                if (mediaMessage && mediaMessage.mediaPath) {
                   return (
-                    <Box sx={{ width: '100%', mb: 2 }}>
+                    <Box sx={{ 
+                      width: '100%', 
+                      height: '100%',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}>
                       <img 
-                        src={safeImagePath(currentMessage.mediaPath)} 
+                        src={safeImagePath(mediaMessage.mediaPath)} 
                         alt="Media content" 
                         style={{ 
-                          width: '100%', 
+                          maxWidth: '100%',
+                          maxHeight: '400px',
+                          objectFit: 'contain',
                           borderRadius: '8px',
                           boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
                         }}
-                        onError={(e) => e.target.style.display = 'none'}
+                        onError={(e) => {
+                          console.error("Errore caricamento immagine:", mediaMessage.mediaPath);
+                          e.target.style.display = 'none';
+                        }}
                       />
                     </Box>
                   );
                 } else {
-                  // Mostra il contenuto del messaggio se non è un media
+                  // Se non c'è un'immagine, mostra un placeholder o un messaggio
                   return (
                     <Box sx={{ 
                       width: '100%', 
-                      p: 2, 
-                      bgcolor: 'background.paper', 
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      p: 2,
+                      bgcolor: 'background.paper',
                       borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      mb: 2,
-                      maxHeight: '300px',
-                      overflow: 'auto'
+                      border: '1px dashed',
+                      borderColor: 'divider'
                     }}>
-                      <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                        {currentMessage.content}
+                      <Typography variant="body1" sx={{ 
+                        whiteSpace: 'pre-wrap',
+                        textAlign: 'center',
+                        color: 'text.secondary'
+                      }}>
+                        {currentMessage.content || "Nessuna immagine disponibile"}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
                         {currentMessage.senderName} - {formatTime(currentMessage.timestamp)}
@@ -913,12 +935,32 @@ return (
               
               return null;
             })()}
+          </Box>
+          
+          {/* Colonna destra con input e selezione nota */}
+          <Box sx={{ flex: '0 0 55%', display: 'flex', flexDirection: 'column' }}>
+            {/* Campo importo@quota */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>Importo@Quota</Typography>
+              <TextField
+                autoFocus
+                fullWidth
+                variant="outlined"
+                value={amountQuotaInput}
+                onChange={(e) => setAmountQuotaInput(e.target.value)}
+                placeholder="Es: 1800@1,23"
+                helperText="Inserisci nel formato importo@quota"
+                InputProps={{
+                  sx: { fontSize: '1.2rem' }
+                }}
+              />
+            </Box>
             
             {/* Selezione della nota */}
-            <Box sx={{ width: '100%' }}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Seleziona una nota:</Typography>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>Seleziona una nota:</Typography>
               <Box sx={{ 
-                maxHeight: '200px', 
+                height: '180px', 
                 overflow: 'auto', 
                 border: '1px solid', 
                 borderColor: 'divider', 
@@ -929,7 +971,7 @@ return (
                   <Box 
                     key={index} 
                     sx={{ 
-                      p: 1, 
+                      p: 1.5, 
                       mb: 0.5, 
                       borderRadius: 1, 
                       cursor: 'pointer',
@@ -941,7 +983,7 @@ return (
                     }}
                     onClick={() => setSelectedNote(note)}
                   >
-                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>{note.note}</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>{note.note}</Typography>
                     <Typography variant="caption" color={selectedNote && selectedNote.messageId === note.messageId ? 'inherit' : 'text.secondary'}>
                       Aggiunta: {new Date(note.addedAt).toLocaleString()}
                     </Typography>
@@ -949,55 +991,18 @@ return (
                 ))}
               </Box>
             </Box>
-          </Box>
-          
-          {/* Colonna destra con input e dettagli */}
-          <Box sx={{ flex: '0 0 60%' }}>
+            
+            {/* Riepilogo selezione */}
             {selectedNote && (
-              <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'primary.light', boxShadow: 1 }}>
-                <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 'bold', mb: 1 }}>Nota selezionata:</Typography>
-                <Typography variant="body1" sx={{ fontWeight: 'medium' }}>{selectedNote.note}</Typography>
-              </Box>
-            )}
-            
-            <TextField
-              autoFocus
-              margin="dense"
-              label="Importo@Quota"
-              fullWidth
-              variant="outlined"
-              value={amountQuotaInput}
-              onChange={(e) => setAmountQuotaInput(e.target.value)}
-              placeholder="Es: 1800@1,23"
-              helperText="Inserisci nel formato importo@quota"
-              sx={{ mt: 2 }}
-              InputProps={{
-                sx: { fontSize: '1.2rem' }
-              }}
-            />
-            
-            {/* Anteprima del formato */}
-            {amountQuotaInput && (
-              <Box sx={{ mt: 3, p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle2" color="text.secondary">Anteprima:</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                  <Box sx={{ 
-                    bgcolor: '#e91e63',
-                    color: 'white',
-                    width: 24,
-                    height: 24,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    mr: 1
-                  }}>
-                    <span style={{ fontSize: '14px' }}>💰</span>
-                  </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                    {amountQuotaInput}
-                  </Typography>
-                </Box>
+              <Box sx={{ 
+                p: 2, 
+                bgcolor: 'primary.light', 
+                color: 'primary.contrastText',
+                borderRadius: 2,
+                mb: 2
+              }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Nota selezionata:</Typography>
+                <Typography variant="body2">{selectedNote.note}</Typography>
               </Box>
             )}
           </Box>
@@ -1011,7 +1016,7 @@ return (
           onClick={handleAmountQuotaSubmit} 
           color="primary" 
           variant="contained"
-          disabled={!selectedNote || !amountQuotaInput || !amountQuotaInput.includes('@')}
+          disabled={!amountQuotaInput || !amountQuotaInput.includes('@') || !selectedNote}
         >
           Salva
         </Button>
