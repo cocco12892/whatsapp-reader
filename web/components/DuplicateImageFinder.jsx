@@ -362,18 +362,6 @@ const DuplicateImageFinder = ({ chats }) => {
                                 {formatTime(image.timestamp)}
                               </Typography>
                               <Typography variant="caption" display="block">
-                                Occorrenza #{imageIndex + 1}
-                              </Typography>
-                              <Typography variant="caption" display="block">
-                                Chat: {image.chatName}
-                              </Typography>
-                              <Typography variant="caption" display="block">
-                                Inviato da: {image.senderName}
-                              </Typography>
-                              <Typography variant="caption" display="block">
-                                {formatTime(image.timestamp)}
-                              </Typography>
-                              <Typography variant="caption" display="block">
                                 ID messaggio: {image.id}
                               </Typography>
                             </Box>
@@ -389,75 +377,6 @@ const DuplicateImageFinder = ({ chats }) => {
         </DialogContent>
       </Dialog>
   
-      {/* Dialog for adding/editing single note */}
-      <Dialog 
-        open={noteDialogOpen}
-        onClose={() => setNoteDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          Nota messaggio
-          <IconButton
-            aria-label="close"
-            onClick={() => setNoteDialogOpen(false)}
-            sx={{
-              position: 'absolute',
-              right: 8,
-              top: 8,
-              color: (theme) => theme.palette.grey[500],
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          {currentGroup && currentGroup.images.length > 1 && (
-            <FormControlLabel
-              control={
-                <Switch 
-                  checked={syncWithDuplicates}
-                  onChange={(e) => setSyncWithDuplicates(e.target.checked)}
-                  color="primary"
-                />
-              }
-              label={`Sincronizza nota con ${currentGroup.images.length} messaggi`}
-              sx={{ mb: 2 }}
-            />
-          )}
-          
-          <TextField
-            autoFocus
-            margin="dense"
-            id="message-note"
-            label="Nota"
-            type="text"
-            fullWidth
-            variant="outlined"
-            multiline
-            rows={4}
-            value={currentNote}
-            onChange={(e) => setCurrentNote(e.target.value)}
-          />
-          
-          {currentGroup && currentGroup.images.length > 1 && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-              La nota verrà applicata a {syncWithDuplicates ? 'tutti' : 'solo questo'} messaggio/i del gruppo
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setNoteDialogOpen(false)}>Annulla</Button>
-          <Button 
-            onClick={handleSaveNote}
-            variant="contained"
-            color="primary"
-            disabled={!currentNote.trim()}
-          >
-            Salva nota
-          </Button>
-        </DialogActions>
-      </Dialog>
     </>
   );
 };
