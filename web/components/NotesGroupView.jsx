@@ -14,7 +14,8 @@ import {
   TextField,
   InputAdornment,
   Tabs,
-  Tab
+  Tab,
+  Button
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -22,6 +23,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import DeleteIcon from '@mui/icons-material/Delete';
 import NoteIcon from '@mui/icons-material/Note';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 
 const NotesGroupView = ({ open, onClose, chats }) => {
   const [notes, setNotes] = useState({});
@@ -177,6 +179,53 @@ const NotesGroupView = ({ open, onClose, chats }) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
     return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  };
+  
+  // Esporta i dati in formato CSV
+  const exportToCSV = (noteGroup, recordedItems) => {
+    // Crea l'intestazione del CSV
+    let csvContent = "Data,Chat,Nota,Quota,Importo\n";
+    
+    // Aggiungi ogni riga di dati
+    recordedItems.forEach(item => {
+      // Estrai importo e quota dal formato "importo@quota"
+      let importo = '';
+      let quota = '';
+      if (item.data && item.data.includes('@')) {
+        const parts = item.data.split('@');
+        importo = parts[0];
+        quota = parts[1];
+      } else {
+        importo = item.data;
+      }
+      
+      // Formatta la data
+      const formattedDate = item.timestamp ? formatTime(item.timestamp) : '';
+      
+      // Escape delle virgole nei campi di testo
+      const escapeCsv = (text) => {
+        if (!text) return '';
+        // Se contiene virgole, virgolette o newline, racchiudi in virgolette e raddoppia le virgolette interne
+        if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+          return `"${text.replace(/"/g, '""')}"`;
+        }
+        return text;
+      };
+      
+      // Aggiungi la riga al CSV
+      csvContent += `${escapeCsv(formattedDate)},${escapeCsv(item.chatName)},${escapeCsv(noteGroup)},${escapeCsv(quota)},${escapeCsv(importo)}\n`;
+    });
+    
+    // Crea un blob e un link per il download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${noteGroup.replace(/[^a-z0-9]/gi, '_').substring(0, 20)}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -372,15 +421,26 @@ const NotesGroupView = ({ open, onClose, chats }) => {
               ) : (
                 filteredGroupedRecorded.map(([note, recordedItems], index) => (
                   <Box key={index} sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                      Gruppo: "{note}"
-                    </Typography>
-                    <Chip 
-                      label={`${recordedItems.length} importi/quote`} 
-                      color="error" 
-                      size="small" 
-                      sx={{ mb: 2 }}
-                    />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                          Gruppo: "{note}"
+                        </Typography>
+                        <Chip 
+                          label={`${recordedItems.length} importi/quote`} 
+                          color="error" 
+                          size="small"
+                        />
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<FileDownloadIcon />}
+                        onClick={() => exportToCSV(note, recordedItems)}
+                      >
+                        Esporta CSV
+                      </Button>
+                    </Box>
                     
                     {/* Intestazione tabella */}
                     <Box sx={{ 
