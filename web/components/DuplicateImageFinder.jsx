@@ -343,7 +343,7 @@ const DuplicateImageFinder = ({ chats }) => {
                               width: 'calc(50% - 8px)',
                               borderRadius: '4px',
                               overflow: 'hidden',
-                              border: hasNote ? '2px solid #4caf50' : '1px solid #eee',
+                              border: messageNotes[image.id] ? '2px solid #4caf50' : '1px solid #eee',
                               position: 'relative'
                             }}
                           >
