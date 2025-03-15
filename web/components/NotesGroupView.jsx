@@ -107,13 +107,6 @@ const NotesGroupView = ({ open, onClose, chats }) => {
           groupedRecordedObj[noteText] = [];
         }
         
-        // Crea un set di messageId che hanno già registrazioni
-        const recordedMessageIds = new Set(
-          Object.values(storedRecorded)
-            .filter(record => record.note === noteText)
-            .map(record => record.messageId)
-        );
-        
         // Crea un set di chatId che hanno già registrazioni per questa nota
         const recordedChatIds = new Set(
           Object.values(storedRecorded)
@@ -146,7 +139,8 @@ const NotesGroupView = ({ open, onClose, chats }) => {
               chatName: noteEntry.chatName,
               timestamp: noteEntry.timestamp,
               note: noteText,
-              hasNoRecording: true // Flag per identificare elementi senza registrazione
+              hasNoRecording: true, // Flag per identificare elementi senza registrazione
+              type: 'nota' // Aggiungi il tipo per identificazione
             };
             
             groupedRecordedObj[noteText].push(skipItem);
