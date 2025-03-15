@@ -64,22 +64,33 @@ const NotesGroupView = ({ open, onClose, chats }) => {
       
       // Prima raggruppiamo i dati registrati per nota
       Object.values(storedRecorded).forEach(recordedEntry => {
-        // Trova la nota associata a questo messaggio
-        const associatedNote = Object.values(storedNotes).find(note => 
-          note.messageId === recordedEntry.messageId
-        );
-        
-        if (associatedNote) {
-          const noteText = associatedNote.note;
+        // Se l'entry ha già una nota associata, usala direttamente
+        if (recordedEntry.note) {
+          const noteText = recordedEntry.note;
           
           if (!groupedRecordedObj[noteText]) {
             groupedRecordedObj[noteText] = [];
           }
           
-          groupedRecordedObj[noteText].push({
-            ...recordedEntry,
-            note: noteText
-          });
+          groupedRecordedObj[noteText].push(recordedEntry);
+        } else {
+          // Altrimenti cerca la nota associata a questo messaggio
+          const associatedNote = Object.values(storedNotes).find(note => 
+            note.messageId === recordedEntry.messageId
+          );
+          
+          if (associatedNote) {
+            const noteText = associatedNote.note;
+            
+            if (!groupedRecordedObj[noteText]) {
+              groupedRecordedObj[noteText] = [];
+            }
+            
+            groupedRecordedObj[noteText].push({
+              ...recordedEntry,
+              note: noteText
+            });
+          }
         }
       });
       
@@ -405,6 +416,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                                   size="small" 
                                   color="error"
                                   sx={{ height: 20, fontSize: '0.7rem', fontWeight: 'bold' }}
+                                  title={`Nota associata: ${item.note || 'Nessuna'}`}
                                 />
                               </Box>
                             }
