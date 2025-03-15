@@ -1,3 +1,6 @@
+import AudioMessageWrapper from './AudioMessageWrapper';
+
+
 // Extract image content from the message content
 const extractImageContent = (content) => {
   if (!content || !content.startsWith('📷 Immagine')) {
@@ -71,8 +74,11 @@ const getSpecialSenderStyle = (sender) => {
   return SPECIAL_SENDERS[senderId]?.color || 'background.paper';
 };
 
-// Filter out unknown message types and reaction messages
+// Nel componente MessageList.jsx
 const filteredMessages = messages.filter(message => 
+  // Filtra i messaggi di tipo protocollo "edit" (14)
+  !(message.protocolMessageType === 99 || message.protocolMessageType === 14 || message.protocolMessageName === "edit") && 
+  // Mantieni gli altri filtri esistenti
   message.content !== " (tipo: sconosciuto)" && 
   !message.content.includes("Reazione:") &&
   !message.content.includes("(tipo: reazione)")
@@ -413,24 +419,44 @@ return (
             
             <Box>
               {message.isMedia && message.mediaPath && (
-                <Box>
-                  <img 
-                    src={safeImagePath(message.mediaPath)} 
-                    alt="Media content" 
-                    style={{ 
-                      maxWidth: '100%', 
-                      borderRadius: '5px', 
-                      marginTop: '10px',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => handleImageClick(message.mediaPath)}
-                    onError={(e) => e.target.style.display = 'none'}
-                  />
-                </Box>
+                <>
+                {/* Gestisci i diversi tipi di media */}
+                {message.content.includes("🔊 Messaggio vocale") ? (
+                  <AudioMessageWrapper message={message} />
+                ) : (
+                  <Box>
+                    <img 
+                      src={safeImagePath(message.mediaPath)} 
+                      alt="Media content" 
+                      style={{ 
+                        maxWidth: '100%', 
+                        borderRadius: '5px', 
+                        marginTop: '10px',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => handleImageClick(message.mediaPath)}
+                      onError={(e) => e.target.style.display = 'none'}
+                    />
+                  </Box>
+                  )}
+                </>
               )}
               {!message.isMedia && (
                 <Typography variant="body2">
                   {message.content}
+                  {message.isEdited && (
+                    <Typography 
+                      component="span" 
+                      sx={{ 
+                        fontSize: '0.75rem', 
+                        ml: 1, 
+                        color: 'text.secondary',
+                        fontStyle: 'italic' 
+                      }}
+                    >
+                      (modificato)
+                    </Typography>
+                  )}
                 </Typography>
               )}
               

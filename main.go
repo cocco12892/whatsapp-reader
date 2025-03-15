@@ -34,12 +34,17 @@ type Message struct {
     Timestamp       time.Time `json:"timestamp"`
     IsMedia         bool      `json:"isMedia"`
     MediaPath       string    `json:"mediaPath,omitempty"`
-    
+	IsEdited        bool      `json:"isEdited"`
+	IsDeleted       bool      `json:"isDeleted"` 
+
     // Nuovi campi per i messaggi di risposta
     IsReply         bool      `json:"isReply"`
     ReplyToMessageID string   `json:"replyToMessageId,omitempty"`
     ReplyToSender   string    `json:"replyToSender,omitempty"`
     ReplyToContent  string    `json:"replyToContent,omitempty"`
+
+	ProtocolMessageType int    `json:"protocolMessageType,omitempty"`
+    ProtocolMessageName string `json:"protocolMessageName,omitempty"`
 }
 
 
@@ -61,6 +66,48 @@ var (
 	groupNameCache   sync.Map
 	contactNameCache sync.Map
 )
+
+func getProtocolMessageTypeName(typeNum int) string {
+    switch typeNum {
+    case 0:
+        return "revoke"
+    case 2:
+        return "app_state_sync_key_share"
+    case 4:
+        return "history_sync_notification"
+    case 5:
+        return "initial_security_notification"
+    case 7:
+        return "app_state_fatal_exception_notification"
+    case 10:
+        return "sync_message"
+    case 11:
+        return "peer_data_operation_request"
+    case 12:
+        return "peer_data_operation_response"
+    case 13:
+        return "placeholder_cleanup"
+    case 14:
+        return "edit"
+    default:
+        return "unknown"
+    }
+}
+
+func getAudioExtension(mimetype string) string {
+    switch mimetype {
+    case "audio/ogg":
+        return "ogg"
+    case "audio/mp4":
+        return "m4a"
+    case "audio/wav":
+        return "wav"
+    case "audio/mpeg":
+        return "mp3"
+    default:
+        return "audio"
+    }
+}
 
 // Funzione per sanitizzare stringhe per uso nei percorsi dei file
 func sanitizePathComponent(s string) string {
@@ -213,34 +260,91 @@ func main() {
 	client.AddEventHandler(func(evt interface{}) {
 		switch v := evt.(type) {
 		case *events.Message:
+    		// Controlla se è un messaggio di tipo elimina
+			if v.Message.GetProtocolMessage() != nil && v.Message.GetProtocolMessage().GetType() == 0 {
 
-			// Verifica se è un messaggio editato
-			if v.Info.EditedMessageKey != nil {
-				// Gestisci il messaggio editato
-				editedMessageID := v.Info.EditedMessageKey.ID
+				revokedMessageID := v.Message.GetProtocolMessage().GetKey().GetId()
+				
+				mutex.Lock()
+				for i, msg := range messages {
+					if msg.ID == revokedMessageID {
+						// Contrassegna il messaggio come eliminato
+						messages[i].IsDeleted = true
+						messages[i].Content = "(Questo messaggio è stato eliminato)"
+						
+						// Aggiorna anche nella chat corrispondente
+						if chat, exists := chats[msg.Chat]; exists {
+							for j, chatMsg := range chat.Messages {
+								if chatMsg.ID == revokedMessageID {
+									chat.Messages[j].IsDeleted = true
+									chat.Messages[j].Content = "(Questo messaggio è stato eliminato)"
+									break
+								}
+							}
+							
+							// Se è l'ultimo messaggio nella chat, aggiorna anche quello
+							if chat.LastMessage.ID == revokedMessageID {
+								chat.LastMessage.IsDeleted = true
+								chat.LastMessage.Content = "(Questo messaggio è stato eliminato)"
+							}
+						}
+						
+						fmt.Printf("Messaggio %s eliminato\n", revokedMessageID)
+						break
+					}
+				}
+				mutex.Unlock()
+			}
+
+    		// Controlla se è un messaggio di tipo modifica
+			if v.Message.GetProtocolMessage() != nil && v.Message.GetProtocolMessage().GetType() == 14 {
+				// Ottieni l'ID del messaggio originale
+				editedMessageID := v.Message.GetProtocolMessage().GetKey().GetId()
 				
 				// Trova il messaggio originale nella lista dei messaggi
 				mutex.Lock()
 				for i, msg := range messages {
 					if msg.ID == editedMessageID {
-						// Aggiorna il contenuto del messaggio originale
-						messages[i].Content = extractMessageContent(v.Message)
-						messages[i].IsMedia = isMediaMessage(v.Message)
+						// Estrai il contenuto aggiornato dal messaggio modificato
+						var content string
 						
-						// Se è un media, aggiorna il percorso del media
-						if messages[i].IsMedia {
-							messages[i].MediaPath = extractMediaPath(client, v.Message, v.Info)
+						// Estrai il contenuto aggiornato
+						if v.Message.GetProtocolMessage().GetEditedMessage().GetConversation() != "" {
+							content = v.Message.GetProtocolMessage().GetEditedMessage().GetConversation()
+						} else if v.Message.GetProtocolMessage().GetEditedMessage().GetExtendedTextMessage() != nil {
+							content = v.Message.GetProtocolMessage().GetEditedMessage().GetExtendedTextMessage().GetText()
 						}
 						
-						fmt.Printf("Messaggio %s modificato: %s\n", editedMessageID, messages[i].Content)
+						// Aggiorna il messaggio
+						if content != "" {
+							messages[i].Content = content
+							// Aggiungi un flag per indicare che è stato modificato
+							messages[i].IsEdited = true  // Dovrai aggiungere questo campo alla struct Message
+							
+							// Aggiorna anche nella chat corrispondente
+							if chat, exists := chats[msg.Chat]; exists {
+								for j, chatMsg := range chat.Messages {
+									if chatMsg.ID == editedMessageID {
+										chat.Messages[j].Content = content
+										chat.Messages[j].IsEdited = true
+										break
+									}
+								}
+								
+								// Se è l'ultimo messaggio nella chat, aggiorna anche quello
+								if chat.LastMessage.ID == editedMessageID {
+									chat.LastMessage.Content = content
+									chat.LastMessage.IsEdited = true
+								}
+							}
+							
+							fmt.Printf("Messaggio %s modificato: %s\n", editedMessageID, content)
+						}
 						break
 					}
 				}
 				mutex.Unlock()
-				
-				continue // Passa al prossimo evento
 			}
-			
 			// Ottieni i dati del messaggio
 			var chatJID string
 			var chatName string
@@ -265,6 +369,11 @@ func main() {
 				replyToMessageID string
 				replyToSender string    // Add this line
 				replyToContent string
+
+				isEdited bool
+				isDeleted bool
+				protocolMessageType int
+        		protocolMessageName string
 			)
 			
 			// Sostituisci la parte di gestione dei tipi di messaggio nel tuo event handler case *events.Message:
@@ -366,8 +475,67 @@ func main() {
 				isMedia = true
 				content = "📄 Documento: " + v.Message.GetDocumentMessage().GetFileName()
 			} else if v.Message.GetAudioMessage() != nil {
+				audioMsg := v.Message.GetAudioMessage()
 				isMedia = true
 				content = "🔊 Messaggio vocale"
+
+				// Scarica il file audio
+				audioData, err := client.Download(audioMsg)
+				if err == nil {
+					// Genera path per salvare il file
+					dataDir := v.Info.Timestamp.Format("2006-01-02")
+					oraPrefisso := v.Info.Timestamp.Format("15-04-05")
+					
+					// Sanitizza i nomi
+					sanitizedChatName := sanitizePathComponent(chatName)
+					sanitizedSenderName := sanitizePathComponent(senderName)
+					
+					basePath := "Messaggi Vocali"
+					groupPath := fmt.Sprintf("%s/%s", basePath, sanitizedChatName)
+					dataPath := fmt.Sprintf("%s/%s", groupPath, dataDir)
+					
+					// Crea le directory
+					err = os.MkdirAll(dataPath, 0755)
+					if err != nil {
+						fmt.Printf("Errore creazione directory: %v\n", err)
+					}
+					
+					// Informazioni aggiuntive dall'AudioMessage
+					duration := audioMsg.GetSeconds() // Durata in secondi
+					mimetype := audioMsg.GetMimetype() // Tipo di file audio
+					
+					// Crea il nome file
+					fileName := fmt.Sprintf("%s_%s_ID%s.%s", 
+						oraPrefisso, 
+						sanitizedSenderName, 
+						v.Info.ID, 
+						getAudioExtension(mimetype),
+					)
+					fullPath := fmt.Sprintf("%s/%s", dataPath, fileName)
+					
+					// Salva il file
+					err = os.WriteFile(fullPath, audioData, 0644)
+					if err != nil {
+						fmt.Printf("Errore salvataggio file audio: %v\n", err)
+					} else {
+						// Crea URL per il browser
+						mediaPath = fmt.Sprintf("/audio/%s/%s/%s", 
+							sanitizedChatName, 
+							dataDir, 
+							fileName,
+						)
+						
+						// Aggiorna il contenuto con dettagli aggiuntivi
+						content = fmt.Sprintf("🔊 Messaggio vocale (Durata: %d sec, Tipo: %s)", 
+							duration, 
+							mimetype,
+						)
+						
+						fmt.Printf("Messaggio vocale salvato: %s\n", mediaPath)
+					}
+				} else {
+					fmt.Printf("Errore download messaggio vocale: %v\n", err)
+				}
 			} else if v.Message.GetVideoMessage() != nil {
 				isMedia = true
 				content = "🎥 Video"
@@ -405,8 +573,26 @@ func main() {
 					messageType = "voto sondaggio"
 					content = "📊 Voto a un sondaggio"
 				} else if v.Message.GetProtocolMessage() != nil {
-					messageType = "messaggio di protocollo"
-					content = "⚙️ Messaggio di protocollo"
+				
+					protocolType := int(v.Message.GetProtocolMessage().GetType())
+					protocolMessageType = protocolType
+					
+					// Imposta il nome in base al tipo
+					protocolMessageName = getProtocolMessageTypeName(protocolType)
+					
+					// Imposta il contenuto per messaggi di protocollo
+					content = fmt.Sprintf("Messaggio di protocollo (tipo: %s)", protocolMessageName)
+					
+					// Verifica se è un messaggio di revoca (eliminazione)
+					if protocolType == 0 { // REVOKE
+						protocolMessageType = 99
+						isDeleted = true
+					}
+
+					// Verifica se è un edit
+					if protocolType == 14 { // EDIT
+						isEdited = true
+					}
 				} else if v.Message.GetButtonsMessage() != nil {
 					messageType = "messaggio con pulsanti"
 					content = "🔘 Messaggio con pulsanti"
@@ -453,6 +639,11 @@ func main() {
 				ReplyToMessageID: replyToMessageID,
 				ReplyToSender:   replyToSender,
 				ReplyToContent:  replyToContent,
+
+				ProtocolMessageType: protocolMessageType,
+				ProtocolMessageName: protocolMessageName,
+				IsEdited:            isEdited,
+				IsDeleted:            isDeleted,
 			}
 			
 			// Aggiorna la lista dei messaggi e delle chat
@@ -554,6 +745,7 @@ func main() {
 	router.Static("/images", "./Immagini")
 	router.Static("/profile-images/users", "./ProfileImages/Users")
 	router.Static("/profile-images/groups", "./ProfileImages/Groups")
+	router.Static("/audio", "./Messaggi Vocali")
 
 	// API per ottenere le ultime chat
 	router.GET("/api/chats", func(c *gin.Context) {
