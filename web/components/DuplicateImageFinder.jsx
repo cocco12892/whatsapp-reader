@@ -129,12 +129,28 @@ const DuplicateImageFinder = ({ chats }) => {
     
     if (note && group && Array.isArray(group)) {
       const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+      const groupId = `group_${Date.now()}`;
       
       // Applica la stessa nota a tutti i messaggi del gruppo
       group.forEach(image => {
         if (image.id) {
           console.log(`ID messaggio: ${image.id}`); // Stampa l'ID del messaggio
-          messageNotes[image.id] = note; // Assicurati di usare image.id
+          
+          // Salva la nota completa con tutti i metadati necessari
+          messageNotes[image.id] = {
+            messageId: image.id,
+            note: note,
+            type: 'nota',
+            chatName: image.chatName || 'Chat sconosciuta',
+            chatId: image.chatId,
+            senderName: image.senderName,
+            timestamp: image.timestamp,
+            content: image.content || '',
+            addedAt: new Date().toISOString(),
+            fromDuplicateGroup: true,
+            groupId: groupId,
+            imageHash: image.imageHash
+          };
         }
       });
       
