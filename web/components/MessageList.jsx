@@ -221,41 +221,58 @@ const addMessageNote = (messageId) => {
   const note = prompt("Inserisci una nota per il messaggio:");
   if (!note) return;
 
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-  messageNotes[messageId] = note;
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
   
-  // Save updated notes to storage
-  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
-  
-  // Update state
-  setNotedMessages(prev => {
-    const newSet = new Set([...prev, messageId]);
-    return newSet;
-  });
+  // Find the message in chats
+  const message = chats.reduce((foundMessage, chat) => {
+    return foundMessage || chat.messages.find(m => m.ID === messageId);
+  }, null);
 
-  // Visual effect
-  const messageElement = document.getElementById(`message-${messageId}`);
-  if (messageElement) {
-    messageElement.style.animation = 'notePulse 0.8s';
+  if (message) {
+    const newNoteEntry = {
+      messageId: message.ID,
+      note: note,
+      type: 'nota',
+      chatName: chats.find(chat => 
+        chat.messages.some(m => m.ID === message.ID)
+      )?.name || 'Chat sconosciuta'
+    };
+
+    messageNotes.push(newNoteEntry);
     
-    // If the animation style doesn't exist, add it
-    if (!document.getElementById('note-animation')) {
-      const styleTag = document.createElement('style');
-      styleTag.id = 'note-animation';
-      styleTag.innerHTML = `
-        @keyframes notePulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
-          100% { transform: scale(1); }
-        }
-      `;
-      document.head.appendChild(styleTag);
+    // Save updated notes to storage
+    localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+    
+    // Update state
+    setNotedMessages(prev => {
+      const newSet = new Set([...prev, messageId]);
+      return newSet;
+    });
+
+    // Visual effect
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (messageElement) {
+      messageElement.style.animation = 'notePulse 0.8s';
+      
+      // If the animation style doesn't exist, add it
+      if (!document.getElementById('note-animation')) {
+        const styleTag = document.createElement('style');
+        styleTag.id = 'note-animation';
+        styleTag.innerHTML = `
+          @keyframes notePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
+            100% { transform: scale(1); }
+          }
+        `;
+        document.head.appendChild(styleTag);
+      }
+      
+      // Remove the animation after it finishes
+      setTimeout(() => {
+        messageElement.style.animation = '';
+      }, 800);
     }
-    
-    // Remove the animation after it finishes
-    setTimeout(() => {
-      messageElement.style.animation = '';
-    }, 800);
   }
 };
 
@@ -276,6 +293,31 @@ const removeMessageNote = (messageId) => {
     newSet.delete(messageId);
     return newSet;
   });
+
+  // Visual effect
+  const messageElement = document.getElementById(`message-${messageId}`);
+  if (messageElement) {
+    messageElement.style.animation = 'noteRemovePulse 0.8s';
+    
+    // If the animation style doesn't exist, add it
+    if (!document.getElementById('note-remove-animation')) {
+      const styleTag = document.createElement('style');
+      styleTag.id = 'note-remove-animation';
+      styleTag.innerHTML = `
+        @keyframes noteRemovePulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(0.97); background-color: rgba(244, 67, 54, 0.1); }
+          100% { transform: scale(1); }
+        }
+      `;
+      document.head.appendChild(styleTag);
+    }
+    
+    // Remove the animation after it finishes
+    setTimeout(() => {
+      messageElement.style.animation = '';
+    }, 800);
+  }
 
   // Visual effect
   const messageElement = document.getElementById(`message-${messageId}`);
