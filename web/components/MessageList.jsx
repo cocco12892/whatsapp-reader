@@ -135,8 +135,9 @@ const [recordedMessages, setRecordedMessages] = useState(() => {
 
 // State for noted messages
 const [notedMessages, setNotedMessages] = useState(() => {
-  const stored = localStorage.getItem(`notedMessages_${chat.id}`);
-  return new Set(stored ? JSON.parse(stored) : []);
+  const stored = localStorage.getItem('messageNotes');
+  const notes = stored ? JSON.parse(stored) : {};
+  return new Set(Object.keys(notes));
 });
 
 const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null });
@@ -243,6 +244,21 @@ const handleNote = (messageId) => {
       return newSet;
     });
     
+    // Aggiorna lo stato delle note
+    setNotedMessages(prev => {
+      const newSet = new Set([...prev]);
+      
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      
+      // Save to storage for persistence
+      localStorage.setItem(`notedMessages_${chat.id}`, JSON.stringify([...newSet]));
+      return newSet;
+    });
+
     // Mantieni l'effetto visivo
     const messageElement = document.getElementById(`message-${messageId}`);
     if (messageElement) {
