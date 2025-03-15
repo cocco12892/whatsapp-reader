@@ -13,7 +13,8 @@ import {
   Divider,
   TextField,
   Tooltip,
-  DialogActions
+  DialogActions,
+  Alert
 } from '@mui/material';
 import FindReplaceIcon from '@mui/icons-material/FindReplace';
 import CloseIcon from '@mui/icons-material/Close';
@@ -220,9 +221,20 @@ const DuplicateImageFinder = ({ chats }) => {
                 <Card key={groupIndex} sx={{ mb: 3, overflow: 'visible' }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="subtitle1">
-                        Gruppo #{groupIndex + 1} - Trovate {group.length} copie
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle1">
+                          Gruppo #{groupIndex + 1} - Trovate {group.length} copie
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<NoteAddIcon />}
+                          onClick={() => handleOpenNoteDialog(group, groupHash, groupIndex)}
+                          sx={{ ml: 1 }}
+                        >
+                          Aggiungi nota
+                        </Button>
+                      </Box>
                     </Box>
                     
                     {/* Prima immagine come riferimento */}
@@ -367,9 +379,10 @@ const DuplicateImageFinder = ({ chats }) => {
           </IconButton>
         </DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Alert severity="info" sx={{ mb: 2 }}>
             Questa nota verrà applicata a tutte le {currentGroupMessageIds.length} immagini duplicate in questo gruppo.
-          </Typography>
+          </Alert>
+              
           <TextField
             autoFocus
             margin="dense"
@@ -384,6 +397,28 @@ const DuplicateImageFinder = ({ chats }) => {
             onChange={(e) => setCurrentNote(e.target.value)}
             helperText={`La nota verrà applicata a ${currentGroupMessageIds.length} messaggi`}
           />
+              
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="caption" color="text.secondary">
+              La nota apparirà accanto a ciascuna immagine del gruppo e sarà visibile in:
+            </Typography>
+            <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              {group.slice(0, 3).map((img, idx) => (
+                <Chip 
+                  key={idx}
+                  label={`${img.chatName} - ${formatTime(img.timestamp)}`}
+                  size="small"
+                />
+              ))}
+              {group.length > 3 && (
+                <Chip 
+                  label={`+${group.length - 3} altri`}
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+            </Box>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setNoteDialogOpen(false)}>Annulla</Button>
