@@ -246,8 +246,11 @@ const NotesGroupView = ({ open, onClose, chats }) => {
     // Crea l'intestazione del CSV
     let csvContent = "Data,Chat,Nota,Quota,Importo\n";
     
+    // Filtra gli elementi per escludere quelli senza importi e quote
+    const itemsWithData = recordedItems.filter(item => !item.hasNoRecording);
+    
     // Aggiungi ogni riga di dati
-    recordedItems.forEach(item => {
+    itemsWithData.forEach(item => {
       // Estrai importo e quota dal formato "importo@quota"
       let importo = '';
       let quota = '';
@@ -295,8 +298,11 @@ const NotesGroupView = ({ open, onClose, chats }) => {
     // Inizializza la stringa della tabella senza intestazione
     let tableContent = "";
     
+    // Filtra gli elementi per escludere quelli senza importi e quote
+    const itemsWithData = recordedItems.filter(item => !item.hasNoRecording);
+    
     // Aggiungi ogni riga di dati
-    recordedItems.forEach(item => {
+    itemsWithData.forEach(item => {
       // Estrai importo e quota dal formato "importo@quota"
       let importo = '';
       let quota = '';
