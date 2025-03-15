@@ -107,23 +107,40 @@ const NotesGroupView = ({ open, onClose, chats }) => {
           groupedRecordedObj[noteText] = [];
         }
         
-        // Per ogni nota, verifica se esiste già una registrazione per quel messaggio
+        // Raggruppa le note per chatId
+        const notesByChatId = {};
         noteEntries.forEach(noteEntry => {
-          const hasRecording = Object.values(storedRecorded).some(
-            record => record.messageId === noteEntry.messageId
+          if (!notesByChatId[noteEntry.chatId]) {
+            notesByChatId[noteEntry.chatId] = [];
+          }
+          notesByChatId[noteEntry.chatId].push(noteEntry);
+        });
+        
+        // Per ogni chat, verifica se ha già almeno una registrazione
+        Object.entries(notesByChatId).forEach(([chatId, chatNotes]) => {
+          // Controlla se questa chat ha già una registrazione per questa nota
+          const chatHasRecording = Object.values(storedRecorded).some(
+            record => record.chatId === chatId && record.note === noteText
           );
           
-          // Se non esiste una registrazione, aggiungi un elemento speciale
-          if (!hasRecording) {
+          // Se la chat non ha registrazioni per questa nota, aggiungi solo una nota senza registrazione
+          if (!chatHasRecording && chatNotes.length > 0) {
+            // Prendi la prima nota di questa chat per questa nota
+            const noteEntry = chatNotes[0];
+            
+            // Verifica che non esista già un elemento per questo messaggio
             const existingItem = groupedRecordedObj[noteText].find(
               item => item.messageId === noteEntry.messageId
             );
             
             if (!existingItem) {
+              // Usa il sinonimo della chat se disponibile
+              const chatName = getChatName(chatId, noteEntry.chatName);
+              
               groupedRecordedObj[noteText].push({
                 messageId: noteEntry.messageId,
                 chatId: noteEntry.chatId,
-                chatName: noteEntry.chatName,
+                chatName: chatName,
                 timestamp: noteEntry.timestamp,
                 note: noteText,
                 hasNoRecording: true // Flag per identificare elementi senza registrazione
@@ -604,7 +621,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                               {item.timestamp ? formatTime(item.timestamp) : ''}
                             </Typography>
                             <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {getChatName(item.chatId, item.chatName)}
+                              {item.chatName}
                             </Typography>
                             <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {note}
