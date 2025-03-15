@@ -138,7 +138,7 @@ const DuplicateImageFinder = ({ chats }) => {
   const handleMessageRightClick = (e, messageId) => {
     e.preventDefault();
     
-    const note = prompt("Inserisci una nota per il messaggio (verrà applicata a tutto il gruppo):");
+    const note = prompt("Inserisci una nota per il messaggio:");
     
     if (note) {
       const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
@@ -149,7 +149,7 @@ const DuplicateImageFinder = ({ chats }) => {
       );
       
       if (group) {
-        // Applica la nota a tutti i messaggi del gruppo
+        // Applica la nota a ogni messaggio singolarmente
         group.images.forEach(img => {
           messageNotes[img.ID] = note;
         });
