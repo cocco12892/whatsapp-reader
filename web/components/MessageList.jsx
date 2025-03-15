@@ -222,19 +222,25 @@ const addMessageNote = (messageId) => {
 
   const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
   
-  // Find the message in chats
-  const message = chats.reduce((foundMessage, chat) => {
-    return foundMessage || chat.messages.find(m => m.ID === messageId);
-  }, null);
+  // Memoize chat and message lookup to avoid repeated iterations
+  const findMessageAndChat = () => {
+    for (const chat of chats) {
+      const message = chat.messages.find(m => m.ID === messageId);
+      if (message) {
+        return { message, chatName: chat.name };
+      }
+    }
+    return { message: null, chatName: 'Chat sconosciuta' };
+  };
+
+  const { message, chatName } = findMessageAndChat();
 
   if (message) {
     const newNoteEntry = {
       messageId: message.ID,
       note: note,
       type: 'nota',
-      chatName: chats.find(chat => 
-        chat.messages.some(m => m.ID === message.ID)
-      )?.name || 'Chat sconosciuta'
+      chatName: chatName
     };
 
     messageNotes.push(newNoteEntry);
@@ -243,34 +249,33 @@ const addMessageNote = (messageId) => {
     localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
     
     // Update state
-    setNotedMessages(prev => {
-      const newSet = new Set([...prev, messageId]);
-      return newSet;
-    });
+    setNotedMessages(prev => new Set([...prev, messageId]));
 
-    // Visual effect
+    // Visual effect with requestAnimationFrame for better performance
     const messageElement = document.getElementById(`message-${messageId}`);
     if (messageElement) {
-      messageElement.style.animation = 'notePulse 0.8s';
-      
-      // If the animation style doesn't exist, add it
-      if (!document.getElementById('note-animation')) {
-        const styleTag = document.createElement('style');
-        styleTag.id = 'note-animation';
-        styleTag.innerHTML = `
-          @keyframes notePulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
-            100% { transform: scale(1); }
-          }
-        `;
-        document.head.appendChild(styleTag);
-      }
-      
-      // Remove the animation after it finishes
-      setTimeout(() => {
-        messageElement.style.animation = '';
-      }, 800);
+      requestAnimationFrame(() => {
+        messageElement.style.animation = 'notePulse 0.8s';
+        
+        // If the animation style doesn't exist, add it
+        if (!document.getElementById('note-animation')) {
+          const styleTag = document.createElement('style');
+          styleTag.id = 'note-animation';
+          styleTag.innerHTML = `
+            @keyframes notePulse {
+              0% { transform: scale(1); }
+              50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
+              100% { transform: scale(1); }
+            }
+          `;
+          document.head.appendChild(styleTag);
+        }
+        
+        // Remove the animation after it finishes
+        setTimeout(() => {
+          messageElement.style.animation = '';
+        }, 800);
+      });
     }
   }
 };
