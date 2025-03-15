@@ -137,8 +137,8 @@ const [recordedMessages, setRecordedMessages] = useState(() => {
 // State for noted messages
 const [notedMessages, setNotedMessages] = useState(() => {
   const stored = localStorage.getItem('messageNotes');
-  const notes = stored ? JSON.parse(stored) : {};
-  return new Set(Object.keys(notes));
+  const notes = stored ? JSON.parse(stored) : [];
+  return new Set(notes.map(note => note.messageId));
 });
 
 // State for notes group view

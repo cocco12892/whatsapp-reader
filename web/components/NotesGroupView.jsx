@@ -21,32 +21,26 @@ const NotesGroupView = ({ open, onClose, chats }) => {
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
-    if (open && chats) {
+    if (open) {
       // Load notes from localStorage
-      const storedNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+      const storedNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
       setNotes(storedNotes);
       
-      // Group notes by their content with chat information
+      // Group notes by their content
       const grouped = {};
-      chats.forEach(chat => {
-        chat.messages.forEach(message => {
-          const note = storedNotes[message.ID];
-          if (note) {
-            if (!grouped[note]) {
-              grouped[note] = [];
-            }
-            grouped[note].push({
-              messageId: message.ID,
-              chatId: chat.id,
-              chatName: chat.name
-            });
-          }
+      storedNotes.forEach(noteEntry => {
+        if (!grouped[noteEntry.note]) {
+          grouped[noteEntry.note] = [];
+        }
+        grouped[noteEntry.note].push({
+          messageId: noteEntry.messageId,
+          chatName: noteEntry.chatName
         });
       });
       
       setGroupedNotes(grouped);
     }
-  }, [open, chats]);
+  }, [open]);
 
   // Filter notes based on input
   const filteredGroupedNotes = Object.entries(groupedNotes)

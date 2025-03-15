@@ -108,16 +108,32 @@ function NotePopup({
       return;
     }
 
-    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
     const duplicateImageGroupNotes = JSON.parse(localStorage.getItem('duplicateImageGroupNotes') || '{}');
 
-    // Salva la nota per il messaggio corrente
-    messageNotes[message.ID] = note;
+    // Prepara la nuova struttura della nota
+    const newNoteEntry = {
+      messageId: message.ID,
+      note: note,
+      type: 'nota',
+      chatName: chats.find(chat => 
+        chat.messages.some(m => m.ID === message.ID)
+      )?.name || 'Chat sconosciuta'
+    };
+
+    // Aggiungi la nota all'array
+    messageNotes.push(newNoteEntry);
 
     if (hasDuplicates && syncWithDuplicates) {
       // Aggiorna le note per tutte le immagini duplicate
       duplicateImages.forEach(duplicate => {
-        messageNotes[duplicate.ID] = note;
+        const duplicateNoteEntry = {
+          messageId: duplicate.ID,
+          note: note,
+          type: 'nota',
+          chatName: duplicate.chatName
+        };
+        messageNotes.push(duplicateNoteEntry);
       });
 
       // Aggiorna anche la nota di gruppo
