@@ -101,6 +101,38 @@ const NotesGroupView = ({ open, onClose, chats }) => {
         }
       });
       
+      // Aggiungi anche le note che non hanno registrazioni associate
+      Object.entries(groupedNotesObj).forEach(([noteText, noteEntries]) => {
+        if (!groupedRecordedObj[noteText]) {
+          groupedRecordedObj[noteText] = [];
+        }
+        
+        // Per ogni nota, verifica se esiste già una registrazione per quel messaggio
+        noteEntries.forEach(noteEntry => {
+          const hasRecording = Object.values(storedRecorded).some(
+            record => record.messageId === noteEntry.messageId
+          );
+          
+          // Se non esiste una registrazione, aggiungi un elemento speciale
+          if (!hasRecording) {
+            const existingItem = groupedRecordedObj[noteText].find(
+              item => item.messageId === noteEntry.messageId
+            );
+            
+            if (!existingItem) {
+              groupedRecordedObj[noteText].push({
+                messageId: noteEntry.messageId,
+                chatId: noteEntry.chatId,
+                chatName: noteEntry.chatName,
+                timestamp: noteEntry.timestamp,
+                note: noteText,
+                hasNoRecording: true // Flag per identificare elementi senza registrazione
+              });
+            }
+          }
+        });
+      });
+      
       setGroupedRecorded(groupedRecordedObj);
     }
   }, [open]);
@@ -578,19 +610,29 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                               {note}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              {quota}
+                              {item.hasNoRecording ? '-' : quota}
                             </Typography>
                             <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                              {importo}
+                              {item.hasNoRecording ? '-' : importo}
                             </Typography>
-                            <IconButton 
-                              edge="end" 
-                              aria-label="delete"
-                              size="small"
-                              onClick={() => handleDeleteRecorded(item.messageId)}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
+                            {item.hasNoRecording ? (
+                              <Chip
+                                label="Skip"
+                                size="small"
+                                color="default"
+                                variant="outlined"
+                                sx={{ height: 24, fontSize: '0.7rem' }}
+                              />
+                            ) : (
+                              <IconButton 
+                                edge="end" 
+                                aria-label="delete"
+                                size="small"
+                                onClick={() => handleDeleteRecorded(item.messageId)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            )}
                           </ListItem>
                         );
                       })}
