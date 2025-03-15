@@ -223,10 +223,17 @@ const handleNote = (messageId) => {
       // Remove the note
       newSet.delete(messageId);
       delete messageNotes[messageId];
-      
-      // Save updated notes to storage
-      localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+    } else {
+      // Add a new note
+      const note = prompt("Inserisci una nota per il messaggio:");
+      if (note) {
+        newSet.add(messageId);
+        messageNotes[messageId] = note;
+      }
     }
+    
+    // Save updated notes to storage
+    localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
     
     return newSet;
   });
