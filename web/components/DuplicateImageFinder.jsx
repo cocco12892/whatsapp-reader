@@ -403,16 +403,16 @@ const DuplicateImageFinder = ({ chats }) => {
               La nota apparirà accanto a ciascuna immagine del gruppo e sarà visibile in:
             </Typography>
             <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-              {duplicateGroup.images.slice(0, 3).map((img, idx) => (
+              {currentNoteGroup && duplicates.find(d => d.groupNoteKey === currentNoteGroup)?.images.slice(0, 3).map((img, idx) => (
                 <Chip 
                   key={idx}
                   label={`${img.chatName} - ${formatTime(img.timestamp)}`}
                   size="small"
                 />
               ))}
-              {group && group.length > 3 && (
+              {currentNoteGroup && duplicates.find(d => d.groupNoteKey === currentNoteGroup)?.images.length > 3 && (
                 <Chip 
-                  label={`+${group.length - 3} altri`}
+                  label={`+${duplicates.find(d => d.groupNoteKey === currentNoteGroup).images.length - 3} altri`}
                   size="small"
                   variant="outlined"
                 />
