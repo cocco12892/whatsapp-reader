@@ -135,8 +135,8 @@ const [recordedMessages, setRecordedMessages] = useState(() => {
 
 // State for noted messages
 const [notedMessages, setNotedMessages] = useState(() => {
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-  return new Set(Object.keys(messageNotes));
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
+  return new Set(messageNotes.map(note => note.messageId));
 });
 
 // State for notes group view
@@ -219,7 +219,7 @@ const addMessageNote = (messageId) => {
   const note = prompt("Inserisci una nota per il messaggio:");
   if (!note) return;
 
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
   
   // Find the message in chats
   const message = chats.reduce((foundMessage, chat) => {
@@ -227,7 +227,16 @@ const addMessageNote = (messageId) => {
   }, null);
 
   if (message) {
-    messageNotes[messageId] = note;
+    const newNoteEntry = {
+      messageId: message.ID,
+      note: note,
+      type: 'nota',
+      chatName: chats.find(chat => 
+        chat.messages.some(m => m.ID === message.ID)
+      )?.name || 'Chat sconosciuta'
+    };
+
+    messageNotes.push(newNoteEntry);
     
     // Save updated notes to storage
     localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
@@ -268,13 +277,13 @@ const addMessageNote = (messageId) => {
 const removeMessageNote = (messageId) => {
   console.log('Removing note for message:', messageId);
   
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
   
   // Remove the note for this specific message
-  delete messageNotes[messageId];
+  const updatedNotes = messageNotes.filter(note => note.messageId !== messageId);
   
   // Save updated notes to storage
-  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+  localStorage.setItem('messageNotes', JSON.stringify(updatedNotes));
   
   // Update state
   setNotedMessages(prev => {
@@ -472,10 +481,10 @@ return (
                     e.stopPropagation();
                     handleNote(message.id);
                   }}
-                  title={`Messaggio annotato: ${messageNotes[message.id]}`}
+                  title={`Messaggio annotato: ${messageNotes.find(note => note.messageId === message.id)?.note}`}
                 >
                   <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    {messageNotes[message.id] && (
+                    {messageNotes.find(note => note.messageId === message.id)?.note && (
                       <Typography 
                         variant="caption" 
                         sx={{ 
@@ -495,7 +504,7 @@ return (
                           zIndex: 10
                         }}
                       >
-                        {messageNotes[message.id]}
+                        {messageNotes.find(note => note.messageId === message.id)?.note}
                       </Typography>
                     )}
                     <NoteIcon sx={{ fontSize: 10 }} />
