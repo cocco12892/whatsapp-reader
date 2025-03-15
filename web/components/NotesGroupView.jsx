@@ -627,7 +627,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                               {item.timestamp ? formatTime(item.timestamp) : ''}
                             </Typography>
                             <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {item.chatName}
+                              {getChatName(item.chatId, item.chatName)}
                             </Typography>
                             <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {note}
