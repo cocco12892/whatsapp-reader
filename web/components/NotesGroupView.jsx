@@ -124,27 +124,27 @@ const NotesGroupView = ({ open, onClose, chats }) => {
           const chatHasRecordingForThisNote = Object.values(storedRecorded).some(
             record => record.chatId === chatId && record.note === noteText
           );
-          
-          // Se la chat non ha registrazioni per questa nota, aggiungi solo una nota senza registrazione
-          if (!chatHasRecordingForThisNote && chatNotes.length > 0) {
+        
+          // Se la chat non ha registrazioni per questa nota, aggiungi sempre una nota senza registrazione
+          if (chatNotes.length > 0) {
             // Prendi la prima nota di questa chat per questa nota
             const noteEntry = chatNotes[0];
+          
+            // Se non c'è già una registrazione per questa chat e nota, aggiungi un elemento Skip
+            if (!chatHasRecordingForThisNote) {
+              // Aggiungi l'elemento con hasNoRecording: true
+              const skipItem = {
+                messageId: noteEntry.messageId,
+                chatId: chatId,
+                chatName: noteEntry.chatName, // Usa il nome originale della chat, non il sinonimo
+                timestamp: noteEntry.timestamp,
+                note: noteText,
+                hasNoRecording: true // Flag per identificare elementi senza registrazione
+              };
             
-            // Usa il sinonimo della chat se disponibile
-            const chatName = getChatName(chatId, noteEntry.chatName);
-            
-            // Aggiungi l'elemento con hasNoRecording: true
-            const skipItem = {
-              messageId: noteEntry.messageId,
-              chatId: chatId,
-              chatName: chatName,
-              timestamp: noteEntry.timestamp,
-              note: noteText,
-              hasNoRecording: true // Flag per identificare elementi senza registrazione
-            };
-            
-            groupedRecordedObj[noteText].push(skipItem);
-            console.log('Aggiunto elemento Skip:', skipItem);
+              groupedRecordedObj[noteText].push(skipItem);
+              console.log('Aggiunto elemento Skip:', skipItem);
+            }
           }
         });
       });
@@ -252,8 +252,8 @@ const NotesGroupView = ({ open, onClose, chats }) => {
     // Crea l'intestazione del CSV
     let csvContent = "Data,Chat,Nota,Quota,Importo\n";
     
-    // Filtra gli elementi per escludere quelli senza importi e quote
-    const itemsWithData = recordedItems.filter(item => !item.hasNoRecording);
+    // Include tutti gli elementi, anche quelli senza importi e quote
+    const itemsWithData = recordedItems;
     
     // Aggiungi ogni riga di dati
     itemsWithData.forEach(item => {
@@ -304,8 +304,8 @@ const NotesGroupView = ({ open, onClose, chats }) => {
     // Inizializza la stringa della tabella senza intestazione
     let tableContent = "";
     
-    // Filtra gli elementi per escludere quelli senza importi e quote
-    const itemsWithData = recordedItems.filter(item => !item.hasNoRecording);
+    // Include tutti gli elementi, anche quelli senza importi e quote
+    const itemsWithData = recordedItems;
     
     // Aggiungi ogni riga di dati
     itemsWithData.forEach(item => {
@@ -633,7 +633,12 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                               {item.timestamp ? formatTime(item.timestamp) : ''}
                             </Typography>
                             <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {getChatName(item.chatId, item.chatName)}
+                              {item.chatName}
+                              {getChatName(item.chatId, '') !== '' && (
+                                <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                                  ({getChatName(item.chatId, '')})
+                                </Typography>
+                              )}
                             </Typography>
                             <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {note}
