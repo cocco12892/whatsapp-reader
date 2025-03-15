@@ -95,7 +95,7 @@ const DuplicateImageFinder = ({ chats }) => {
           imageHash,
           groupIndex,
           images: imagesWithNotes,
-          hasNotes: imagesWithNotes.some(img => img.note) || !!groupNote
+          hasNotes: imagesWithNotes.some(img => img.note)
         };
       })
       // Ordina per numero di immagini e poi per timestamp più recente
