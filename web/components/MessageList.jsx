@@ -862,7 +862,7 @@ return (
     >
       <DialogTitle>Inserisci Importo e Quota</DialogTitle>
       <DialogContent>
-        <Box sx={{ display: 'flex', mt: 1, gap: 2 }}>
+        <Box sx={{ display: 'flex', mt: 1, gap: 1 }}>
           {/* Colonna sinistra SOLO con l'immagine */}
           <Box sx={{ flex: '0 0 45%' }}>
             {(() => {
@@ -938,24 +938,7 @@ return (
           </Box>
           
           {/* Colonna destra con input e selezione nota */}
-          <Box sx={{ flex: '0 0 55%', display: 'flex', flexDirection: 'column' }}>
-            {/* Campo importo@quota */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>Importo@Quota</Typography>
-              <TextField
-                autoFocus
-                fullWidth
-                variant="outlined"
-                value={amountQuotaInput}
-                onChange={(e) => setAmountQuotaInput(e.target.value)}
-                placeholder="Es: 1800@1,23"
-                helperText="Inserisci nel formato importo@quota"
-                InputProps={{
-                  sx: { fontSize: '1.2rem' }
-                }}
-              />
-            </Box>
-            
+          <Box sx={{ flex: '0 0 55%', display: 'flex', flexDirection: 'column' }}>          
             {/* Selezione della nota */}
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>Seleziona una nota:</Typography>
@@ -992,19 +975,22 @@ return (
               </Box>
             </Box>
             
-            {/* Riepilogo selezione */}
-            {selectedNote && (
-              <Box sx={{ 
-                p: 2, 
-                bgcolor: 'primary.light', 
-                color: 'primary.contrastText',
-                borderRadius: 2,
-                mb: 2
-              }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Nota selezionata:</Typography>
-                <Typography variant="body2">{selectedNote.note}</Typography>
-              </Box>
-            )}
+            {/* Campo importo@quota */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>Importo@Quota</Typography>
+              <TextField
+                autoFocus
+                fullWidth
+                variant="outlined"
+                value={amountQuotaInput}
+                onChange={(e) => setAmountQuotaInput(e.target.value)}
+                placeholder="Es: 1800@1,23"
+                helperText="Inserisci nel formato importo@quota"
+                InputProps={{
+                  sx: { fontSize: '1.2rem' }
+                }}
+              />
+            </Box>
           </Box>
         </Box>
       </DialogContent>
