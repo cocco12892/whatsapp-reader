@@ -133,17 +133,28 @@ const NotesGroupView = ({ open, onClose, chats }) => {
             // Usa il sinonimo della chat se disponibile
             const chatName = getChatName(chatId, noteEntry.chatName);
             
-            groupedRecordedObj[noteText].push({
+            // Aggiungi l'elemento con hasNoRecording: true
+            const skipItem = {
               messageId: noteEntry.messageId,
               chatId: chatId,
               chatName: chatName,
               timestamp: noteEntry.timestamp,
               note: noteText,
               hasNoRecording: true // Flag per identificare elementi senza registrazione
-            });
+            };
+            
+            groupedRecordedObj[noteText].push(skipItem);
+            console.log('Aggiunto elemento Skip:', skipItem);
           }
         });
       });
+      
+      // Log per debug
+      console.log('Elementi con hasNoRecording:', 
+        Object.entries(groupedRecordedObj).flatMap(([note, items]) => 
+          items.filter(item => item.hasNoRecording)
+        )
+      );
       
       setGroupedRecorded(groupedRecordedObj);
     }
@@ -633,7 +644,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                             <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
                               {item.hasNoRecording ? '-' : importo}
                             </Typography>
-                            {item.hasNoRecording ? (
+                            {item.hasNoRecording === true ? (
                               <Chip
                                 label="Skip"
                                 size="small"
