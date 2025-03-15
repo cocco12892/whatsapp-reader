@@ -15,7 +15,9 @@ import {
   InputAdornment,
   Tabs,
   Tab,
-  Button
+  Button,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -24,6 +26,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import NoteIcon from '@mui/icons-material/Note';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 const NotesGroupView = ({ open, onClose, chats }) => {
   const [notes, setNotes] = useState({});
@@ -33,6 +36,8 @@ const NotesGroupView = ({ open, onClose, chats }) => {
   const [filter, setFilter] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [tabValue, setTabValue] = useState(0);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -227,14 +232,59 @@ const NotesGroupView = ({ open, onClose, chats }) => {
     link.click();
     document.body.removeChild(link);
   };
+  
+  // Copia i dati in formato tabellare per Excel
+  const copyToClipboard = (noteGroup, recordedItems) => {
+    // Crea l'intestazione della tabella
+    let tableContent = "Data\tChat\tNota\tQuota\tImporto\n";
+    
+    // Aggiungi ogni riga di dati
+    recordedItems.forEach(item => {
+      // Estrai importo e quota dal formato "importo@quota"
+      let importo = '';
+      let quota = '';
+      if (item.data && item.data.includes('@')) {
+        const parts = item.data.split('@');
+        importo = parts[0];
+        quota = parts[1];
+      } else {
+        importo = item.data;
+      }
+      
+      // Formatta la data
+      const formattedDate = item.timestamp ? formatTime(item.timestamp) : '';
+      
+      // Prepara i campi, sostituendo eventuali tab con spazi
+      const prepareField = (text) => {
+        if (!text) return '';
+        return text.replace(/\t/g, ' ');
+      };
+      
+      // Aggiungi la riga alla tabella (usando tab come separatore per Excel)
+      tableContent += `${prepareField(formattedDate)}\t${prepareField(item.chatName)}\t${prepareField(noteGroup)}\t${prepareField(quota)}\t${prepareField(importo)}\n`;
+    });
+    
+    // Copia negli appunti
+    navigator.clipboard.writeText(tableContent)
+      .then(() => {
+        setSnackbarMessage('Tabella copiata negli appunti! Ora puoi incollarla in Excel');
+        setSnackbarOpen(true);
+      })
+      .catch(err => {
+        console.error('Errore durante la copia negli appunti:', err);
+        setSnackbarMessage('Errore durante la copia. Riprova.');
+        setSnackbarOpen(true);
+      });
+  };
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      maxWidth="lg" 
-      fullWidth
-    >
+    <>
+      <Dialog 
+        open={open} 
+        onClose={onClose} 
+        maxWidth="lg" 
+        fullWidth
+      >
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography variant="h6">
@@ -432,14 +482,24 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                           size="small"
                         />
                       </Box>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<FileDownloadIcon />}
-                        onClick={() => exportToCSV(note, recordedItems)}
-                      >
-                        Esporta CSV
-                      </Button>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<ContentCopyIcon />}
+                          onClick={() => copyToClipboard(note, recordedItems)}
+                        >
+                          Copia per Excel
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<FileDownloadIcon />}
+                          onClick={() => exportToCSV(note, recordedItems)}
+                        >
+                          Esporta CSV
+                        </Button>
+                      </Box>
                     </Box>
                     
                     {/* Intestazione tabella */}
@@ -523,7 +583,23 @@ const NotesGroupView = ({ open, onClose, chats }) => {
           )}
         </Box>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+      
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbarOpen(false)} 
+          severity="success" 
+          sx={{ width: '100%' }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
+    </>
   );
 };
 
