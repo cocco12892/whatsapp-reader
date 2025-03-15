@@ -381,20 +381,68 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                       size="small" 
                       sx={{ mb: 2 }}
                     />
-                    <List dense>
-                      {recordedItems.map(item => (
-                        <ListItem 
-                          key={item.messageId} 
-                          sx={{ 
-                            pl: 0,
-                            borderLeft: '3px solid',
-                            borderColor: 'error.light',
-                            pl: 2,
-                            mb: 1,
-                            bgcolor: 'background.default',
-                            borderRadius: '0 4px 4px 0'
-                          }}
-                          secondaryAction={
+                    
+                    {/* Intestazione tabella */}
+                    <Box sx={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: '1fr 1fr 1fr auto',
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      p: 1,
+                      borderRadius: '4px 4px 0 0',
+                      fontWeight: 'bold',
+                      mb: 1
+                    }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Chat</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Importo/Quota</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Data</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Azioni</Typography>
+                    </Box>
+                    
+                    {/* Righe tabella */}
+                    <List dense disablePadding>
+                      {recordedItems.map(item => {
+                        // Estrai importo e quota dal formato "importo@quota"
+                        let importo = '';
+                        let quota = '';
+                        if (item.data && item.data.includes('@')) {
+                          const parts = item.data.split('@');
+                          importo = parts[0];
+                          quota = parts[1];
+                        } else {
+                          importo = item.data;
+                        }
+                        
+                        return (
+                          <ListItem 
+                            key={item.messageId}
+                            sx={{ 
+                              display: 'grid',
+                              gridTemplateColumns: '1fr 1fr 1fr auto',
+                              p: 1,
+                              borderBottom: '1px solid',
+                              borderColor: 'divider',
+                              '&:hover': {
+                                bgcolor: 'action.hover'
+                              }
+                            }}
+                          >
+                            <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {item.chatName}
+                            </Typography>
+                            <Box>
+                              <Typography variant="body2" component="span" sx={{ fontWeight: 'medium' }}>
+                                {importo}
+                              </Typography>
+                              {quota && (
+                                <Typography variant="body2" component="span" color="text.secondary">
+                                  @{quota}
+                                </Typography>
+                              )}
+                            </Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {item.timestamp ? formatTime(item.timestamp) : ''}
+                            </Typography>
                             <IconButton 
                               edge="end" 
                               aria-label="delete"
@@ -403,40 +451,9 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>
-                          }
-                        >
-                          <ListItemText
-                            primary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                  {item.chatName}
-                                </Typography>
-                                <Chip 
-                                  label={item.data} 
-                                  size="small" 
-                                  color="error"
-                                  sx={{ height: 20, fontSize: '0.7rem', fontWeight: 'bold' }}
-                                  title={`Nota associata: ${item.note || 'Nessuna'}`}
-                                />
-                              </Box>
-                            }
-                            secondary={
-                              <>
-                                {item.content && (
-                                  <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.5 }}>
-                                    {item.content.length > 50 ? `${item.content.substring(0, 50)}...` : item.content}
-                                  </Typography>
-                                )}
-                                {item.timestamp && (
-                                  <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.5 }}>
-                                    {formatTime(item.timestamp)}
-                                  </Typography>
-                                )}
-                              </>
-                            }
-                          />
-                        </ListItem>
-                      ))}
+                          </ListItem>
+                        );
+                      })}
                     </List>
                   </Box>
                 ))
