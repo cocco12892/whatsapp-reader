@@ -145,15 +145,40 @@ const DuplicateImageFinder = ({ chats }) => {
     
     // Save the same note for all message IDs in this group
     const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+    const duplicateImageGroupNotes = JSON.parse(localStorage.getItem('duplicateImageGroupNotes') || '{}');
     
+    // Save individual notes
     currentGroupMessageIds.forEach(messageId => {
       if (messageId) {
         messageNotes[messageId] = currentNote;
       }
     });
     
+    // Save group note with hash and timestamp as key
+    if (currentNoteGroup) {
+      duplicateImageGroupNotes[currentNoteGroup] = currentNote;
+    }
+    
     // Save back to localStorage
     localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+    localStorage.setItem('duplicateImageGroupNotes', JSON.stringify(duplicateImageGroupNotes));
+    
+    // Update UI state
+    setDuplicates(prev => 
+      prev.map(group => {
+        if (group.groupNoteKey === currentNoteGroup) {
+          return {
+            ...group,
+            hasNotes: currentNote.trim() !== '',
+            images: group.images.map(img => ({
+              ...img,
+              note: currentNote
+            }))
+          };
+        }
+        return group;
+      })
+    );
     
     setNoteDialogOpen(false);
   };
@@ -343,7 +368,7 @@ const DuplicateImageFinder = ({ chats }) => {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Questa nota verrà applicata a tutte le immagini duplicate in questo gruppo.
+            Questa nota verrà applicata a tutte le {currentGroupMessageIds.length} immagini duplicate in questo gruppo.
           </Typography>
           <TextField
             autoFocus
@@ -357,6 +382,7 @@ const DuplicateImageFinder = ({ chats }) => {
             rows={4}
             value={currentNote}
             onChange={(e) => setCurrentNote(e.target.value)}
+            helperText={`La nota verrà applicata a ${currentGroupMessageIds.length} messaggi`}
           />
         </DialogContent>
         <DialogActions>
@@ -365,8 +391,9 @@ const DuplicateImageFinder = ({ chats }) => {
             onClick={handleSaveGroupNote}
             variant="contained"
             color="primary"
+            disabled={!currentNote.trim()}
           >
-            Salva
+            Salva nota su {currentGroupMessageIds.length} messaggi
           </Button>
         </DialogActions>
       </Dialog>
