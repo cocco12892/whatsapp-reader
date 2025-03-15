@@ -168,24 +168,67 @@ const handleKeyDown = (e, messageId) => {
   }
 };
 
-// Handle recording a message
+// Handle recording a message with amount and quota
 const handleRecord = (messageId) => {
   console.log('Recording message:', messageId);
   
-  // Toggle the message in recorded messages
-  setRecordedMessages(prev => {
-    const newSet = new Set([...prev]);
+  // Check if the message is already recorded
+  const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+  
+  if (recordedData[messageId]) {
+    // If already recorded, remove it
+    const newRecordedData = { ...recordedData };
+    delete newRecordedData[messageId];
+    localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
     
-    if (newSet.has(messageId)) {
+    // Also remove from the set of recorded messages
+    setRecordedMessages(prev => {
+      const newSet = new Set([...prev]);
       newSet.delete(messageId);
-    } else {
-      newSet.add(messageId);
+      localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
+      return newSet;
+    });
+  } else {
+    // If not recorded, prompt for amount and quota
+    const input = prompt("Inserisci importo e quota nel formato importo@quota (es: 1800@1,23):");
+    if (!input) return;
+    
+    // Validate input format
+    if (!input.includes('@')) {
+      alert("Formato non valido. Usa il formato importo@quota (es: 1800@1,23)");
+      return;
     }
     
-    // Save to storage for persistence
-    localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
-    return newSet;
-  });
+    // Find the message in the chat
+    const message = chat.messages.find(m => m.id === messageId);
+    if (!message) {
+      console.error('Messaggio non trovato:', messageId);
+      return;
+    }
+    
+    // Save the recorded data
+    const newRecordedData = { ...recordedData };
+    newRecordedData[messageId] = {
+      messageId: messageId,
+      data: input,
+      chatId: chat.id,
+      chatName: chat.name,
+      senderName: message.senderName,
+      content: message.content,
+      timestamp: message.timestamp,
+      recordedAt: new Date().toISOString()
+    };
+    
+    localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
+    
+    // Add to the set of recorded messages
+    setRecordedMessages(prev => {
+      const newSet = new Set([...prev]);
+      newSet.add(messageId);
+      localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
+      return newSet;
+    });
+  }
   
   // Add a temporary visual effect to the message
   const messageElement = document.getElementById(`message-${messageId}`);
@@ -439,27 +482,65 @@ return (
             {/* Indicators at the top right of the message */}
             <Box sx={{ position: 'absolute', top: -5, right: -5, display: 'flex', gap: 1 }}>
               {isRecorded && (
-                <Box
-                  sx={{
-                    bgcolor: '#e91e63', // Pink-500
-                    color: 'white',
-                    width: 16,
-                    height: 16,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 10,
-                    cursor: 'pointer'
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRecord(message.id);
-                  }}
-                  title="Messaggio registrato"
-                >
-                  <MicIcon sx={{ fontSize: 10 }} />
-                </Box>
+                <Tooltip title={() => {
+                  const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+                  return recordedData[message.id] ? 
+                    `Importo/Quota: ${recordedData[message.id].data}` : 
+                    "Messaggio registrato";
+                }}>
+                  <Box
+                    sx={{
+                      bgcolor: '#e91e63', // Pink-500
+                      color: 'white',
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 10,
+                      cursor: 'pointer'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRecord(message.id);
+                    }}
+                  >
+                    <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      {/* Mostra il valore registrato */}
+                      {(() => {
+                        const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+                        if (recordedData[message.id]?.data) {
+                          return (
+                            <Typography 
+                              variant="caption" 
+                              sx={{ 
+                                position: 'absolute', 
+                                right: '100%', 
+                                mr: 0.5,
+                                bgcolor: 'background.paper', 
+                                p: 0.5, 
+                                borderRadius: 1,
+                                boxShadow: 1,
+                                fontSize: 8,
+                                color: 'text.secondary',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: 100,
+                                zIndex: 10
+                              }}
+                            >
+                              {recordedData[message.id].data}
+                            </Typography>
+                          );
+                        }
+                        return null;
+                      })()}
+                      <span style={{ fontSize: '10px' }}>💰</span>
+                    </Box>
+                  </Box>
+                </Tooltip>
               )}
               {/* Indicator for noted messages */}
               {isNoted && (
@@ -690,7 +771,7 @@ return (
             closeContextMenu();
           }}
         >
-          🎙 {recordedMessages.has(contextMenu.messageId) ? 'Rimuovi registrazione': 'Registra'}
+          💰 {recordedMessages.has(contextMenu.messageId) ? 'Rimuovi importo/quota': 'Registra importo/quota'}
         </Box>
         {/* Menu item for viewing grouped notes */}
         <Box
