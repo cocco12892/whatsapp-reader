@@ -140,6 +140,8 @@ const [notedMessages, setNotedMessages] = useState(() => {
   const notes = stored ? JSON.parse(stored) : {};
   return new Set(Object.keys(notes));
 });
+
+// State for notes group view
 const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
 
 const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null });
@@ -695,14 +697,13 @@ return (
         </Box>
       </Box>
     )}
+    {/* Notes Group View Dialog */}
+    <NotesGroupView 
+      open={notesGroupViewOpen} 
+      onClose={() => setNotesGroupViewOpen(false)} 
+    />
   </Box>
 );
 }
-
-{/* Notes Group View Dialog */}
-<NotesGroupView 
-  open={notesGroupViewOpen} 
-  onClose={() => setNotesGroupViewOpen(false)} 
-/>
 
 export default MessageList;
