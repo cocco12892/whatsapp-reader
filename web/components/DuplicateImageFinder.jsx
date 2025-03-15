@@ -49,6 +49,11 @@ const DuplicateImageFinder = ({ chats }) => {
     
     // Raccogliamo tutte le immagini da tutte le chat
     const allImages = [];
+    if (!chats || !Array.isArray(chats)) {
+      setLoading(false);
+      return;
+    }
+    
     chats.forEach(chat => {
       chat.messages.forEach(message => {
         if (message.isMedia && message.mediaPath && message.imageHash) {
