@@ -15,7 +15,9 @@ import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DuplicateImageFinder from './components/DuplicateImageFinder';
 import NotesGroupView from './components/NotesGroupView';
+import NotesTableView from './components/NotesTableView';
 import NoteIcon from '@mui/icons-material/Note';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import { Button } from '@mui/material';
 
 const API_BASE_URL = '/api';
@@ -56,6 +58,7 @@ function App() {
   const [rotation, setRotation] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
+  const [notesTableViewOpen, setNotesTableViewOpen] = useState(false);
 
   const fetchChats = async () => {
     try {
@@ -247,6 +250,14 @@ function App() {
                     startIcon={<NoteIcon />}
                   >
                     Visualizza Note Raggruppate
+                  </Button>
+                  <Button 
+                    variant="outlined" 
+                    color="primary" 
+                    onClick={() => setNotesTableViewOpen(true)}
+                    startIcon={<TableChartIcon />}
+                  >
+                    Tabella Quote
                   </Button>
                 </Box>
               </ErrorBoundary>
@@ -444,6 +455,12 @@ function App() {
       <NotesGroupView 
         open={notesGroupViewOpen} 
         onClose={() => setNotesGroupViewOpen(false)} 
+        chats={chats}
+      />
+      
+      <NotesTableView
+        open={notesTableViewOpen}
+        onClose={() => setNotesTableViewOpen(false)}
         chats={chats}
       />
     </ThemeProvider>
