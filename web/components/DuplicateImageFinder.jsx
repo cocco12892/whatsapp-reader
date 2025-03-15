@@ -210,6 +210,14 @@ const DuplicateImageFinder = ({ chats }) => {
                           Gruppo #{groupIndex + 1} - Trovate {group.length} copie
                         </Typography>
                       </Box>
+                      <Button
+                        variant="outlined"
+                        startIcon={group.some(img => img.note) ? <EditNoteIcon /> : <NoteAddIcon />}
+                        onClick={() => handleOpenNoteDialog(group)}
+                        size="small"
+                      >
+                        {group.some(img => img.note) ? 'Modifica nota gruppo' : 'Aggiungi nota gruppo'}
+                      </Button>
                     </Box>
                     
                     {/* Prima immagine come riferimento */}
@@ -281,32 +289,6 @@ const DuplicateImageFinder = ({ chats }) => {
                               position: 'relative'
                             }}
                           >
-                            <Box 
-                              sx={{ 
-                                position: 'absolute', 
-                                top: 5, 
-                                right: 5, 
-                                bgcolor: hasNote ? '#4caf50' : 'rgba(0,0,0,0.5)', 
-                                p: '2px', 
-                                borderRadius: '50%',
-                                width: 20,
-                                height: 20,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                '&:hover': {
-                                  bgcolor: hasNote ? '#388e3c' : '#4caf50'
-                                }
-                              }}
-                              onClick={() => handleOpenNoteDialog(group)}
-                            >
-                              {hasNote ? (
-                                <EditNoteIcon sx={{ color: 'white', fontSize: 14 }} />
-                              ) : (
-                                <NoteAddIcon sx={{ color: 'white', fontSize: 14 }} />
-                              )}
-                            </Box>
                             <img 
                               src={`http://localhost:8080${image.mediaPath}`} 
                               alt={`Occorrenza #${imageIndex + 1}`}
