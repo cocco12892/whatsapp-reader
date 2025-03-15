@@ -16,7 +16,6 @@ const extractImageContent = (content) => {
   return null;
 };import React, { useState, useEffect } from 'react';
 import { Box, Typography, Badge, Tooltip } from '@mui/material';
-import MicIcon from '@mui/icons-material/Mic';
 import NoteIcon from '@mui/icons-material/Note';
 import NotesGroupView from './NotesGroupView';
 import ReplyContext from './ReplyContext';
