@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"crypto/sha256"
+    "encoding/hex"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mdp/qrterminal/v3"
@@ -45,6 +47,8 @@ type Message struct {
 
 	ProtocolMessageType int    `json:"protocolMessageType,omitempty"`
     ProtocolMessageName string `json:"protocolMessageName,omitempty"`
+
+	ImageHash       string    `json:"imageHash,omitempty"`
 }
 
 
@@ -374,6 +378,8 @@ func main() {
 				isDeleted bool
 				protocolMessageType int
         		protocolMessageName string
+
+				imageHashString string 
 			)
 			
 			// Sostituisci la parte di gestione dei tipi di messaggio nel tuo event handler case *events.Message:
@@ -438,6 +444,11 @@ func main() {
 				// Salva l'immagine - mantenendo il codice originale che funzionava
 				imgData, err := client.Download(v.Message.GetImageMessage())
 				if err == nil {
+					// Calcola l'hash SHA-256 dell'immagine
+					imageHash := sha256.Sum256(imgData)
+					imageHashString := hex.EncodeToString(imageHash[:])
+					
+					// Il resto del codice esistente per salvare l'immagine...
 					dataDir := v.Info.Timestamp.Format("2006-01-02")
 					oraPrefisso := v.Info.Timestamp.Format("15-04-05")
 					
@@ -466,7 +477,11 @@ func main() {
 					} else {
 						// Crea URL per il browser
 						mediaPath = fmt.Sprintf("/images/%s/%s/%s", sanitizedChatName, dataDir, fileName)
-						fmt.Printf("Immagine salvata: %s\n", mediaPath)
+						
+						// Assegna l'hash al messaggio - questa è la riga aggiunta
+						imageHashString = imageHashString
+						
+						fmt.Printf("Immagine salvata: %s, Hash: %s\n", mediaPath, imageHashString)
 					}
 				} else {
 					fmt.Printf("Errore download immagine: %v\n", err)
@@ -644,6 +659,8 @@ func main() {
 				ProtocolMessageName: protocolMessageName,
 				IsEdited:            isEdited,
 				IsDeleted:            isDeleted,
+
+				ImageHash:           imageHashString,
 			}
 			
 			// Aggiorna la lista dei messaggi e delle chat

@@ -12,7 +12,7 @@ import RotateRightIcon from '@mui/icons-material/RotateRight';
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import RefreshIcon from '@mui/icons-material/Refresh';
-
+import DuplicateImageFinder from './components/DuplicateImageFinder';
 
 const API_BASE_URL = '/api';
 const POLLING_INTERVAL = 5000; // 5 secondi
@@ -253,6 +253,7 @@ function App() {
         ) : (
           <>
             <Typography variant="h1" gutterBottom>WhatsApp Web Viewer</Typography>
+            {chats.length > 0 && <DuplicateImageFinder chats={chats} />}
             {chats.length > 0 ? (
               <Box sx={{
                 display: 'flex',
