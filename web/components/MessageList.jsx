@@ -326,7 +326,8 @@ return (
   <Box onClick={closeContextMenu} className="message-container">
     {filteredMessages.map((message) => {
       const isRecorded = recordedMessages.has(message.id);
-      const isNoted = notedMessages.has(message.id);
+      const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+      const isNoted = messageNotes[message.id] ? true : false;
       const imageContent = extractImageContent(message.content);
       
       return (
