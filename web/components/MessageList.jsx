@@ -15,10 +15,11 @@ const extractImageContent = (content) => {
   
   return null;
 };import React, { useState, useEffect } from 'react';
-import { Box, Typography, Badge, Tooltip } from '@mui/material';
+import { Box, Typography, Badge, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from '@mui/material';
 import NoteIcon from '@mui/icons-material/Note';
 import NotesGroupView from './NotesGroupView';
 import ReplyContext from './ReplyContext';
+import NoteSelectionDialog from './NoteSelectionDialog';
 
 function MessageList({ 
 messages, 
@@ -141,6 +142,11 @@ const [notedMessages, setNotedMessages] = useState(() => {
 
 // State for notes group view
 const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
+const [noteSelectionOpen, setNoteSelectionOpen] = useState(false);
+const [currentMessageId, setCurrentMessageId] = useState(null);
+const [amountQuotaDialogOpen, setAmountQuotaDialogOpen] = useState(false);
+const [selectedNote, setSelectedNote] = useState(null);
+const [amountQuotaInput, setAmountQuotaInput] = useState('');
 
 const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null });
 
@@ -197,74 +203,79 @@ const handleRecord = (messageId) => {
       return;
     }
     
-    // Crea una lista di note per la selezione
-    let noteOptions = "Seleziona una nota esistente per associare l'importo e la quota:\n\n";
-    chatNotes.forEach((note, index) => {
-      noteOptions += `${index + 1}. ${note.note}\n`;
-    });
-    
-    // Chiedi all'utente di selezionare una nota
-    const selection = prompt(noteOptions + "\nInserisci il numero della nota:");
-    if (!selection) return;
-    
-    const selectedIndex = parseInt(selection) - 1;
-    if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= chatNotes.length) {
-      alert("Selezione non valida.");
-      return;
-    }
-    
-    const selectedNote = chatNotes[selectedIndex];
-    
-    // Chiedi all'utente di inserire importo e quota
-    const input = prompt("Inserisci importo e quota nel formato importo@quota (es: 1800@1,23):");
-    if (!input) return;
-    
-    // Validate input format
-    if (!input.includes('@')) {
-      alert("Formato non valido. Usa il formato importo@quota (es: 1800@1,23)");
-      return;
-    }
-    
-    // Find the message in the chat
-    const message = chat.messages.find(m => m.id === messageId);
-    if (!message) {
-      console.error('Messaggio non trovato:', messageId);
-      return;
-    }
-    
-    // Save the recorded data
-    const newRecordedData = { ...recordedData };
-    newRecordedData[messageId] = {
-      messageId: messageId,
-      data: input,
-      chatId: chat.id,
-      chatName: chat.name,
-      senderName: message.senderName,
-      content: message.content,
-      timestamp: message.timestamp,
-      recordedAt: new Date().toISOString(),
-      noteId: selectedNote.messageId,
-      note: selectedNote.note
-    };
-    
-    localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
-    
-    // Add to the set of recorded messages
-    setRecordedMessages(prev => {
-      const newSet = new Set([...prev]);
-      newSet.add(messageId);
-      localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
-      return newSet;
-    });
+    // Apri il dialog per selezionare una nota
+    setCurrentMessageId(messageId);
+    setNoteSelectionOpen(true);
+  }
+};
+
+// Funzione per gestire la selezione di una nota
+const handleNoteSelection = (note) => {
+  setSelectedNote(note);
+  setNoteSelectionOpen(false);
+  setAmountQuotaDialogOpen(true);
+};
+
+// Funzione per gestire l'inserimento di importo e quota
+const handleAmountQuotaSubmit = () => {
+  if (!amountQuotaInput || !amountQuotaInput.includes('@')) {
+    alert("Formato non valido. Usa il formato importo@quota (es: 1800@1,23)");
+    return;
   }
   
-  // Add a temporary visual effect to the message
+  const messageId = currentMessageId;
+  const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+  
+  // Find the message in the chat
+  const message = chat.messages.find(m => m.id === messageId);
+  if (!message) {
+    console.error('Messaggio non trovato:', messageId);
+    return;
+  }
+  
+  // Save the recorded data
+  const newRecordedData = { ...recordedData };
+  newRecordedData[messageId] = {
+    messageId: messageId,
+    data: amountQuotaInput,
+    chatId: chat.id,
+    chatName: chat.name,
+    senderName: message.senderName,
+    content: message.content,
+    timestamp: message.timestamp,
+    recordedAt: new Date().toISOString(),
+    noteId: selectedNote.messageId,
+    note: selectedNote.note
+  };
+  
+  localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
+  
+  // Add to the set of recorded messages
+  setRecordedMessages(prev => {
+    const newSet = new Set([...prev]);
+    newSet.add(messageId);
+    localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
+    return newSet;
+  });
+  
+  // Reset state and close dialog
+  setAmountQuotaDialogOpen(false);
+  setAmountQuotaInput('');
+  setSelectedNote(null);
+  
+  // Add visual effect
+  addVisualEffect(messageId, 'recordPulse');
+};
+
+// Funzione per aggiungere effetti visivi
+const addVisualEffect = (messageId, effectName) => {
+  
   const messageElement = document.getElementById(`message-${messageId}`);
   if (messageElement) {
-    messageElement.style.animation = 'recordPulse 0.8s';
+    messageElement.style.animation = `${effectName} 0.8s`;
     
     // If the animation style doesn't exist, add it
-    if (!document.getElementById('record-animation')) {
+    if (!document.getElementById('record-animation') && effectName === 'recordPulse') {
       const styleTag = document.createElement('style');
       styleTag.id = 'record-animation';
       styleTag.innerHTML = `
@@ -826,6 +837,54 @@ return (
       open={notesGroupViewOpen} 
       onClose={() => setNotesGroupViewOpen(false)} 
     />
+    
+    {/* Note Selection Dialog */}
+    <NoteSelectionDialog
+      open={noteSelectionOpen}
+      onClose={() => setNoteSelectionOpen(false)}
+      notes={Object.values(JSON.parse(localStorage.getItem('messageNotes') || '{}')).filter(note => note.chatId === chat.id)}
+      onSelectNote={handleNoteSelection}
+      chatName={chat.name}
+    />
+    
+    {/* Amount and Quota Input Dialog */}
+    <Dialog 
+      open={amountQuotaDialogOpen} 
+      onClose={() => setAmountQuotaDialogOpen(false)}
+      maxWidth="xs"
+      fullWidth
+    >
+      <DialogTitle>Inserisci Importo e Quota</DialogTitle>
+      <DialogContent>
+        <Box sx={{ mt: 1 }}>
+          {selectedNote && (
+            <Box sx={{ mb: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="subtitle2" color="primary">Nota selezionata:</Typography>
+              <Typography variant="body2">{selectedNote.note}</Typography>
+            </Box>
+          )}
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Importo@Quota"
+            fullWidth
+            variant="outlined"
+            value={amountQuotaInput}
+            onChange={(e) => setAmountQuotaInput(e.target.value)}
+            placeholder="Es: 1800@1,23"
+            helperText="Inserisci nel formato importo@quota"
+          />
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setAmountQuotaDialogOpen(false)} color="primary">
+          Annulla
+        </Button>
+        <Button onClick={handleAmountQuotaSubmit} color="primary" variant="contained">
+          Salva
+        </Button>
+      </DialogActions>
+    </Dialog>
   </Box>
 );
 }
