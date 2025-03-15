@@ -127,11 +127,11 @@ const DuplicateImageFinder = ({ chats }) => {
   const handleOpenNoteDialog = (group) => {
     const note = prompt("Inserisci una nota per il gruppo di messaggi:");
     
-    if (note && group && Array.isArray(group)) {
+    if (note && group && Array.isArray(group.images)) {
       const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
       
       // Applica la stessa nota a tutti i messaggi del gruppo
-      group.forEach(img => {
+      group.images.forEach(img => {
         messageNotes[img.ID] = note;
       });
       
@@ -143,7 +143,7 @@ const DuplicateImageFinder = ({ chats }) => {
           ...g,
           images: g.images.map(img => ({
             ...img,
-            note: group.some(gImg => gImg.ID === img.ID) ? note : img.note
+            note: group.images.some(gImg => gImg.ID === img.ID) ? note : img.note
           }))
         }))
       );
