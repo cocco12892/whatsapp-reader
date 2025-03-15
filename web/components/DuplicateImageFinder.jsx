@@ -125,14 +125,29 @@ const DuplicateImageFinder = ({ chats }) => {
 
   // Handle opening the note dialog for a group
   const handleOpenNoteDialog = (group) => {
-    setCurrentGroup(group);
+    const note = prompt("Inserisci una nota per il gruppo di messaggi:");
     
-    // Verifica se esiste già una nota di gruppo
-    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-    const groupNote = group.images.find(img => messageNotes[img.ID])?.note || '';
-    setCurrentNote(groupNote);
-    
-    setNoteDialogOpen(true);
+    if (note) {
+      const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+      
+      // Applica la stessa nota a tutti i messaggi del gruppo
+      group.forEach(img => {
+        messageNotes[img.ID] = note;
+      });
+      
+      localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+      
+      // Aggiorna lo stato UI
+      setDuplicates(prev => 
+        prev.map(g => ({
+          ...g,
+          images: g.images.map(img => ({
+            ...img,
+            note: group.some(gImg => gImg.ID === img.ID) ? note : img.note
+          }))
+        }))
+      );
+    }
   };
 
   const handleMessageRightClick = (e, messageId) => {
