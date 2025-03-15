@@ -188,7 +188,34 @@ const handleRecord = (messageId) => {
       return newSet;
     });
   } else {
-    // If not recorded, prompt for amount and quota
+    // Trova tutte le note esistenti per questa chat
+    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+    const chatNotes = Object.values(messageNotes).filter(note => note.chatId === chat.id);
+    
+    if (chatNotes.length === 0) {
+      alert("Non ci sono note in questa chat. Aggiungi prima una nota a un messaggio.");
+      return;
+    }
+    
+    // Crea una lista di note per la selezione
+    let noteOptions = "Seleziona una nota esistente per associare l'importo e la quota:\n\n";
+    chatNotes.forEach((note, index) => {
+      noteOptions += `${index + 1}. ${note.note}\n`;
+    });
+    
+    // Chiedi all'utente di selezionare una nota
+    const selection = prompt(noteOptions + "\nInserisci il numero della nota:");
+    if (!selection) return;
+    
+    const selectedIndex = parseInt(selection) - 1;
+    if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= chatNotes.length) {
+      alert("Selezione non valida.");
+      return;
+    }
+    
+    const selectedNote = chatNotes[selectedIndex];
+    
+    // Chiedi all'utente di inserire importo e quota
     const input = prompt("Inserisci importo e quota nel formato importo@quota (es: 1800@1,23):");
     if (!input) return;
     
@@ -215,7 +242,9 @@ const handleRecord = (messageId) => {
       senderName: message.senderName,
       content: message.content,
       timestamp: message.timestamp,
-      recordedAt: new Date().toISOString()
+      recordedAt: new Date().toISOString(),
+      noteId: selectedNote.messageId,
+      note: selectedNote.note
     };
     
     localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
