@@ -54,6 +54,7 @@ function App() {
   const [notePopup, setNotePopup] = useState({
     visible: false,
     messageId: null,
+    message: null,
     position: { x: 0, y: 0 },
     note: ''
   });
@@ -132,6 +133,9 @@ function App() {
     setIsUserScrolling(!isAtTop);
 
     // Trova l'ultimo messaggio visibile
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) return;
+    
     const visibleMessages = chat.messages.filter(message => {
       const messageElement = document.getElementById(`message-${message.id}`);
       if (messageElement) {
@@ -159,6 +163,7 @@ function App() {
       }));
     }
 
+    const isAtBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) < 50;
     if (isAtBottom) {
       setUnreadMessages(prev => ({
         ...prev,
@@ -189,6 +194,18 @@ function App() {
     setModalImage(null);
   }, []);
 
+  // Funzione per trovare un messaggio in base al suo ID
+  const findMessageById = useCallback((messageId) => {
+    for (const chat of chats) {
+      for (const message of chat.messages) {
+        if (message.ID === messageId) {
+          return message;
+        }
+      }
+    }
+    return null;
+  }, [chats]);
+
   const saveNote = useCallback((messageId, note) => {
     const notes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
     notes[messageId] = note;
@@ -202,13 +219,18 @@ function App() {
 
   const handleMessageRightClick = useCallback((e, messageId) => {
     e.preventDefault();
+    
+    // Find the message object based on ID
+    const message = findMessageById(messageId);
+    
     setNotePopup({
       visible: true,
       messageId,
+      message,
       position: { x: e.clientX, y: e.clientY },
       note: getNote(messageId)
     });
-  }, [getNote]);
+  }, [getNote, findMessageById]);
 
   const handleNoteChange = useCallback((e) => {
     setNotePopup(prev => ({
@@ -452,6 +474,9 @@ function App() {
         onChange={handleNoteChange}
         onSave={handleSaveNote}
         position={notePopup.position}
+        message={notePopup.message}
+        chats={chats}
+        currentMessageId={notePopup.messageId}
       />
     </ThemeProvider>
   );

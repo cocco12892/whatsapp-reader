@@ -10,15 +10,33 @@ import {
   Card,
   CardContent,
   Chip,
-  Divider
+  Divider,
+  TextField,
+  Tooltip,
+  DialogActions
 } from '@mui/material';
 import FindReplaceIcon from '@mui/icons-material/FindReplace';
 import CloseIcon from '@mui/icons-material/Close';
+import NoteAddIcon from '@mui/icons-material/NoteAdd';
+import EditNoteIcon from '@mui/icons-material/EditNote';
 
 const DuplicateImageFinder = ({ chats }) => {
   const [open, setOpen] = useState(false);
   const [duplicates, setDuplicates] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [currentNoteGroup, setCurrentNoteGroup] = useState(null);
+  const [currentNote, setCurrentNote] = useState('');
+  const [groupNotes, setGroupNotes] = useState({});
+  const [currentGroupMessageIds, setCurrentGroupMessageIds] = useState([]);
+
+  // Load saved group notes from localStorage on component mount
+  useEffect(() => {
+    const savedNotes = localStorage.getItem('duplicateImageGroupNotes');
+    if (savedNotes) {
+      setGroupNotes(JSON.parse(savedNotes));
+    }
+  }, []);
 
   const handleOpen = () => {
     setOpen(true);
@@ -81,6 +99,62 @@ const DuplicateImageFinder = ({ chats }) => {
     return Math.abs(date1 - date2) / (1000 * 60); // Differenza in minuti
   };
 
+  // Handle opening the note dialog for a specific group
+  const handleOpenNoteDialog = (group, groupHash, groupIndex) => {
+    const groupKey = `${groupHash}_${groupIndex}`;
+    setCurrentNoteGroup(groupKey);
+    
+    // Raccogli tutti gli ID dei messaggi in questo gruppo
+    const messageIds = group.map(image => image.ID);
+    setCurrentGroupMessageIds(messageIds);
+    
+    // Verifica se esiste già una nota di gruppo
+    const existingNote = groupNotes[groupKey] || '';
+    
+    // Se non esiste una nota di gruppo, controlla se c'è una nota in uno dei messaggi
+    if (!existingNote) {
+      const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+      for (const messageId of messageIds) {
+        if (messageNotes[messageId]) {
+          // Usa la prima nota di messaggio trovata come nota di gruppo predefinita
+          setCurrentNote(messageNotes[messageId]);
+          break;
+        }
+      }
+    } else {
+      setCurrentNote(existingNote);
+    }
+    
+    setNoteDialogOpen(true);
+  };
+
+  // Handle saving the note for all images in the group
+  const handleSaveGroupNote = () => {
+    if (!currentNoteGroup || currentGroupMessageIds.length === 0) return;
+
+    // Update the group notes state
+    const updatedNotes = {
+      ...groupNotes,
+      [currentNoteGroup]: currentNote
+    };
+    setGroupNotes(updatedNotes);
+    
+    // Save to localStorage for group notes
+    localStorage.setItem('duplicateImageGroupNotes', JSON.stringify(updatedNotes));
+    
+    // Save the same note for all message IDs in this group
+    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+    
+    currentGroupMessageIds.forEach(messageId => {
+      messageNotes[messageId] = currentNote;
+    });
+    
+    // Save back to localStorage
+    localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+    
+    setNoteDialogOpen(false);
+  };
+
   return (
     <>
       <Button 
@@ -110,101 +184,213 @@ const DuplicateImageFinder = ({ chats }) => {
           ) : duplicates.length === 0 ? (
             <Typography>Nessuna immagine duplicata trovata.</Typography>
           ) : (
-            duplicates.map((group, groupIndex) => (
-              <Card key={groupIndex} sx={{ mb: 3, overflow: 'visible' }}>
-                <CardContent>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Gruppo #{groupIndex + 1} - Trovate {group.length} copie
-                  </Typography>
-                  
-                  {/* Prima immagine come riferimento */}
-                  <Box sx={{ display: 'flex', mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Box sx={{ mr: 2, flexBasis: '150px', flexShrink: 0 }}>
-                      <img 
-                        src={`http://localhost:8080${group[0].mediaPath}`} 
-                        alt="Immagine duplicata"
-                        style={{ 
-                          width: '100%', 
-                          borderRadius: '4px',
-                          border: '2px solid #128C7E'
-                        }} 
-                      />
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        Hash: {group[0].imageHash.substring(0, 8)}...
+            duplicates.map((group, groupIndex) => {
+              const groupHash = group[0].imageHash;
+              const groupKey = `${groupHash}_${groupIndex}`;
+              const groupNote = groupNotes[groupKey];
+              
+              return (
+                <Card key={groupIndex} sx={{ mb: 3, overflow: 'visible' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="subtitle1">
+                        Gruppo #{groupIndex + 1} - Trovate {group.length} copie
                       </Typography>
                       
-                      <Box sx={{ mt: 1 }}>
-                        {group.map((image, imageIndex) => (
-                          <Chip 
-                            key={imageIndex}
-                            label={`${image.chatName} - ${formatTime(image.timestamp)}`}
-                            sx={{ m: 0.5 }}
-                            color={imageIndex === 0 ? "primary" : "default"}
-                          />
-                        ))}
-                      </Box>
-                      
-                      {/* Analisi temporale */}
-                      {group.length > 1 && (
-                        <Box sx={{ mt: 2 }}>
-                          <Typography variant="caption">
-                            Analisi temporale:
-                          </Typography>
-                          {group.slice(0, -1).map((image, idx) => {
-                            const nextImage = group[idx + 1];
-                            const timeDiff = getTimeDifference(image.timestamp, nextImage.timestamp);
-                            return (
-                              <Typography key={idx} variant="caption" display="block">
-                                Da {image.chatName} a {nextImage.chatName}: {timeDiff.toFixed(1)} minuti
-                              </Typography>
-                            );
-                          })}
-                        </Box>
-                      )}
+                      <Tooltip title={groupNote ? "Modifica nota di gruppo" : "Aggiungi nota di gruppo"}>
+                        <IconButton 
+                          color={groupNote ? "primary" : "default"}
+                          onClick={() => handleOpenNoteDialog(group, groupHash, groupIndex)}
+                        >
+                          {groupNote ? <EditNoteIcon /> : <NoteAddIcon />}
+                        </IconButton>
+                      </Tooltip>
                     </Box>
-                  </Box>
-                  
-                  <Divider sx={{ my: 2 }} />
-                  
-                  {/* Lista di tutte le occorrenze */}
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                    {group.map((image, imageIndex) => (
+                    
+                    {/* Display the group note if it exists */}
+                    {groupNote && (
                       <Box 
-                        key={imageIndex} 
                         sx={{ 
-                          width: 'calc(50% - 8px)',
-                          borderRadius: '4px',
-                          overflow: 'hidden',
-                          border: '1px solid #eee',
-                          position: 'relative'
+                          p: 2, 
+                          bgcolor: 'rgba(76, 175, 80, 0.1)', 
+                          borderLeft: '4px solid #4caf50',
+                          borderRadius: 1,
+                          mb: 2
                         }}
                       >
-                        <img 
-                          src={`http://localhost:8080${image.mediaPath}`} 
-                          alt={`Occorrenza #${imageIndex + 1}`}
-                          style={{ width: '100%' }} 
-                        />
-                        <Box sx={{ p: 1, bgcolor: 'rgba(0,0,0,0.03)' }}>
-                          <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
-                            Chat: {image.chatName}
-                          </Typography>
-                          <Typography variant="caption" display="block">
-                            Inviato da: {image.senderName}
-                          </Typography>
-                          <Typography variant="caption" display="block">
-                            {formatTime(image.timestamp)}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2">{groupNote}</Typography>
                       </Box>
-                    ))}
-                  </Box>
-                </CardContent>
-              </Card>
-            ))
+                    )}
+                    
+                    {/* Prima immagine come riferimento */}
+                    <Box sx={{ display: 'flex', mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Box sx={{ mr: 2, flexBasis: '150px', flexShrink: 0 }}>
+                        <img 
+                          src={`http://localhost:8080${group[0].mediaPath}`} 
+                          alt="Immagine duplicata"
+                          style={{ 
+                            width: '100%', 
+                            borderRadius: '4px',
+                            border: '2px solid #128C7E'
+                          }} 
+                        />
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          Hash: {group[0].imageHash.substring(0, 8)}...
+                        </Typography>
+                        
+                        <Box sx={{ mt: 1 }}>
+                          {group.map((image, imageIndex) => (
+                            <Chip 
+                              key={imageIndex}
+                              label={`${image.chatName} - ${formatTime(image.timestamp)}`}
+                              sx={{ m: 0.5 }}
+                              color={imageIndex === 0 ? "primary" : "default"}
+                            />
+                          ))}
+                        </Box>
+                        
+                        {/* Analisi temporale */}
+                        {group.length > 1 && (
+                          <Box sx={{ mt: 2 }}>
+                            <Typography variant="caption">
+                              Analisi temporale:
+                            </Typography>
+                            {group.slice(0, -1).map((image, idx) => {
+                              const nextImage = group[idx + 1];
+                              const timeDiff = getTimeDifference(image.timestamp, nextImage.timestamp);
+                              return (
+                                <Typography key={idx} variant="caption" display="block">
+                                  Da {image.chatName} a {nextImage.chatName}: {timeDiff.toFixed(1)} minuti
+                                </Typography>
+                              );
+                            })}
+                          </Box>
+                        )}
+                      </Box>
+                    </Box>
+                    
+                    <Divider sx={{ my: 2 }} />
+                    
+                    {/* Lista di tutte le occorrenze */}
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                      {group.map((image, imageIndex) => {
+                        // Verifica se c'è una nota per questa immagine
+                        const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+                        const hasNote = messageNotes[image.ID] ? true : false;
+                        
+                        return (
+                          <Box 
+                            key={imageIndex} 
+                            sx={{ 
+                              width: 'calc(50% - 8px)',
+                              borderRadius: '4px',
+                              overflow: 'hidden',
+                              border: hasNote ? '2px solid #4caf50' : '1px solid #eee',
+                              position: 'relative'
+                            }}
+                          >
+                            {hasNote && (
+                              <Box 
+                                sx={{ 
+                                  position: 'absolute', 
+                                  top: 5, 
+                                  right: 5, 
+                                  bgcolor: '#4caf50', 
+                                  p: '2px', 
+                                  borderRadius: '50%',
+                                  width: 20,
+                                  height: 20,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                <EditNoteIcon sx={{ color: 'white', fontSize: 14 }} />
+                              </Box>
+                            )}
+                            <img 
+                              src={`http://localhost:8080${image.mediaPath}`} 
+                              alt={`Occorrenza #${imageIndex + 1}`}
+                              style={{ width: '100%' }} 
+                            />
+                            <Box sx={{ p: 1, bgcolor: 'rgba(0,0,0,0.03)' }}>
+                              <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                                Chat: {image.chatName}
+                              </Typography>
+                              <Typography variant="caption" display="block">
+                                Inviato da: {image.senderName}
+                              </Typography>
+                              <Typography variant="caption" display="block">
+                                {formatTime(image.timestamp)}
+                              </Typography>
+                              <Typography variant="caption" display="block">
+                                ID: {image.ID}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </DialogContent>
+      </Dialog>
+
+      {/* Dialog for adding/editing group notes */}
+      <Dialog 
+        open={noteDialogOpen}
+        onClose={() => setNoteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Nota di gruppo
+          <IconButton
+            aria-label="close"
+            onClick={() => setNoteDialogOpen(false)}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+              color: (theme) => theme.palette.grey[500],
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Questa nota verrà applicata a tutte le immagini duplicate in questo gruppo.
+          </Typography>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="group-note"
+            label="Nota di gruppo"
+            type="text"
+            fullWidth
+            variant="outlined"
+            multiline
+            rows={4}
+            value={currentNote}
+            onChange={(e) => setCurrentNote(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNoteDialogOpen(false)}>Annulla</Button>
+          <Button 
+            onClick={handleSaveGroupNote}
+            variant="contained"
+            color="primary"
+          >
+            Salva
+          </Button>
+        </DialogActions>
       </Dialog>
     </>
   );
