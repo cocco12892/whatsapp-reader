@@ -320,10 +320,10 @@ return (
             sx={{
               p: 1.5,
               borderRadius: 2,
-              backgroundColor: isRecorded 
-                ? 'rgba(255, 192, 203, 0.3)' // Soft pink background for recorded messages
-                : isNoted
-                  ? 'rgba(200, 255, 200, 0.3)' // Soft green background for noted messages
+              backgroundColor: notedMessages.has(message.id)
+                ? 'rgba(200, 255, 200, 0.3)' // Soft green background for noted messages
+                : isRecorded 
+                  ? 'rgba(255, 192, 203, 0.3)' // Soft pink background for recorded messages
                   : getSpecialSenderStyle(message.sender) || 'background.paper',
               position: 'relative',
               maxWidth: '80%',
