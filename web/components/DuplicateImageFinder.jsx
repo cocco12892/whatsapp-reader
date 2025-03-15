@@ -362,6 +362,18 @@ const DuplicateImageFinder = ({ chats }) => {
                                 {formatTime(image.timestamp)}
                               </Typography>
                               <Typography variant="caption" display="block">
+                                Occorrenza #{imageIndex + 1}
+                              </Typography>
+                              <Typography variant="caption" display="block">
+                                Chat: {image.chatName}
+                              </Typography>
+                              <Typography variant="caption" display="block">
+                                Inviato da: {image.senderName}
+                              </Typography>
+                              <Typography variant="caption" display="block">
+                                {formatTime(image.timestamp)}
+                              </Typography>
+                              <Typography variant="caption" display="block">
                                 ID messaggio: {image.id}
                               </Typography>
                             </Box>
