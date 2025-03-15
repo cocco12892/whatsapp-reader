@@ -347,11 +347,18 @@ const DuplicateImageFinder = ({ chats }) => {
                                 ID messaggio: {image.id}
                               </Typography>
                               {messageNotes[image.id] && (
-                                <Box sx={{ mt: 1, p: 1, bgcolor: '#4caf50', borderRadius: '4px', color: 'white' }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'white' }}>
+                                <Box sx={{ 
+                                  mt: 1, 
+                                  p: 1, 
+                                  bgcolor: 'rgba(76, 175, 80, 0.1)', 
+                                  borderRadius: '4px', 
+                                  borderLeft: '4px solid #4caf50',
+                                  position: 'relative'
+                                }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
                                     Nota:
                                   </Typography>
-                                  <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'white' }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
                                     {typeof messageNotes[image.id] === 'object' 
                                       ? messageNotes[image.id].note 
                                       : messageNotes[image.id]}
