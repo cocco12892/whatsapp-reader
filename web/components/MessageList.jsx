@@ -203,9 +203,9 @@ const handleRecord = (messageId) => {
       return;
     }
     
-    // Apri il dialog per selezionare una nota
+    // Apri direttamente il dialog contestuale
     setCurrentMessageId(messageId);
-    setNoteSelectionOpen(true);
+    setAmountQuotaDialogOpen(true);
   }
 };
 
@@ -213,6 +213,12 @@ const handleRecord = (messageId) => {
 const handleNoteSelection = (note) => {
   setSelectedNote(note);
   setNoteSelectionOpen(false);
+  setAmountQuotaDialogOpen(true);
+};
+
+// Funzione per gestire il record diretto (senza passare per la selezione della nota)
+const handleDirectRecord = (messageId) => {
+  setCurrentMessageId(messageId);
   setAmountQuotaDialogOpen(true);
 };
 
@@ -851,36 +857,162 @@ return (
     <Dialog 
       open={amountQuotaDialogOpen} 
       onClose={() => setAmountQuotaDialogOpen(false)}
-      maxWidth="xs"
+      maxWidth="md"
       fullWidth
     >
       <DialogTitle>Inserisci Importo e Quota</DialogTitle>
       <DialogContent>
-        <Box sx={{ mt: 1 }}>
-          {selectedNote && (
-            <Box sx={{ mb: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="subtitle2" color="primary">Nota selezionata:</Typography>
-              <Typography variant="body2">{selectedNote.note}</Typography>
+        <Box sx={{ display: 'flex', mt: 1, gap: 2 }}>
+          {/* Colonna sinistra con l'immagine */}
+          <Box sx={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {(() => {
+              // Trova il messaggio corrente
+              const currentMessage = messages.find(m => m.id === currentMessageId);
+              
+              if (currentMessage) {
+                if (currentMessage.isMedia && currentMessage.mediaPath) {
+                  // Mostra l'immagine se è un media
+                  return (
+                    <Box sx={{ width: '100%', mb: 2 }}>
+                      <img 
+                        src={safeImagePath(currentMessage.mediaPath)} 
+                        alt="Media content" 
+                        style={{ 
+                          width: '100%', 
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                        }}
+                        onError={(e) => e.target.style.display = 'none'}
+                      />
+                    </Box>
+                  );
+                } else {
+                  // Mostra il contenuto del messaggio se non è un media
+                  return (
+                    <Box sx={{ 
+                      width: '100%', 
+                      p: 2, 
+                      bgcolor: 'background.paper', 
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      mb: 2,
+                      maxHeight: '300px',
+                      overflow: 'auto'
+                    }}>
+                      <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {currentMessage.content}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                        {currentMessage.senderName} - {formatTime(currentMessage.timestamp)}
+                      </Typography>
+                    </Box>
+                  );
+                }
+              }
+              
+              return null;
+            })()}
+            
+            {/* Selezione della nota */}
+            <Box sx={{ width: '100%' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>Seleziona una nota:</Typography>
+              <Box sx={{ 
+                maxHeight: '200px', 
+                overflow: 'auto', 
+                border: '1px solid', 
+                borderColor: 'divider', 
+                borderRadius: 1,
+                p: 1
+              }}>
+                {Object.values(JSON.parse(localStorage.getItem('messageNotes') || '{}')).filter(note => note.chatId === chat.id).map((note, index) => (
+                  <Box 
+                    key={index} 
+                    sx={{ 
+                      p: 1, 
+                      mb: 0.5, 
+                      borderRadius: 1, 
+                      cursor: 'pointer',
+                      bgcolor: selectedNote && selectedNote.messageId === note.messageId ? 'primary.light' : 'background.paper',
+                      color: selectedNote && selectedNote.messageId === note.messageId ? 'primary.contrastText' : 'text.primary',
+                      '&:hover': {
+                        bgcolor: selectedNote && selectedNote.messageId === note.messageId ? 'primary.main' : 'action.hover'
+                      }
+                    }}
+                    onClick={() => setSelectedNote(note)}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>{note.note}</Typography>
+                    <Typography variant="caption" color={selectedNote && selectedNote.messageId === note.messageId ? 'inherit' : 'text.secondary'}>
+                      Aggiunta: {new Date(note.addedAt).toLocaleString()}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             </Box>
-          )}
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Importo@Quota"
-            fullWidth
-            variant="outlined"
-            value={amountQuotaInput}
-            onChange={(e) => setAmountQuotaInput(e.target.value)}
-            placeholder="Es: 1800@1,23"
-            helperText="Inserisci nel formato importo@quota"
-          />
+          </Box>
+          
+          {/* Colonna destra con input e dettagli */}
+          <Box sx={{ flex: '0 0 60%' }}>
+            {selectedNote && (
+              <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'primary.light', boxShadow: 1 }}>
+                <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 'bold', mb: 1 }}>Nota selezionata:</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 'medium' }}>{selectedNote.note}</Typography>
+              </Box>
+            )}
+            
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Importo@Quota"
+              fullWidth
+              variant="outlined"
+              value={amountQuotaInput}
+              onChange={(e) => setAmountQuotaInput(e.target.value)}
+              placeholder="Es: 1800@1,23"
+              helperText="Inserisci nel formato importo@quota"
+              sx={{ mt: 2 }}
+              InputProps={{
+                sx: { fontSize: '1.2rem' }
+              }}
+            />
+            
+            {/* Anteprima del formato */}
+            {amountQuotaInput && (
+              <Box sx={{ mt: 3, p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="subtitle2" color="text.secondary">Anteprima:</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                  <Box sx={{ 
+                    bgcolor: '#e91e63',
+                    color: 'white',
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mr: 1
+                  }}>
+                    <span style={{ fontSize: '14px' }}>💰</span>
+                  </Box>
+                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                    {amountQuotaInput}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+          </Box>
         </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={() => setAmountQuotaDialogOpen(false)} color="primary">
           Annulla
         </Button>
-        <Button onClick={handleAmountQuotaSubmit} color="primary" variant="contained">
+        <Button 
+          onClick={handleAmountQuotaSubmit} 
+          color="primary" 
+          variant="contained"
+          disabled={!selectedNote || !amountQuotaInput || !amountQuotaInput.includes('@')}
+        >
           Salva
         </Button>
       </DialogActions>
