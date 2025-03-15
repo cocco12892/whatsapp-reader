@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import ErrorBoundary from './components/ErrorBoundary';
 import NotePopup from './components/NotePopup';
 import ChatWindow from './components/ChatWindow';
 import { Helmet } from 'react-helmet';
@@ -272,7 +273,11 @@ function App() {
         ) : (
           <>
             <Typography variant="h1" gutterBottom>WhatsApp Web Viewer</Typography>
-            {chats.length > 0 && <DuplicateImageFinder chats={chats} />}
+            {chats.length > 0 && (
+              <ErrorBoundary>
+                <DuplicateImageFinder chats={chats} />
+              </ErrorBoundary>
+            )}
             {chats.length > 0 ? (
               <Box sx={{
                 display: 'flex',

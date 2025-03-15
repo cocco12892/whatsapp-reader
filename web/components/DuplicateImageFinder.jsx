@@ -403,7 +403,7 @@ const DuplicateImageFinder = ({ chats }) => {
               La nota apparirà accanto a ciascuna immagine del gruppo e sarà visibile in:
             </Typography>
             <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-              {group.slice(0, 3).map((img, idx) => (
+              {duplicateGroup.images.slice(0, 3).map((img, idx) => (
                 <Chip 
                   key={idx}
                   label={`${img.chatName} - ${formatTime(img.timestamp)}`}
