@@ -127,11 +127,11 @@ const DuplicateImageFinder = ({ chats }) => {
   const handleOpenNoteDialog = (group) => {
     const note = prompt("Inserisci una nota per il gruppo di messaggi:");
     
-    if (note && group && Array.isArray(group.images)) {
+    if (note && group && Array.isArray(group)) {
       const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
       
       // Applica la stessa nota a tutti i messaggi del gruppo
-      group.images.forEach(img => {
+      group.forEach(img => {
         messageNotes[img.ID] = note;
       });
       
