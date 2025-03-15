@@ -325,34 +325,17 @@ const DuplicateImageFinder = ({ chats }) => {
                           <Box 
                             key={imageIndex} 
                             sx={{ 
-                              width: 'calc(50% - 8px)',
+                              width: 'calc(33% - 8px)',
                               borderRadius: '4px',
                               overflow: 'hidden',
-                              border: messageNotes[image.id] ? '2px solid #4caf50' : '1px solid #eee',
+                              padding: '10px',
+                              border: messageNotes[image.id] ? '3px solid #4caf50' : '1px solid #eee',
                               position: 'relative'
                             }}
                           >
-                            <img 
-                              src={`http://localhost:8080${image.mediaPath}`} 
-                              alt={`Occorrenza #${imageIndex + 1}`}
-                              style={{ width: '100%' }} 
-                            />
-                            <Box sx={{ p: 1, bgcolor: 'rgba(0,0,0,0.03)' }}>
-                              <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
-                                Chat: {image.chatName}
-                              </Typography>
-                              <Typography variant="caption" display="block">
-                                Inviato da: {image.senderName}
-                              </Typography>
-                              <Typography variant="caption" display="block">
-                                {formatTime(image.timestamp)}
-                              </Typography>
-                              <Typography variant="caption" display="block">
-                                ID messaggio: {image.id}
-                              </Typography>
-                              {messageNotes[image.id] && (
+                            {messageNotes[image.id] && (
                                 <Box sx={{ 
-                                  mt: 1, 
+                                  mb: 1, 
                                   p: 1, 
                                   bgcolor: 'rgba(103, 58, 183, 0.1)', 
                                   borderRadius: '4px', 
@@ -369,6 +352,18 @@ const DuplicateImageFinder = ({ chats }) => {
                                   </Typography>
                                 </Box>
                               )}
+                            <img 
+                              src={`http://localhost:8080${image.mediaPath}`} 
+                              alt={`Occorrenza #${imageIndex + 1}`}
+                              style={{ width: '100%' }} 
+                            />
+                            <Box sx={{ p: 1, bgcolor: 'rgba(0,0,0,0.03)' }}>
+                              <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                                Chat: {image.chatName}
+                              </Typography>
+                              <Typography variant="caption" display="block">
+                                Inviato da: {image.senderName}
+                              </Typography>
                             </Box>
                           </Box>
                         );
