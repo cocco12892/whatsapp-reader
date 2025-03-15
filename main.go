@@ -213,6 +213,34 @@ func main() {
 	client.AddEventHandler(func(evt interface{}) {
 		switch v := evt.(type) {
 		case *events.Message:
+
+			// Verifica se è un messaggio editato
+			if v.Info.EditedMessageKey != nil {
+				// Gestisci il messaggio editato
+				editedMessageID := v.Info.EditedMessageKey.ID
+				
+				// Trova il messaggio originale nella lista dei messaggi
+				mutex.Lock()
+				for i, msg := range messages {
+					if msg.ID == editedMessageID {
+						// Aggiorna il contenuto del messaggio originale
+						messages[i].Content = extractMessageContent(v.Message)
+						messages[i].IsMedia = isMediaMessage(v.Message)
+						
+						// Se è un media, aggiorna il percorso del media
+						if messages[i].IsMedia {
+							messages[i].MediaPath = extractMediaPath(client, v.Message, v.Info)
+						}
+						
+						fmt.Printf("Messaggio %s modificato: %s\n", editedMessageID, messages[i].Content)
+						break
+					}
+				}
+				mutex.Unlock()
+				
+				continue // Passa al prossimo evento
+			}
+			
 			// Ottieni i dati del messaggio
 			var chatJID string
 			var chatName string

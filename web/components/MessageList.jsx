@@ -27,19 +27,47 @@ chat
 }) {
 // Special senders list
 const SPECIAL_SENDERS = {
-  '393937049799': { color: 'rgba(0, 51, 102, 0.1)', name: 'Jhs' }, // Jhs - dark blue
-  '393297425198': { color: 'rgba(51, 153, 204, 0.1)', name: 'Ivan' }  // Ivan - lighter blue/aqua
+  '393472195905': { color: 'rgb(223, 250, 228)', name: 'Andrea Cocco' },
+  '393802541389': { color: 'rgb(225, 237, 247)', name: 'Ste' },
+  '971585527723': { color: 'rgb(225, 237, 247)', name: 'Fer87' },
+  '393937049799': { color: 'rgb(227, 225, 247)', name: 'Jhs' },
+  '393297425198': { color: 'rgb(247, 221, 215)', name: 'Ivan' } 
 };
 
 // Check if it's a special sender
 const isSpecialSender = (sender) => {
-  const senderId = sender.split(':')[0];
+  // Extract the primary ID from the sender string
+  let senderId;
+  // First split by @ to get the part before the domain
+  const beforeAt = sender.split('@')[0];
+  
+  if (beforeAt.includes(':')) {
+    // If there's a colon in this part, extract just the first part
+    senderId = beforeAt.split(':')[0];
+  } else {
+    // If no colon, use the entire part before @
+    senderId = beforeAt;
+  }
+  
   return !!SPECIAL_SENDERS[senderId];
 };
 
 // Get special sender style
 const getSpecialSenderStyle = (sender) => {
-  const senderId = sender.split(':')[0];
+  // Extract the primary ID from the sender string
+  let senderId;
+  
+  // First split by @ to get the part before the domain
+  const beforeAt = sender.split('@')[0];
+  
+  if (beforeAt.includes(':')) {
+    // If there's a colon in this part, extract just the first part
+    senderId = beforeAt.split(':')[0];
+  } else {
+    // If no colon, use the entire part before @
+    senderId = beforeAt;
+  }
+  
   return SPECIAL_SENDERS[senderId]?.color || 'background.paper';
 };
 
@@ -419,44 +447,51 @@ return (
                 </Typography>
               )}
             </Box>
-            
+
             {/* Display reactions if they exist for this message */}
             {reactions[message.id] && reactions[message.id].length > 0 && (
               <Box sx={{ 
                 display: 'flex', 
                 flexWrap: 'wrap',
-                gap: 0.5, 
-                mt: 1, 
-                alignItems: 'center'
+                gap: 0.8, 
+                mt: 1.2,
+                justifyContent: isSpecialSender(message.sender) ? 'flex-end' : 'flex-start'
               }}>
                 {reactions[message.id].map((reaction, index) => (
-                  <Tooltip 
-                    key={index} 
-                    title={`${reaction.emoji} da ${reaction.sender}`}
-                    placement="top"
-                  >
                     <Box 
                       sx={{ 
                         display: 'flex', 
                         alignItems: 'center',
-                        backgroundColor: 'rgba(0,0,0,0.05)',
-                        borderRadius: 1,
-                        padding: '2px 5px',
-                        fontSize: '0.8rem'
+                        backgroundColor: 'rgba(255,255,255,0.8)',
+                        borderRadius: '12px',
+                        padding: '3px 8px',
+                        fontSize: '0.9rem',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                        border: '1px solid rgba(0,0,0,0.05)',
+                        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 3px 5px rgba(0,0,0,0.15)'
+                        }
                       }}
                     >
-                      <span>{reaction.emoji}</span>
+                      <span style={{ fontSize: '1.0rem' }}>{reaction.emoji}</span>
                       <Typography 
                         variant="caption" 
-                        sx={{ ml: 0.5, fontSize: '0.7rem' }}
+                        sx={{ 
+                          ml: 0.8, 
+                          fontSize: '0.75rem',
+                          fontWeight: 500,
+                          color: 'text.secondary'
+                        }}
                       >
                         {reaction.sender}
                       </Typography>
                     </Box>
-                  </Tooltip>
                 ))}
               </Box>
             )}
+
             
             <Typography variant="caption" color="text.secondary" sx={{ 
               display: 'block',
