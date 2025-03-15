@@ -18,6 +18,7 @@ const extractImageContent = (content) => {
 import { Box, Typography, Badge, Tooltip } from '@mui/material';
 import MicIcon from '@mui/icons-material/Mic';
 import NoteIcon from '@mui/icons-material/Note';
+import NotesGroupView from './NotesGroupView';
 import ReplyContext from './ReplyContext';
 
 function MessageList({ 
@@ -139,6 +140,7 @@ const [notedMessages, setNotedMessages] = useState(() => {
   const notes = stored ? JSON.parse(stored) : {};
   return new Set(Object.keys(notes));
 });
+const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
 
 const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null });
 
