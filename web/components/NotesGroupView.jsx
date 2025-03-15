@@ -186,6 +186,12 @@ const NotesGroupView = ({ open, onClose, chats }) => {
     return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
   
+  // Ottieni il sinonimo della chat se disponibile
+  const getChatName = (chatId, defaultName) => {
+    const storedSynonyms = JSON.parse(localStorage.getItem('chatSynonyms') || '{}');
+    return storedSynonyms[chatId] || defaultName;
+  };
+  
   // Esporta i dati in formato CSV
   const exportToCSV = (noteGroup, recordedItems) => {
     // Crea l'intestazione del CSV
@@ -218,8 +224,9 @@ const NotesGroupView = ({ open, onClose, chats }) => {
         return text;
       };
       
-      // Aggiungi la riga al CSV
-      csvContent += `${escapeCsv(formattedDate)},${escapeCsv(item.chatName)},${escapeCsv(noteGroup)},${escapeCsv(quota)},${escapeCsv(importo)}\n`;
+      // Aggiungi la riga al CSV usando il sinonimo della chat se disponibile
+      const chatDisplayName = getChatName(item.chatId, item.chatName);
+      csvContent += `${escapeCsv(formattedDate)},${escapeCsv(chatDisplayName)},${escapeCsv(noteGroup)},${escapeCsv(quota)},${escapeCsv(importo)}\n`;
     });
     
     // Crea un blob e un link per il download
@@ -271,8 +278,9 @@ const NotesGroupView = ({ open, onClose, chats }) => {
       };
       
       // Aggiungi la riga alla tabella (usando tab come separatore per Excel)
-      // Data e ora sono ora in celle separate
-      tableContent += `${prepareField(formattedDate)}\t${prepareField(formattedTime)}\t${prepareField(item.chatName)}\t${prepareField(noteGroup)}\t${prepareField(quota)}\t${prepareField(importo)}\n`;
+      // Data e ora sono ora in celle separate, usando il sinonimo della chat
+      const chatDisplayName = getChatName(item.chatId, item.chatName);
+      tableContent += `${prepareField(formattedDate)}\t${prepareField(formattedTime)}\t${prepareField(chatDisplayName)}\t${prepareField(noteGroup)}\t${prepareField(quota)}\t${prepareField(importo)}\n`;
     });
     
     // Copia negli appunti
@@ -564,7 +572,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
                               {item.timestamp ? formatTime(item.timestamp) : ''}
                             </Typography>
                             <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {item.chatName}
+                              {getChatName(item.chatId, item.chatName)}
                             </Typography>
                             <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {note}

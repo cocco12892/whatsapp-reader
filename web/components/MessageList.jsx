@@ -222,30 +222,36 @@ const handleDirectRecord = (messageId) => {
   setAmountQuotaDialogOpen(true);
 };
 
+// Funzione per ottenere il sinonimo della chat
+const getChatName = (chatId, defaultName) => {
+  const storedSynonyms = JSON.parse(localStorage.getItem('chatSynonyms') || '{}');
+  return storedSynonyms[chatId] || defaultName;
+};
+
 // Funzione per gestire l'inserimento di importo e quota
 const handleAmountQuotaSubmit = () => {
   if (!amountQuotaInput || !amountQuotaInput.includes('@')) {
     alert("Formato non valido. Usa il formato importo@quota (es: 1800@1,23)");
     return;
   }
-  
+    
   const messageId = currentMessageId;
   const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
-  
+    
   // Find the message in the chat
   const message = chat.messages.find(m => m.id === messageId);
   if (!message) {
     console.error('Messaggio non trovato:', messageId);
     return;
   }
-  
+    
   // Save the recorded data
   const newRecordedData = { ...recordedData };
   newRecordedData[messageId] = {
     messageId: messageId,
     data: amountQuotaInput,
     chatId: chat.id,
-    chatName: chat.name,
+    chatName: getChatName(chat.id, chat.name),
     senderName: message.senderName,
     content: message.content,
     timestamp: message.timestamp,
@@ -304,19 +310,19 @@ const addVisualEffect = (messageId, effectName) => {
 // Handle noting a message - versione pragmatica
 const addMessageNote = (messageId) => {
   console.log('Adding note for message:', messageId);
-  
+    
   const note = prompt("Inserisci una nota per il messaggio:");
   if (!note) return;
 
   // Ottieni le note esistenti come oggetto
   const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-  
+    
   // Salva direttamente la nota usando l'ID del messaggio come chiave
   messageNotes[messageId] = {
     messageId: messageId,
     note: note,
     type: 'nota',
-    chatName: chat?.name || 'Chat sconosciuta',
+    chatName: getChatName(chat?.id, chat?.name) || 'Chat sconosciuta',
     chatId: chat?.id || '',
     addedAt: new Date().toISOString()
   };
