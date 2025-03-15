@@ -129,23 +129,12 @@ const NotesTableView = ({ open, onClose, chats }) => {
     // Crea una versione testuale della tabella
     let tableText = 'chat | Nota | quota | importo\n';
     
-    // Raggruppa per nota
-    const groupedByNote = {};
-    tableData.forEach(row => {
-      if (!row.isHeader && !row.isSeparator) {
-        const noteKey = row.nota || 'Senza nota';
-        if (!groupedByNote[noteKey]) {
-          groupedByNote[noteKey] = [];
-        }
-        groupedByNote[noteKey].push(row);
-      }
-    });
+    // Filtra solo le righe di dati (non header o separatori)
+    const dataRows = tableData.filter(row => !row.isHeader && !row.isSeparator);
     
     // Genera il testo della tabella
-    Object.entries(groupedByNote).forEach(([noteKey, items]) => {
-      items.forEach(item => {
-        tableText += `${item.chat} | ${item.nota} | ${item.quota} | ${item.importo}\n`;
-      });
+    dataRows.forEach(item => {
+      tableText += `${item.chat} | ${item.nota} | ${item.quota} | ${item.importo}\n`;
     });
     
     navigator.clipboard.writeText(tableText)
@@ -180,10 +169,10 @@ const NotesTableView = ({ open, onClose, chats }) => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Chat</TableCell>
-                <TableCell>Nota</TableCell>
-                <TableCell>Quota</TableCell>
-                <TableCell>Importo</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Chat</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Nota</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Quota</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Importo</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -216,10 +205,11 @@ const NotesTableView = ({ open, onClose, chats }) => {
                     </TableRow>
                   );
                 }
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Chiudi</Button>
