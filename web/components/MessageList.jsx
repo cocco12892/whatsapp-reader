@@ -136,8 +136,8 @@ const [recordedMessages, setRecordedMessages] = useState(() => {
 
 // State for noted messages
 const [notedMessages, setNotedMessages] = useState(() => {
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
-  return new Set(messageNotes.map(note => note.messageId));
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+  return new Set(Object.keys(messageNotes));
 });
 
 // State for notes group view
@@ -213,91 +213,77 @@ const handleRecord = (messageId) => {
   }
 };
 
-// Handle noting a message
+// Handle noting a message - versione pragmatica
 const addMessageNote = (messageId) => {
   console.log('Adding note for message:', messageId);
   
   const note = prompt("Inserisci una nota per il messaggio:");
   if (!note) return;
 
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
+  // Ottieni le note esistenti come oggetto
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
   
-  // Memoize chat and message lookup to avoid repeated iterations
-  const findMessageAndChat = () => {
-    for (const chat of chats) {
-      const message = chat.messages.find(m => m.ID === messageId);
-      if (message) {
-        return { message, chatName: chat.name };
-      }
-    }
-    return { message: null, chatName: 'Chat sconosciuta' };
+  // Salva direttamente la nota usando l'ID del messaggio come chiave
+  messageNotes[messageId] = {
+    messageId: messageId,
+    note: note,
+    type: 'nota',
+    chatName: chat?.name || 'Chat sconosciuta',
+    chatId: chat?.id || '',
+    addedAt: new Date().toISOString()
   };
+  
+  // Salva nel localStorage
+  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+  
+  // Debug logging
+  console.log('New note entry:', messageNotes[messageId]);
+  console.log('All message notes:', messageNotes);
+  
+  // Update state
+  setNotedMessages(prev => new Set([...prev, messageId]));
 
-  const { message, chatName } = findMessageAndChat();
-
-  if (message) {
-    const newNoteEntry = {
-      messageId: message.ID,
-      note: note,
-      type: 'nota',
-      chatName: chatName
-    };
-
-    messageNotes.push(newNoteEntry);
-    
-    // Save updated notes to storage
-    localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
-    
-    // Debug logging
-    console.log('New note entry:', newNoteEntry);
-    console.log('All message notes:', messageNotes);
-    console.log('Stored message notes:', localStorage.getItem('messageNotes'));
-    
-    // Update state
-    setNotedMessages(prev => new Set([...prev, messageId]));
-
-    // Visual effect with requestAnimationFrame for better performance
-    const messageElement = document.getElementById(`message-${messageId}`);
-    if (messageElement) {
-      requestAnimationFrame(() => {
-        messageElement.style.animation = 'notePulse 0.8s';
-        
-        // If the animation style doesn't exist, add it
-        if (!document.getElementById('note-animation')) {
-          const styleTag = document.createElement('style');
-          styleTag.id = 'note-animation';
-          styleTag.innerHTML = `
-            @keyframes notePulse {
-              0% { transform: scale(1); }
-              50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
-              100% { transform: scale(1); }
-            }
-          `;
-          document.head.appendChild(styleTag);
-        }
-        
-        // Remove the animation after it finishes
-        setTimeout(() => {
-          messageElement.style.animation = '';
-        }, 800);
-      });
-    }
-  } else {
-    console.error('Message not found for ID:', messageId);
-    console.log('Available chats:', chats);
+  // Visual effect with requestAnimationFrame for better performance
+  const messageElement = document.getElementById(`message-${messageId}`);
+  if (messageElement) {
+    requestAnimationFrame(() => {
+      messageElement.style.animation = 'notePulse 0.8s';
+      
+      // If the animation style doesn't exist, add it
+      if (!document.getElementById('note-animation')) {
+        const styleTag = document.createElement('style');
+        styleTag.id = 'note-animation';
+        styleTag.innerHTML = `
+          @keyframes notePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
+            100% { transform: scale(1); }
+          }
+        `;
+        document.head.appendChild(styleTag);
+      }
+      
+      // Remove the animation after it finishes
+      setTimeout(() => {
+        messageElement.style.animation = '';
+      }, 800);
+    });
   }
 };
 
 const removeMessageNote = (messageId) => {
   console.log('Removing note for message:', messageId);
   
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '[]');
+  // Ottieni le note esistenti come oggetto
+  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
   
-  // Remove the note for this specific message
-  const updatedNotes = messageNotes.filter(note => note.messageId !== messageId);
+  // Rimuovi la nota per questo messaggio specifico
+  if (messageNotes[messageId]) {
+    delete messageNotes[messageId];
+  }
   
-  // Save updated notes to storage
-  localStorage.setItem('messageNotes', JSON.stringify(updatedNotes));
+  // Salva nel localStorage
+  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
   
   // Update state
   setNotedMessages(prev => {
@@ -330,7 +316,6 @@ const removeMessageNote = (messageId) => {
       messageElement.style.animation = '';
     }, 800);
   }
- 
 };
 
 // Replace handleNote with these two functions
@@ -495,10 +480,10 @@ return (
                     e.stopPropagation();
                     handleNote(message.id);
                   }}
-                  title={`Messaggio annotato: ${messageNotes.find(note => note.messageId === message.id)?.note}`}
+                  title={`Messaggio annotato: ${messageNotes[message.id]?.note}`}
                 >
                   <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    {messageNotes.find(note => note.messageId === message.id)?.note && (
+                    {messageNotes[message.id]?.note && (
                       <Typography 
                         variant="caption" 
                         sx={{ 
@@ -518,7 +503,7 @@ return (
                           zIndex: 10
                         }}
                       >
-                        {messageNotes.find(note => note.messageId === message.id)?.note}
+                        {messageNotes[message.id]?.note}
                       </Typography>
                     )}
                     <NoteIcon sx={{ fontSize: 10 }} />
