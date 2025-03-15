@@ -26,7 +26,8 @@ messages,
 handleImageClick, 
 lastSeenMessages: initialLastSeen,
 seenMessages: initialSeen,
-chat
+chat,
+chats
 }) {
 // Special senders list
 const SPECIAL_SENDERS = {

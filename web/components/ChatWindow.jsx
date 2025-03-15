@@ -4,6 +4,7 @@ import MessageList from './MessageList';
 
 function ChatWindow({ 
   chat, 
+  chats,
   unreadMessages, 
   handleScroll, 
   handleImageClick, 
@@ -97,7 +98,8 @@ function ChatWindow({
           handleImageClick={handleImageClick}          
           lastSeenMessages={lastSeenMessages}
           seenMessages={seenMessages}
-          chat={chat} // Passiamo chat al componente
+          chat={chat}
+          chats={chats} // Passiamo chats al componente
         />
       </Box>
     </Paper>

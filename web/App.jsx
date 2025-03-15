@@ -262,6 +262,7 @@ function App() {
                   <ChatWindow
                     key={chat.id}
                     chat={chat}
+                    chats={chats}
                     unreadMessages={unreadMessages}
                     handleScroll={handleScroll}
                     handleImageClick={handleImageClick}
