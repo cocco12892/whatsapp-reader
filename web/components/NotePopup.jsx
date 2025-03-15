@@ -45,7 +45,7 @@ function NotePopup({
   // Funzione per trovare immagini duplicate
   const findDuplicateImages = (imageHash) => {
     if (!imageHash || !chats) return;
-
+  
     const duplicates = [];
     
     // Cerca in tutte le chat per messaggi con lo stesso hash
@@ -61,27 +61,38 @@ function NotePopup({
         }
       });
     });
-
+  
     setHasDuplicates(duplicates.length > 0);
     setDuplicateImages(duplicates);
-
-    // Verifica se esiste già una nota di gruppo
+  
+    // Verifica se esiste già una nota per questo gruppo di immagini
+    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
     const duplicateImageGroupNotes = JSON.parse(localStorage.getItem('duplicateImageGroupNotes') || '{}');
     
-    // Cerca in tutte le chiavi per trovare il gruppo corrispondente
-    let foundGroupKey = null;
-    for (const key of Object.keys(duplicateImageGroupNotes)) {
-      if (key.startsWith(imageHash)) {
-        foundGroupKey = key;
-        break;
-      }
-    }
-    
-    if (foundGroupKey && duplicateImageGroupNotes[foundGroupKey]) {
-      setExistingGroupNote(duplicateImageGroupNotes[foundGroupKey]);
+    // Cerca note individuali per immagini con lo stesso hash
+    const individualNotes = duplicates
+      .map(duplicate => messageNotes[duplicate.ID])
+      .filter(note => note); // Rimuovi note undefined
+  
+    // Cerca note di gruppo per questo hash
+    const groupKey = Object.keys(duplicateImageGroupNotes)
+      .find(key => key.startsWith(imageHash));
+  
+    // Priorità: 
+    // 1. Note individuali 
+    // 2. Note di gruppo esistenti
+    if (individualNotes.length > 0) {
+      // Usa la prima nota individuale trovata
+      setExistingGroupNote(individualNotes[0]);
       setGroupNoteExists(true);
-      setGroupKey(foundGroupKey);
+      setGroupKey(`${imageHash}_${Date.now()}`);
+    } else if (groupKey && duplicateImageGroupNotes[groupKey]) {
+      // Usa la nota di gruppo esistente
+      setExistingGroupNote(duplicateImageGroupNotes[groupKey]);
+      setGroupNoteExists(true);
+      setGroupKey(groupKey);
     } else {
+      // Nessuna nota esistente
       setExistingGroupNote('');
       setGroupNoteExists(false);
       setGroupKey('');
@@ -90,45 +101,36 @@ function NotePopup({
 
   // Gestisci il salvataggio della nota
   const handleSave = () => {
-    // Prima salva la nota per il messaggio corrente
+    // Controlla se il messaggio esiste
+    if (!message) {
+      console.error('Nessun messaggio selezionato');
+      onClose();
+      return;
+    }
+
     const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+    const duplicateImageGroupNotes = JSON.parse(localStorage.getItem('duplicateImageGroupNotes') || '{}');
+
+    // Salva la nota per il messaggio corrente
     messageNotes[message.ID] = note;
-    
-    // Se ci sono duplicati e l'opzione di sincronizzazione è attiva
+
     if (hasDuplicates && syncWithDuplicates) {
-      // Aggiorna la nota per tutti i messaggi duplicati
+      // Aggiorna le note per tutte le immagini duplicate
       duplicateImages.forEach(duplicate => {
         messageNotes[duplicate.ID] = note;
       });
-      
-      // Aggiorna anche la nota di gruppo nel duplicateImageGroupNotes
+
+      // Aggiorna anche la nota di gruppo
       if (message.imageHash) {
-        const duplicateImageGroupNotes = JSON.parse(localStorage.getItem('duplicateImageGroupNotes') || '{}');
-        
-        // Se abbiamo già un group key valido, usalo, altrimenti creane uno nuovo
-        const useGroupKey = groupKey || `${message.imageHash}_${Date.now()}`;
-        
-        // Aggiorna o crea la nota di gruppo
-        duplicateImageGroupNotes[useGroupKey] = note;
-        localStorage.setItem('duplicateImageGroupNotes', JSON.stringify(duplicateImageGroupNotes));
-      }
-    } else if (!syncWithDuplicates && groupKey) {
-      // Se l'utente sceglie di non sincronizzare, ma esiste già una nota di gruppo,
-      // rimuovi questo messaggio dal gruppo mantenendo la nota solo per questo messaggio
-      const duplicateImageGroupNotes = JSON.parse(localStorage.getItem('duplicateImageGroupNotes') || '{}');
-      
-      // Qui potremmo scegliere di mantenere la nota di gruppo per gli altri messaggi
-      // ma non per questo specifico messaggio
-      if (duplicateImageGroupNotes[groupKey]) {
+        const groupKey = `${message.imageHash}_${Date.now()}`;
         duplicateImageGroupNotes[groupKey] = note;
-        localStorage.setItem('duplicateImageGroupNotes', JSON.stringify(duplicateImageGroupNotes));
       }
     }
-    
-    // Salva le note dei messaggi
+
+    // Salva le note
     localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
-    
-    // Chiudi il popup
+    localStorage.setItem('duplicateImageGroupNotes', JSON.stringify(duplicateImageGroupNotes));
+
     onClose();
   };
 

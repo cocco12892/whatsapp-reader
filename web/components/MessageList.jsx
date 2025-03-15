@@ -213,44 +213,60 @@ const handleRecord = (messageId) => {
 const handleNote = (messageId) => {
   console.log('Noting message:', messageId);
   
-  // Toggle the message in noted messages
-  setNotedMessages(prev => {
-    const newSet = new Set([...prev]);
-    
-    if (newSet.has(messageId)) {
-      newSet.delete(messageId);
-    } else {
-      newSet.add(messageId);
-    }
-    
-    // Save to storage for persistence
-    localStorage.setItem(`notedMessages_${chat.id}`, JSON.stringify([...newSet]));
-    return newSet;
-  });
+  // Trova il messaggio corrispondente
+  const message = messages.find(m => m.id === messageId);
   
-  // Add a temporary visual effect to the message
-  const messageElement = document.getElementById(`message-${messageId}`);
-  if (messageElement) {
-    messageElement.style.animation = 'notePulse 0.8s';
+  // Chiama la funzione per aprire il popup delle note
+  if (handleMessageRightClick) {
+    // Simula un evento di right click per aprire il popup delle note
+    handleMessageRightClick(
+      { 
+        preventDefault: () => {}, 
+        clientX: window.innerWidth / 2, 
+        clientY: window.innerHeight / 2 
+      }, 
+      messageId
+    );
+  } else {
+    // Fallback: toggle delle noted messages se la funzione non è disponibile
+    setNotedMessages(prev => {
+      const newSet = new Set([...prev]);
+      
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      
+      // Save to storage for persistence
+      localStorage.setItem(`notedMessages_${chat.id}`, JSON.stringify([...newSet]));
+      return newSet;
+    });
     
-    // If the animation style doesn't exist, add it
-    if (!document.getElementById('note-animation')) {
-      const styleTag = document.createElement('style');
-      styleTag.id = 'note-animation';
-      styleTag.innerHTML = `
-        @keyframes notePulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
-          100% { transform: scale(1); }
-        }
-      `;
-      document.head.appendChild(styleTag);
+    // Mantieni l'effetto visivo
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (messageElement) {
+      messageElement.style.animation = 'notePulse 0.8s';
+      
+      // If the animation style doesn't exist, add it
+      if (!document.getElementById('note-animation')) {
+        const styleTag = document.createElement('style');
+        styleTag.id = 'note-animation';
+        styleTag.innerHTML = `
+          @keyframes notePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
+            100% { transform: scale(1); }
+          }
+        `;
+        document.head.appendChild(styleTag);
+      }
+      
+      // Remove the animation after it finishes
+      setTimeout(() => {
+        messageElement.style.animation = '';
+      }, 800);
     }
-    
-    // Remove the animation after it finishes
-    setTimeout(() => {
-      messageElement.style.animation = '';
-    }, 800);
   }
 };
 

@@ -220,17 +220,14 @@ function App() {
   const handleMessageRightClick = useCallback((e, messageId) => {
     e.preventDefault();
     
-    // Find the message object based on ID
-    const message = findMessageById(messageId);
+    const note = prompt("Inserisci una nota per il messaggio:");
     
-    setNotePopup({
-      visible: true,
-      messageId,
-      message,
-      position: { x: e.clientX, y: e.clientY },
-      note: getNote(messageId)
-    });
-  }, [getNote, findMessageById]);
+    if (note) {
+      const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+      messageNotes[messageId] = note;
+      localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+    }
+  }, []);
 
   const handleNoteChange = useCallback((e) => {
     setNotePopup(prev => ({

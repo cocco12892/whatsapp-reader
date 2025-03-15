@@ -27,16 +27,7 @@ const DuplicateImageFinder = ({ chats }) => {
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [currentNoteGroup, setCurrentNoteGroup] = useState(null);
   const [currentNote, setCurrentNote] = useState('');
-  const [groupNotes, setGroupNotes] = useState({});
   const [currentGroupMessageIds, setCurrentGroupMessageIds] = useState([]);
-
-  // Load saved group notes from localStorage on component mount
-  useEffect(() => {
-    const savedNotes = localStorage.getItem('duplicateImageGroupNotes');
-    if (savedNotes) {
-      setGroupNotes(JSON.parse(savedNotes));
-    }
-  }, []);
 
   const handleOpen = () => {
     setOpen(true);
@@ -68,7 +59,7 @@ const DuplicateImageFinder = ({ chats }) => {
         }
       });
     });
-
+  
     // Raggruppiamo per hash e troviamo i duplicati
     const hashGroups = {};
     allImages.forEach(image => {
@@ -77,18 +68,45 @@ const DuplicateImageFinder = ({ chats }) => {
       }
       hashGroups[image.imageHash].push(image);
     });
-
-    // Filtriamo per avere solo gruppi con più di un'immagine (i duplicati)
-    const duplicateGroups = Object.values(hashGroups)
-      .filter(group => group.length > 1)
-      // Ordiniamo i gruppi in base alla data del messaggio più recente
+  
+    // Prepara le note dai vari storage
+    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+  
+    // Processa i gruppi di duplicati
+    const processedDuplicates = Object.entries(hashGroups)
+      .filter(([_, group]) => group.length > 1)
+      .map(([imageHash, group], groupIndex) => {
+        // Ordina il gruppo per timestamp più recente
+        const sortedGroup = group.sort((a, b) => 
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
+  
+        // Trova note individuali per ogni immagine
+        const imagesWithNotes = sortedGroup.map(image => ({
+          ...image,
+          note: messageNotes[image.ID] || '',
+          groupNoteKey: `${imageHash}_${groupIndex}`
+        }));
+  
+        // Trova la nota di gruppo per questo hash
+        const groupNoteKey = `${imageHash}_${groupIndex}`;
+  
+        return {
+          imageHash,
+          groupIndex,
+          images: imagesWithNotes,
+          hasNotes: imagesWithNotes.some(img => img.note) || !!groupNote
+        };
+      })
+      // Ordina per numero di immagini e poi per timestamp più recente
       .sort((a, b) => {
-        const latestA = Math.max(...a.map(img => new Date(img.timestamp)));
-        const latestB = Math.max(...b.map(img => new Date(img.timestamp)));
-        return latestB - latestA; // Ordine decrescente
+        if (b.images.length !== a.images.length) {
+          return b.images.length - a.images.length;
+        }
+        return new Date(b.images[0].timestamp) - new Date(a.images[0].timestamp);
       });
-
-    setDuplicates(duplicateGroups);
+  
+    setDuplicates(processedDuplicates);
     setLoading(false);
   };
 
@@ -108,21 +126,14 @@ const DuplicateImageFinder = ({ chats }) => {
     const messageIds = group.map(image => image.ID);
     setCurrentGroupMessageIds(messageIds);
     
-    // Verifica se esiste già una nota di gruppo
-    const existingNote = groupNotes[groupKey] || '';
+    // Verifica se esiste già una nota per uno dei messaggi del gruppo
+    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+    const existingNote = messageIds.find(id => messageNotes[id]);
     
-    // Se non esiste una nota di gruppo, controlla se c'è una nota in uno dei messaggi
-    if (!existingNote) {
-      const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-      for (const messageId of messageIds) {
-        if (messageNotes[messageId]) {
-          // Usa la prima nota di messaggio trovata come nota di gruppo predefinita
-          setCurrentNote(messageNotes[messageId]);
-          break;
-        }
-      }
+    if (existingNote) {
+      setCurrentNote(messageNotes[existingNote]);
     } else {
-      setCurrentNote(existingNote);
+      setCurrentNote('');
     }
     
     setNoteDialogOpen(true);
@@ -130,23 +141,15 @@ const DuplicateImageFinder = ({ chats }) => {
 
   // Handle saving the note for all images in the group
   const handleSaveGroupNote = () => {
-    if (!currentNoteGroup || currentGroupMessageIds.length === 0) return;
-
-    // Update the group notes state
-    const updatedNotes = {
-      ...groupNotes,
-      [currentNoteGroup]: currentNote
-    };
-    setGroupNotes(updatedNotes);
-    
-    // Save to localStorage for group notes
-    localStorage.setItem('duplicateImageGroupNotes', JSON.stringify(updatedNotes));
+    if (currentGroupMessageIds.length === 0) return;
     
     // Save the same note for all message IDs in this group
     const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
     
     currentGroupMessageIds.forEach(messageId => {
-      messageNotes[messageId] = currentNote;
+      if (messageId) {
+        messageNotes[messageId] = currentNote;
+      }
     });
     
     // Save back to localStorage
@@ -154,7 +157,7 @@ const DuplicateImageFinder = ({ chats }) => {
     
     setNoteDialogOpen(false);
   };
-
+  
   return (
     <>
       <Button 
@@ -165,7 +168,7 @@ const DuplicateImageFinder = ({ chats }) => {
       >
         Trova immagini duplicate
       </Button>
-
+  
       <Dialog 
         open={open} 
         onClose={handleClose}
@@ -184,10 +187,9 @@ const DuplicateImageFinder = ({ chats }) => {
           ) : duplicates.length === 0 ? (
             <Typography>Nessuna immagine duplicata trovata.</Typography>
           ) : (
-            duplicates.map((group, groupIndex) => {
-              const groupHash = group[0].imageHash;
-              const groupKey = `${groupHash}_${groupIndex}`;
-              const groupNote = groupNotes[groupKey];
+            duplicates.map((duplicateGroup, groupIndex) => {
+              const group = duplicateGroup.images;
+              const groupHash = group[0].imageHash;              
               
               return (
                 <Card key={groupIndex} sx={{ mb: 3, overflow: 'visible' }}>
@@ -196,31 +198,7 @@ const DuplicateImageFinder = ({ chats }) => {
                       <Typography variant="subtitle1">
                         Gruppo #{groupIndex + 1} - Trovate {group.length} copie
                       </Typography>
-                      
-                      <Tooltip title={groupNote ? "Modifica nota di gruppo" : "Aggiungi nota di gruppo"}>
-                        <IconButton 
-                          color={groupNote ? "primary" : "default"}
-                          onClick={() => handleOpenNoteDialog(group, groupHash, groupIndex)}
-                        >
-                          {groupNote ? <EditNoteIcon /> : <NoteAddIcon />}
-                        </IconButton>
-                      </Tooltip>
                     </Box>
-                    
-                    {/* Display the group note if it exists */}
-                    {groupNote && (
-                      <Box 
-                        sx={{ 
-                          p: 2, 
-                          bgcolor: 'rgba(76, 175, 80, 0.1)', 
-                          borderLeft: '4px solid #4caf50',
-                          borderRadius: 1,
-                          mb: 2
-                        }}
-                      >
-                        <Typography variant="body2">{groupNote}</Typography>
-                      </Box>
-                    )}
                     
                     {/* Prima immagine come riferimento */}
                     <Box sx={{ display: 'flex', mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -278,7 +256,7 @@ const DuplicateImageFinder = ({ chats }) => {
                       {group.map((image, imageIndex) => {
                         // Verifica se c'è una nota per questa immagine
                         const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-                        const hasNote = messageNotes[image.ID] ? true : false;
+                        const hasNote = messageNotes[image.id] ? true : false;
                         
                         return (
                           <Box 
@@ -326,7 +304,7 @@ const DuplicateImageFinder = ({ chats }) => {
                                 {formatTime(image.timestamp)}
                               </Typography>
                               <Typography variant="caption" display="block">
-                                ID: {image.ID}
+                                ID messaggio: {image.id}
                               </Typography>
                             </Box>
                           </Box>
@@ -340,7 +318,7 @@ const DuplicateImageFinder = ({ chats }) => {
           )}
         </DialogContent>
       </Dialog>
-
+  
       {/* Dialog for adding/editing group notes */}
       <Dialog 
         open={noteDialogOpen}
@@ -395,5 +373,5 @@ const DuplicateImageFinder = ({ chats }) => {
     </>
   );
 };
-
-export default DuplicateImageFinder;
+  
+  export default DuplicateImageFinder;
