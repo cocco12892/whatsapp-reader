@@ -274,7 +274,7 @@ const DuplicateImageFinder = ({ chats }) => {
                       </Box>
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                          Hash: {group[0].imageHash.substring(0, 8)}...
+                          Hash: {group[0].imageHash.substring(0, 25)}...
                         </Typography>
                         
                         <Box sx={{ mt: 1 }}>
@@ -283,7 +283,7 @@ const DuplicateImageFinder = ({ chats }) => {
                               key={imageIndex}
                               label={`${image.chatName} - ${formatTime(image.timestamp)}`}
                               sx={{ m: 0.5 }}
-                              color={imageIndex === 0 ? "primary" : "default"}
+                              color={"default"}
                             />
                           ))}
                         </Box>
