@@ -675,10 +675,34 @@ return (
         >
           🎙 {recordedMessages.has(contextMenu.messageId) ? 'Rimuovi registrazione': 'Registra'}
         </Box>
+        {/* Menu item for viewing grouped notes */}
+        <Box
+          sx={{
+            p: 1,
+            cursor: 'pointer',
+            '&:hover': {
+              bgcolor: 'action.hover'
+            },
+            display: 'flex',
+            alignItems: 'center'
+          }}
+          onClick={() => {
+            setNotesGroupViewOpen(true);
+            closeContextMenu();
+          }}
+        >
+          📋 Visualizza note raggruppate
+        </Box>
       </Box>
     )}
   </Box>
 );
 }
+
+{/* Notes Group View Dialog */}
+<NotesGroupView 
+  open={notesGroupViewOpen} 
+  onClose={() => setNotesGroupViewOpen(false)} 
+/>
 
 export default MessageList;
