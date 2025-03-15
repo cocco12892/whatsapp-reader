@@ -14,6 +14,9 @@ import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DuplicateImageFinder from './components/DuplicateImageFinder';
+import NotesGroupView from './components/NotesGroupView';
+import NoteIcon from '@mui/icons-material/Note';
+import { Button } from '@mui/material';
 
 const API_BASE_URL = '/api';
 const POLLING_INTERVAL = 5000; // 5 secondi
@@ -59,6 +62,7 @@ function App() {
     position: { x: 0, y: 0 },
     note: ''
   });
+  const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
 
   const fetchChats = async () => {
     try {
@@ -279,7 +283,17 @@ function App() {
             <Typography variant="h1" gutterBottom>WhatsApp Web Viewer</Typography>
             {chats.length > 0 && (
               <ErrorBoundary>
-                <DuplicateImageFinder chats={chats} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <DuplicateImageFinder chats={chats} />
+                  <Button 
+                    variant="outlined" 
+                    color="primary" 
+                    onClick={() => setNotesGroupViewOpen(true)}
+                    startIcon={<NoteIcon />}
+                  >
+                    Visualizza Note Raggruppate
+                  </Button>
+                </Box>
               </ErrorBoundary>
             )}
             {chats.length > 0 ? (
@@ -483,6 +497,11 @@ function App() {
         message={notePopup.message}
         chats={chats}
         currentMessageId={notePopup.messageId}
+      />
+
+      <NotesGroupView 
+        open={notesGroupViewOpen} 
+        onClose={() => setNotesGroupViewOpen(false)} 
       />
     </ThemeProvider>
   );
