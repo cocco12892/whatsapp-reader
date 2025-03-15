@@ -138,23 +138,35 @@ const DuplicateImageFinder = ({ chats }) => {
   const handleMessageRightClick = (e, messageId) => {
     e.preventDefault();
     
-    const note = prompt("Inserisci una nota per il messaggio:");
+    const note = prompt("Inserisci una nota per il messaggio (verrà applicata a tutto il gruppo):");
     
     if (note) {
       const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-      messageNotes[messageId] = note;
-      localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
       
-      // Aggiorna lo stato UI
-      setDuplicates(prev => 
-        prev.map(group => ({
-          ...group,
-          images: group.images.map(img => ({
-            ...img,
-            note: img.ID === messageId ? note : img.note
-          }))
-        }))
+      // Trova il gruppo a cui appartiene il messaggio
+      const group = duplicates.find(g => 
+        g.images.some(img => img.ID === messageId)
       );
+      
+      if (group) {
+        // Applica la nota a tutti i messaggi del gruppo
+        group.images.forEach(img => {
+          messageNotes[img.ID] = note;
+        });
+        
+        localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+        
+        // Aggiorna lo stato UI
+        setDuplicates(prev => 
+          prev.map(g => ({
+            ...g,
+            images: g.images.map(img => ({
+              ...img,
+              note: group.images.some(gImg => gImg.ID === img.ID) ? note : img.note
+            }))
+          }))
+        );
+      }
     }
   };
 
