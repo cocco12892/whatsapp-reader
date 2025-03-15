@@ -133,6 +133,7 @@ const DuplicateImageFinder = ({ chats }) => {
       // Applica la stessa nota a tutti i messaggi del gruppo
       group.forEach(image => {
         if (image.id) {
+          console.log(`ID messaggio: ${image.id}`); // Stampa l'ID del messaggio
           messageNotes[image.id] = note; // Assicurati di usare image.id
         }
       });
