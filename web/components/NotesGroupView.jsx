@@ -110,6 +110,8 @@ const NotesGroupView = ({ open, onClose, chats }) => {
         // Raggruppa le note per chatId
         const notesByChatId = {};
         noteEntries.forEach(noteEntry => {
+          if (!noteEntry.chatId) return; // Salta se non c'è chatId
+          
           if (!notesByChatId[noteEntry.chatId]) {
             notesByChatId[noteEntry.chatId] = [];
           }
@@ -128,24 +130,17 @@ const NotesGroupView = ({ open, onClose, chats }) => {
             // Prendi la prima nota di questa chat per questa nota
             const noteEntry = chatNotes[0];
             
-            // Verifica che non esista già un elemento per questo messaggio
-            const existingItem = groupedRecordedObj[noteText].find(
-              item => item.messageId === noteEntry.messageId
-            );
+            // Usa il sinonimo della chat se disponibile
+            const chatName = getChatName(chatId, noteEntry.chatName);
             
-            if (!existingItem) {
-              // Usa il sinonimo della chat se disponibile
-              const chatName = getChatName(chatId, noteEntry.chatName);
-              
-              groupedRecordedObj[noteText].push({
-                messageId: noteEntry.messageId,
-                chatId: noteEntry.chatId,
-                chatName: chatName,
-                timestamp: noteEntry.timestamp,
-                note: noteText,
-                hasNoRecording: true // Flag per identificare elementi senza registrazione
-              });
-            }
+            groupedRecordedObj[noteText].push({
+              messageId: noteEntry.messageId,
+              chatId: chatId,
+              chatName: chatName,
+              timestamp: noteEntry.timestamp,
+              note: noteText,
+              hasNoRecording: true // Flag per identificare elementi senza registrazione
+            });
           }
         });
       });
