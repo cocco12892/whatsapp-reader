@@ -238,7 +238,7 @@ const DuplicateImageFinder = ({ chats }) => {
             <Typography>Nessuna immagine duplicata trovata.</Typography>
           ) : (
             duplicates.map((duplicateGroup, groupIndex) => {
-              const group = duplicateGroup.images;
+              const group = duplicateGroup.images || [];
               const groupHash = group[0].imageHash;              
               
               return (
