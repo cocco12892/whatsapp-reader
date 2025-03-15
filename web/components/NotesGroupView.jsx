@@ -199,7 +199,8 @@ const NotesGroupView = ({ open, onClose, chats }) => {
       if (item.data && item.data.includes('@')) {
         const parts = item.data.split('@');
         importo = parts[0];
-        quota = parts[1];
+        // Assicurati che la quota usi sempre la virgola come separatore decimale
+        quota = parts[1].replace('.', ',');
       } else {
         importo = item.data;
       }
