@@ -101,50 +101,34 @@ const NotesGroupView = ({ open, onClose, chats }) => {
         }
       });
       
-      // Aggiungi anche le note che non hanno registrazioni associate
+      // Aggiungi tutte le note, anche quelle che non hanno registrazioni associate
       Object.entries(groupedNotesObj).forEach(([noteText, noteEntries]) => {
         if (!groupedRecordedObj[noteText]) {
           groupedRecordedObj[noteText] = [];
         }
         
-        // Raggruppa le note per chatId
-        const notesByChatId = {};
+        // Aggiungi ogni nota come elemento nella tabella
         noteEntries.forEach(noteEntry => {
           if (!noteEntry.chatId) return; // Salta se non c'è chatId
           
-          if (!notesByChatId[noteEntry.chatId]) {
-            notesByChatId[noteEntry.chatId] = [];
-          }
-          notesByChatId[noteEntry.chatId].push(noteEntry);
-        });
-        
-        // Per ogni chat, verifica se ha già almeno una registrazione per questa nota specifica
-        Object.entries(notesByChatId).forEach(([chatId, chatNotes]) => {
-          // Controlla se questa chat ha già una registrazione per questa nota specifica
-          const chatHasRecordingForThisNote = Object.values(storedRecorded).some(
-            record => record.chatId === chatId && record.note === noteText
+          // Controlla se questa nota specifica ha già una registrazione
+          const hasRecording = Object.values(storedRecorded).some(
+            record => record.messageId === noteEntry.messageId
           );
-        
-          // Se la chat non ha registrazioni per questa nota, aggiungi sempre una nota senza registrazione
-          if (chatNotes.length > 0) {
-            // Prendi la prima nota di questa chat per questa nota
-            const noteEntry = chatNotes[0];
           
-            // Se non c'è già una registrazione per questa chat e nota, aggiungi un elemento Skip
-            if (!chatHasRecordingForThisNote) {
-              // Aggiungi l'elemento con hasNoRecording: true
-              const skipItem = {
-                messageId: noteEntry.messageId,
-                chatId: chatId,
-                chatName: noteEntry.chatName, // Usa il nome originale della chat, non il sinonimo
-                timestamp: noteEntry.timestamp,
-                note: noteText,
-                hasNoRecording: true // Flag per identificare elementi senza registrazione
-              };
+          // Se non ha una registrazione, aggiungila come elemento Skip
+          if (!hasRecording) {
+            const skipItem = {
+              messageId: noteEntry.messageId,
+              chatId: noteEntry.chatId,
+              chatName: noteEntry.chatName, // Usa il nome originale della chat, non il sinonimo
+              timestamp: noteEntry.timestamp,
+              note: noteText,
+              hasNoRecording: true // Flag per identificare elementi senza registrazione
+            };
             
-              groupedRecordedObj[noteText].push(skipItem);
-              console.log('Aggiunto elemento Skip:', skipItem);
-            }
+            groupedRecordedObj[noteText].push(skipItem);
+            console.log('Aggiunto elemento Skip:', skipItem);
           }
         });
       });
