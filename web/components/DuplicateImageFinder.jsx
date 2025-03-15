@@ -131,21 +131,21 @@ const DuplicateImageFinder = ({ chats }) => {
       const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
       
       // Applica la stessa nota a tutti i messaggi del gruppo
-      group.forEach(img => {
-        if (img.ID) {
-          messageNotes[img.ID] = note; // Assicurati di usare img.ID
+      group.forEach(image => {
+        if (image.id) {
+          messageNotes[image.id] = note; // Assicurati di usare image.id
         }
       });
       
       localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
       
       // Aggiorna lo stato UI
-      setDuplicates(prev => 
+      setDuplicates(prev =>
         prev.map(g => ({
           ...g,
           images: g.images.map(img => ({
             ...img,
-            note: group.some(gImg => gImg.ID === img.ID) ? note : img.note
+            note: group.some(gImg => gImg.id === img.id) ? note : img.note
           }))
         }))
       );
