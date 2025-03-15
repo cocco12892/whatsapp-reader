@@ -230,32 +230,24 @@ const handleNote = (messageId) => {
     );
   } else {
     // Fallback: toggle delle noted messages se la funzione non è disponibile
-    setNotedMessages(prev => {
-      const newSet = new Set([...prev]);
-      
-      if (newSet.has(messageId)) {
-        newSet.delete(messageId);
-      } else {
-        newSet.add(messageId);
-      }
-      
-      // Save to storage for persistence
-      localStorage.setItem(`notedMessages_${chat.id}`, JSON.stringify([...newSet]));
-      return newSet;
-    });
+    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
     
-    // Aggiorna lo stato delle note
     setNotedMessages(prev => {
       const newSet = new Set([...prev]);
       
       if (newSet.has(messageId)) {
         newSet.delete(messageId);
+        delete messageNotes[messageId]; // Remove the note from local storage
       } else {
-        newSet.add(messageId);
+        const note = prompt("Inserisci una nota per il messaggio:");
+        if (note) {
+          newSet.add(messageId);
+          messageNotes[messageId] = note;
+        }
       }
       
-      // Save to storage for persistence
-      localStorage.setItem(`notedMessages_${chat.id}`, JSON.stringify([...newSet]));
+      // Save updated notes to storage
+      localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
       return newSet;
     });
 
