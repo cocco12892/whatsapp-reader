@@ -47,8 +47,12 @@ const NotesTableView = ({ open, onClose, chats }) => {
     
     // Processa tutti i messaggi registrati
     Object.entries(recordedData).forEach(([messageId, recordInfo]) => {
-      const note = notes[messageId] || '';
-      const noteKey = note.trim() || 'Senza nota';
+      // Ottieni la nota associata al messaggio
+      let noteText = '';
+      if (notes[messageId]) {
+        noteText = notes[messageId].note || '';
+      }
+      const noteKey = noteText.trim() || 'Senza nota';
       
       if (!groupedByNote[noteKey]) {
         groupedByNote[noteKey] = [];
@@ -73,22 +77,23 @@ const NotesTableView = ({ open, onClose, chats }) => {
         let importo = '';
         
         // Cerca pattern come "4000@1,77" o "1200@1.79"
-        const contentMatch = recordInfo.match(/(\d+)@([\d,.]+)/);
+        let dataString = '';
+        
+        if (typeof recordInfo === 'string') {
+          dataString = recordInfo;
+        } else if (recordInfo.data) {
+          dataString = recordInfo.data;
+        }
+        
+        const contentMatch = dataString.match(/(\d+)@([\d,.]+)/);
         if (contentMatch) {
           importo = contentMatch[1];
           quota = contentMatch[2].replace('.', ',');
-        } else {
-          // Cerca nel contenuto del messaggio
-          const msgMatch = message.content.match(/(\d+)@([\d,.]+)/);
-          if (msgMatch) {
-            importo = msgMatch[1];
-            quota = msgMatch[2].replace('.', ',');
-          }
         }
         
         groupedByNote[noteKey].push({
           id: messageId,
-          chat: message.senderName || chatName,
+          chat: chatName || (message.senderName ? message.senderName : 'Chat sconosciuta'),
           nota: noteKey,
           quota: quota,
           importo: importo,
@@ -165,18 +170,25 @@ const NotesTableView = ({ open, onClose, chats }) => {
         </Box>
       </DialogTitle>
       <DialogContent>
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 'bold' }}>Chat</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Nota</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Quota</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Importo</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {tableData.map((row) => {
+        {tableData.length === 0 ? (
+          <Box sx={{ p: 3, textAlign: 'center' }}>
+            <Typography variant="body1" color="text.secondary">
+              Nessun dato disponibile. Registra messaggi con quote per visualizzarli qui.
+            </Typography>
+          </Box>
+        ) : (
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Chat</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Nota</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Quota</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Importo</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {tableData.map((row) => {
                 if (row.isHeader) {
                   return (
                     <TableRow key={row.id} sx={{ backgroundColor: '#f5f5f5' }}>
