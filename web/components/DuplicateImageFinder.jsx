@@ -26,8 +26,9 @@ const DuplicateImageFinder = ({ chats }) => {
   const [duplicates, setDuplicates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
-  const [currentMessageId, setCurrentMessageId] = useState(null);
+  const [currentGroup, setCurrentGroup] = useState(null);
   const [currentNote, setCurrentNote] = useState('');
+  const [syncWithDuplicates, setSyncWithDuplicates] = useState(true);
 
   const handleOpen = () => {
     setOpen(true);
@@ -117,32 +118,49 @@ const DuplicateImageFinder = ({ chats }) => {
     return Math.abs(date1 - date2) / (1000 * 60); // Differenza in minuti
   };
 
-  // Handle opening the note dialog for a specific message
-  const handleOpenNoteDialog = (messageId) => {
-    setCurrentMessageId(messageId);
+  // Handle opening the note dialog for a group
+  const handleOpenNoteDialog = (group) => {
+    setCurrentGroup(group);
     
-    // Verifica se esiste già una nota per questo messaggio
+    // Verifica se esiste già una nota di gruppo
     const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-    setCurrentNote(messageNotes[messageId] || '');
+    const groupNote = group.images.find(img => messageNotes[img.ID])?.note || '';
+    setCurrentNote(groupNote);
     
     setNoteDialogOpen(true);
   };
 
-  // Handle saving the note for a single message
+  // Handle saving the note for the entire group
   const handleSaveNote = () => {
-    if (!currentMessageId) return;
+    if (!currentGroup) return;
     
     const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-    messageNotes[currentMessageId] = currentNote;
-    localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+    const duplicateImageGroupNotes = JSON.parse(localStorage.getItem('duplicateImageGroupNotes') || '{}');
     
-    // Update UI state
+    // Salva la nota per tutti i messaggi del gruppo
+    currentGroup.images.forEach(image => {
+      if (syncWithDuplicates) {
+        messageNotes[image.ID] = currentNote;
+      }
+    });
+
+    // Salva anche la nota di gruppo
+    if (currentGroup.images[0]?.imageHash) {
+      const groupKey = `${currentGroup.images[0].imageHash}_${currentGroup.groupIndex}`;
+      duplicateImageGroupNotes[groupKey] = currentNote;
+    }
+
+    // Aggiorna lo storage
+    localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
+    localStorage.setItem('duplicateImageGroupNotes', JSON.stringify(duplicateImageGroupNotes));
+    
+    // Aggiorna lo stato UI
     setDuplicates(prev => 
       prev.map(group => ({
         ...group,
         images: group.images.map(img => ({
           ...img,
-          note: img.ID === currentMessageId ? currentNote : img.note
+          note: currentGroup.images.some(gImg => gImg.ID === img.ID) ? currentNote : img.note
         }))
       }))
     );
@@ -263,25 +281,32 @@ const DuplicateImageFinder = ({ chats }) => {
                               position: 'relative'
                             }}
                           >
-                            {hasNote && (
-                              <Box 
-                                sx={{ 
-                                  position: 'absolute', 
-                                  top: 5, 
-                                  right: 5, 
-                                  bgcolor: '#4caf50', 
-                                  p: '2px', 
-                                  borderRadius: '50%',
-                                  width: 20,
-                                  height: 20,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
-                              >
+                            <Box 
+                              sx={{ 
+                                position: 'absolute', 
+                                top: 5, 
+                                right: 5, 
+                                bgcolor: hasNote ? '#4caf50' : 'rgba(0,0,0,0.5)', 
+                                p: '2px', 
+                                borderRadius: '50%',
+                                width: 20,
+                                height: 20,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                '&:hover': {
+                                  bgcolor: hasNote ? '#388e3c' : '#4caf50'
+                                }
+                              }}
+                              onClick={() => handleOpenNoteDialog(group)}
+                            >
+                              {hasNote ? (
                                 <EditNoteIcon sx={{ color: 'white', fontSize: 14 }} />
-                              </Box>
-                            )}
+                              ) : (
+                                <NoteAddIcon sx={{ color: 'white', fontSize: 14 }} />
+                              )}
+                            </Box>
                             <img 
                               src={`http://localhost:8080${image.mediaPath}`} 
                               alt={`Occorrenza #${imageIndex + 1}`}
@@ -336,6 +361,20 @@ const DuplicateImageFinder = ({ chats }) => {
           </IconButton>
         </DialogTitle>
         <DialogContent>
+          {currentGroup && currentGroup.images.length > 1 && (
+            <FormControlLabel
+              control={
+                <Switch 
+                  checked={syncWithDuplicates}
+                  onChange={(e) => setSyncWithDuplicates(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label={`Sincronizza nota con ${currentGroup.images.length} messaggi`}
+              sx={{ mb: 2 }}
+            />
+          )}
+          
           <TextField
             autoFocus
             margin="dense"
@@ -349,6 +388,12 @@ const DuplicateImageFinder = ({ chats }) => {
             value={currentNote}
             onChange={(e) => setCurrentNote(e.target.value)}
           />
+          
+          {currentGroup && currentGroup.images.length > 1 && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+              La nota verrà applicata a {syncWithDuplicates ? 'tutti' : 'solo questo'} messaggio/i del gruppo
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setNoteDialogOpen(false)}>Annulla</Button>
