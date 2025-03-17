@@ -103,11 +103,13 @@ const BotSalvatore = () => {
   return (
     <>
       <Paper sx={{ 
-        minWidth: 600,  // Increased width
-        maxWidth: 800,  // Increased max width
+        minWidth: '40%',  // Take up 40% of the screen width
+        maxWidth: '50%',  // But not more than 50%
+        width: 'auto',    // Allow dynamic sizing
         height: '80vh', 
         display: 'flex', 
-        flexDirection: 'column' 
+        flexDirection: 'column',
+        flex: '0 0 auto'  // Prevent shrinking
       }}>
         <Box sx={{
           p: 2,
@@ -130,19 +132,27 @@ const BotSalvatore = () => {
         </Box>
         
         <TableContainer sx={{ flex: 1, overflowY: 'auto' }}>
-          <Table stickyHeader>
+          <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Data</TableCell>
-                <TableCell>Evento</TableCell>
-                <TableCell>Prono</TableCell>
-                <TableCell>Min Odds</TableCell>
-                <TableCell>Totale Giocato</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: 'primary.light', color: 'primary.contrastText' }}>Data</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: 'primary.light', color: 'primary.contrastText' }}>Evento</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: 'primary.light', color: 'primary.contrastText' }}>Prono</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: 'primary.light', color: 'primary.contrastText' }}>Min Odds</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: 'primary.light', color: 'primary.contrastText' }}>Totale Giocato</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {bettingData.map((item, index) => (
-                <TableRow key={index}>
+                <TableRow 
+                  key={index} 
+                  hover 
+                  sx={{ 
+                    '&:nth-of-type(even)': { 
+                      backgroundColor: 'action.hover' 
+                    } 
+                  }}
+                >
                   <TableCell>{item.startDate}</TableCell>
                   <TableCell>{item.eventName}</TableCell>
                   <TableCell>{item.prono}</TableCell>

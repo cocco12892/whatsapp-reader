@@ -258,7 +258,8 @@ function App() {
                 display: 'flex',
                 gap: 3,
                 overflowX: 'auto',
-                pb: 2
+                pb: 2,
+                alignItems: 'stretch'  // Ensure all children have same height
               }}>
                 <BotSalvatore />
                 {chats.map((chat) => (
