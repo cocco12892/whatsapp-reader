@@ -9,7 +9,13 @@ import {
   TableHead, 
   TableRow, 
   IconButton,
-  Box
+  Box,
+  Button,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
@@ -17,25 +23,34 @@ const BotSalvatore = () => {
   const [token, setToken] = useState(null);
   const [bettingData, setBettingData] = useState([]);
   const [error, setError] = useState(null);
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
-  const LOGIN_URL = "https://tennisbestingbet.info:48634/LOGIN?username=tennis&password=ten10-";
+  const LOGIN_URL = "https://tennisbestingbet.info:48634/LOGIN";
   const HISTORY_URL = "https://tennisbestingbet.info:48634/PLAY_CONTAINER/GET_HISTORY?from=Sun%20Mar%2016%202025%2000:00:00%20GMT+0100%20(Central%20European%20Standard%20Time)&to=Fri%20Mar%2028%202025%2023:59:00%20GMT+0100%20(Central%20European%20Standard%20Time)";
 
-  const fetchToken = async () => {
+  const fetchToken = async (customUsername, customPassword) => {
     try {
-      const response = await fetch(LOGIN_URL);
+      const response = await fetch(`${LOGIN_URL}?username=${customUsername || 'tennis'}&password=${customPassword || 'ten10-'}`, {
+        method: 'GET'
+      });
       const data = await response.json();
       setToken(data.token);
+      setLoginDialogOpen(false);
+      return data.token;
     } catch (err) {
       console.error('Error fetching token:', err);
       setError('Failed to fetch token');
+      setLoginDialogOpen(true);
+      return null;
     }
   };
 
   const fetchBettingHistory = async () => {
     if (!token) {
-      await fetchToken();
-      return;
+      const newToken = await fetchToken();
+      if (!newToken) return;
     }
 
     try {
@@ -59,7 +74,12 @@ const BotSalvatore = () => {
     } catch (err) {
       console.error('Error fetching betting history:', err);
       setError('Failed to fetch betting history');
+      setLoginDialogOpen(true);
     }
+  };
+
+  const handleCustomLogin = async () => {
+    await fetchToken(username, password);
   };
 
   useEffect(() => {
@@ -75,63 +95,94 @@ const BotSalvatore = () => {
     return (
       <Paper sx={{ p: 2, height: '80vh', overflowY: 'auto' }}>
         <Typography color="error">{error}</Typography>
+        <Button onClick={() => setLoginDialogOpen(true)}>Login</Button>
       </Paper>
     );
   }
 
   return (
-    <Paper sx={{ 
-      minWidth: 300, 
-      maxWidth: 400, 
-      height: '80vh', 
-      display: 'flex', 
-      flexDirection: 'column' 
-    }}>
-      <Box sx={{
-        p: 2,
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-        bgcolor: 'primary.main',
-        color: 'primary.contrastText',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+    <>
+      <Paper sx={{ 
+        minWidth: 600,  // Increased width
+        maxWidth: 800,  // Increased max width
+        height: '80vh', 
+        display: 'flex', 
+        flexDirection: 'column' 
       }}>
-        <Typography variant="h6">Bot Salvatore</Typography>
-        <IconButton 
-          onClick={fetchBettingHistory} 
-          color="inherit"
-          title="Aggiorna dati"
-        >
-          <RefreshIcon />
-        </IconButton>
-      </Box>
-      
-      <TableContainer sx={{ flex: 1, overflowY: 'auto' }}>
-        <Table stickyHeader>
-          <TableHead>
-            <TableRow>
-              <TableCell>Data</TableCell>
-              <TableCell>Evento</TableCell>
-              <TableCell>Prono</TableCell>
-              <TableCell>Min Odds</TableCell>
-              <TableCell>Totale Giocato</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {bettingData.map((item, index) => (
-              <TableRow key={index}>
-                <TableCell>{item.startDate}</TableCell>
-                <TableCell>{item.eventName}</TableCell>
-                <TableCell>{item.prono}</TableCell>
-                <TableCell>{item.minOdds}</TableCell>
-                <TableCell>{item.totalPlayed}</TableCell>
+        <Box sx={{
+          p: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <Typography variant="h6">Bot Salvatore</Typography>
+          <IconButton 
+            onClick={fetchBettingHistory} 
+            color="inherit"
+            title="Aggiorna dati"
+          >
+            <RefreshIcon />
+          </IconButton>
+        </Box>
+        
+        <TableContainer sx={{ flex: 1, overflowY: 'auto' }}>
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell>Data</TableCell>
+                <TableCell>Evento</TableCell>
+                <TableCell>Prono</TableCell>
+                <TableCell>Min Odds</TableCell>
+                <TableCell>Totale Giocato</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Paper>
+            </TableHead>
+            <TableBody>
+              {bettingData.map((item, index) => (
+                <TableRow key={index}>
+                  <TableCell>{item.startDate}</TableCell>
+                  <TableCell>{item.eventName}</TableCell>
+                  <TableCell>{item.prono}</TableCell>
+                  <TableCell>{item.minOdds}</TableCell>
+                  <TableCell>{item.totalPlayed}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      <Dialog open={loginDialogOpen} onClose={() => setLoginDialogOpen(false)}>
+        <DialogTitle>Login</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Username"
+            fullWidth
+            variant="outlined"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <TextField
+            margin="dense"
+            label="Password"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLoginDialogOpen(false)}>Annulla</Button>
+          <Button onClick={handleCustomLogin} color="primary">Login</Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 };
 
