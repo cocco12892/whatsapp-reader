@@ -17,6 +17,7 @@ import DuplicateImageFinder from './components/DuplicateImageFinder';
 import NotesGroupView from './components/NotesGroupView';
 import NoteIcon from '@mui/icons-material/Note';
 import { Button } from '@mui/material';
+import BotSalvatore from './components/BotSalvatore';
 
 const API_BASE_URL = '/api';
 const POLLING_INTERVAL = 5000; // 5 secondi
@@ -259,6 +260,7 @@ function App() {
                 overflowX: 'auto',
                 pb: 2
               }}>
+                <BotSalvatore />
                 {chats.map((chat) => (
                   <ChatWindow
                     key={chat.id}
