@@ -10,7 +10,8 @@ import {
   TableRow, 
   IconButton,
   Box,
-  Button
+  Button,
+  CircularProgress
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
@@ -29,6 +30,11 @@ const BotSalvatore = () => {
     const endOfDay = new Date(today.setHours(23, 59, 59, 999));
     
     return `https://tennisbestingbet.info:48634/PLAY_CONTAINER/GET_HISTORY?from=${encodeURIComponent(startOfDay.toString())}&to=${encodeURIComponent(endOfDay.toString())}`;
+  };
+
+  // Costruisce URL per ottenere le giocate di un container
+  const getPlaysUrl = (containerId) => {
+    return `https://tennisbestingbet.info:48634/PLAY_CONTAINER/GET_PLAYS?id=${containerId}`;
   };
 
   const login = async () => {
@@ -61,6 +67,21 @@ const BotSalvatore = () => {
     }
   };
 
+  // Calcola la quota ponderata
+  const calculateWeightedOdds = (plays) => {
+    if (!plays || plays.length === 0) return 0;
+    
+    let totalAmount = 0;
+    let weightedSum = 0;
+    
+    plays.forEach(play => {
+      totalAmount += play.realPlay;
+      weightedSum += play.realPlay * play.realMultiplier;
+    });
+    
+    return totalAmount > 0 ? (weightedSum / totalAmount) : 0;
+  };
+
   const fetchBettingHistory = async (currentToken = null) => {
     setIsLoading(true);
     setError(null);
@@ -75,11 +96,8 @@ const BotSalvatore = () => {
     }
 
     try {
-      console.log('Using token:', useToken); // Debug log
-      
       // Usa l'URL con la data di oggi
       const historyUrl = getTodayHistoryUrl();
-      console.log('Fetching data from:', historyUrl);
       
       const response = await fetch(historyUrl, {
         method: 'GET',
@@ -91,30 +109,64 @@ const BotSalvatore = () => {
       });
       
       if (!response.ok) {
-        console.error('Response status:', response.status);
         throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
+      const containers = await response.json();
       
-      // Filter and transform data
-      const filteredData = data
-      .map(item => {
+      // Fetch giocate per ogni container
+      const containersWithPlays = await Promise.all(
+        containers.map(async (container) => {
+          try {
+            const playsUrl = getPlaysUrl(container._id);
+            const playsResponse = await fetch(playsUrl, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${useToken}`,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (!playsResponse.ok) {
+              console.error(`Failed to fetch plays for container ${container._id}`);
+              return { ...container, plays: [] };
+            }
+            
+            const plays = await playsResponse.json();
+            return { ...container, plays };
+          } catch (err) {
+            console.error(`Error fetching plays for container ${container._id}:`, err);
+            return { ...container, plays: [] };
+          }
+        })
+      );
+      
+      // Format and transform data with quota ponderata
+      const processedData = containersWithPlays.map(container => {
         // Create a date object from the startDate
-        const date = new Date(item.startDate);
+        const date = new Date(container.startDate);
         
         // Format the date as DD/MM HH:MM
         const formattedDate = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
         
+        // Calcola quota ponderata
+        const weightedOdds = calculateWeightedOdds(container.plays);
+        const formattedOdds = container.event.minOdds.toString().replace('.', ',');
+        const formattedWeightedOdds = weightedOdds.toFixed(2).replace('.', ',');
+
         return {
+          id: container._id,
           startDate: formattedDate,
-          eventName: item.event.eventName +' '+ item.event.prono,
-          minOdds: item.event.minOdds,
-          totalPlayed: item.totalPlayed
+          eventName: container.event.eventName + ' ' + container.event.prono,
+          minOdds: formattedOdds,
+          weightedOdds: formattedWeightedOdds,
+          totalPlayed: container.totalPlayed,
+          playsCount: container.plays ? container.plays.length : 0
         };
       });
 
-      setBettingData(filteredData);
+      setBettingData(processedData);
     } catch (err) {
       console.error('Error fetching betting history:', err);
       setError('Failed to fetch betting data. Please login again.');
@@ -174,7 +226,7 @@ const BotSalvatore = () => {
               title="Aggiorna dati"
               disabled={isLoading}
             >
-              <RefreshIcon />
+              {isLoading ? <CircularProgress size={24} color="inherit" /> : <RefreshIcon />}
             </IconButton>
           )}
         </Box>
@@ -229,8 +281,9 @@ const BotSalvatore = () => {
                 color: 'primary.contrastText',
                 position: 'sticky',
                 top: 0,
-                zIndex: 10
-              }}>Totale Giocato</TableCell>
+                zIndex: 10,
+                textAlign: 'center'
+              }}>Quota P.</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -246,8 +299,8 @@ const BotSalvatore = () => {
               >
                 <TableCell>{item.startDate}</TableCell>
                 <TableCell>{item.eventName}</TableCell>
-                <TableCell>{item.minOdds}</TableCell>
-                <TableCell>{item.totalPlayed} €</TableCell>
+                <TableCell>min{item.minOdds}</TableCell>
+                <TableCell sx={{ textAlign: 'center' }}>{item.totalPlayed}@{item.weightedOdds} | {item.playsCount} bet</TableCell>
               </TableRow>
             ))}
           </TableBody>
