@@ -18,6 +18,8 @@ export const theme = createTheme({
     background: {
       default: '#f0f2f5',
       paper: '#ffffff',
+      note: '#f0ffb1',
+      record: '#ff8686',
     },
     text: {
       primary: '#3b4a54',

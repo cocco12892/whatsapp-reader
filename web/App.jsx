@@ -275,8 +275,6 @@ function App() {
               }}>
                 {/* Wrapper per BotSalvatore con larghezza controllata */}
                 <Box sx={{ 
-                  minWidth: '500px', 
-                  flexBasis: '15%', 
                   flexShrink: 0, 
                   flexGrow: 0 
                 }}>
