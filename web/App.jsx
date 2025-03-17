@@ -258,10 +258,31 @@ function App() {
                 display: 'flex',
                 gap: 3,
                 overflowX: 'auto',
-                pb: 2,
-                alignItems: 'stretch'  // Ensure all children have same height
+                pb: 4,  // Aumentato padding bottom
+                alignItems: 'stretch',  // Ensure all children have same height
+                mt: 2,  // Aggiunto margin top
+                '&::-webkit-scrollbar': {
+                  height: '8px',  // Larghezza scrollbar orizzontale
+                },
+                '&::-webkit-scrollbar-track': {
+                  backgroundColor: 'rgba(0,0,0,0.05)',  // Colore traccia scrollbar
+                  borderRadius: '10px',  // Bordi arrotondati
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: 'rgba(0,0,0,0.2)',  // Colore thumb scrollbar
+                  borderRadius: '10px',  // Bordi arrotondati
+                }
               }}>
-                <BotSalvatore />
+                {/* Wrapper per BotSalvatore con larghezza controllata */}
+                <Box sx={{ 
+                  minWidth: '500px', 
+                  flexBasis: '15%', 
+                  flexShrink: 0, 
+                  flexGrow: 0 
+                }}>
+                  <BotSalvatore />
+                </Box>
+                
                 {chats.map((chat) => (
                   <ChatWindow
                     key={chat.id}
