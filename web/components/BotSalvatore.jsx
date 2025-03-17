@@ -11,15 +11,19 @@ import {
   IconButton,
   Box,
   Button,
-  CircularProgress
+  Collapse,
+  Tooltip
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 const BotSalvatore = () => {
   const [token, setToken] = useState(null);
   const [bettingData, setBettingData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const LOGIN_URL = "https://tennisbestingbet.info:48634/LOGIN";
   
@@ -96,8 +100,11 @@ const BotSalvatore = () => {
     }
 
     try {
+      console.log('Using token:', useToken); // Debug log
+      
       // Usa l'URL con la data di oggi
       const historyUrl = getTodayHistoryUrl();
+      console.log('Fetching data from:', historyUrl);
       
       const response = await fetch(historyUrl, {
         method: 'GET',
@@ -111,7 +118,7 @@ const BotSalvatore = () => {
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
       }
-      
+
       const containers = await response.json();
       
       // Fetch giocate per ogni container
@@ -149,7 +156,7 @@ const BotSalvatore = () => {
         
         // Format the date as DD/MM HH:MM
         const formattedDate = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-        
+
         // Calcola quota ponderata
         const weightedOdds = calculateWeightedOdds(container.plays);
         const formattedOdds = container.event.minOdds.toString().replace('.', ',');
@@ -185,7 +192,22 @@ const BotSalvatore = () => {
       setToken(savedToken);
       fetchBettingHistory(savedToken);
     }
+    
+    // Load expanded state from localStorage if available
+    const savedExpandedState = localStorage.getItem('botSalvatoreExpanded');
+    if (savedExpandedState !== null) {
+      setIsExpanded(savedExpandedState === 'true');
+    }
   }, []);
+  
+  // Save expanded state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('botSalvatoreExpanded', isExpanded.toString());
+  }, [isExpanded]);
+
+  const toggleExpanded = () => {
+    setIsExpanded(!isExpanded);
+  };
 
   return (
     <Paper sx={{ 
@@ -196,116 +218,153 @@ const BotSalvatore = () => {
       flex: '0 0 auto',
       borderRadius: 2,
       overflow: 'hidden',
-      boxShadow: 3
+      boxShadow: 3,
+      // Animazione per transizione fluida della larghezza
+      transition: 'all 0.3s ease-in-out',
+      // Controlla la larghezza in base allo stato
+      minWidth: isExpanded ? '500px' : '50px',
+      maxWidth: isExpanded ? '500px' : '50px',
     }}>
       <Box sx={{
-        p: 2,
+        p: isExpanded ? 2 : 1,
         borderBottom: '1px solid',
         borderColor: 'divider',
         bgcolor: 'tertiary.main',
         color: 'tertiary.contrastText',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
+        transition: 'padding 0.3s ease'
       }}>
-        <Typography variant="h6">Bot Salvatore - Oggi ({new Date().toLocaleDateString()})</Typography>
-        <Box>
-          {!token ? (
-            <Button 
-              onClick={login} 
-              variant="contained" 
-              color="secondary"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Logging in...' : 'Login'}
-            </Button>
-          ) : (
+        {isExpanded ? (
+          <>
+            <Typography variant="h6">Bot Salvatore - Oggi ({new Date().toLocaleDateString()})</Typography>
+            <Box display="flex" alignItems="center">
+              {!token ? (
+                <Button 
+                  onClick={login} 
+                  variant="contained" 
+                  color="secondary"
+                  disabled={isLoading}
+                  size="small"
+                  sx={{ mr: 1 }}
+                >
+                  {isLoading ? '...' : 'Login'}
+                </Button>
+              ) : (
+                <IconButton 
+                  onClick={() => fetchBettingHistory()} 
+                  color="inherit"
+                  title="Aggiorna dati"
+                  disabled={isLoading}
+                  size="small"
+                  sx={{ mr: 1 }}
+                >
+                  <RefreshIcon />
+                </IconButton>
+              )}
+              <Tooltip title="Chiudi">
+                <IconButton 
+                  onClick={toggleExpanded} 
+                  color="inherit"
+                  size="small"
+                >
+                  <ChevronLeftIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </>
+        ) : (
+          <Tooltip title="Espandi Bot Salvatore">
             <IconButton 
-              onClick={() => fetchBettingHistory()} 
+              onClick={toggleExpanded} 
               color="inherit"
-              title="Aggiorna dati"
-              disabled={isLoading}
+              size="small"
+              sx={{ width: '100%' }}
             >
-              {isLoading ? <CircularProgress size={24} color="inherit" /> : <RefreshIcon />}
+              <ChevronRightIcon />
             </IconButton>
-          )}
-        </Box>
+          </Tooltip>
+        )}
       </Box>
-      
-      {error && (
-        <Box sx={{ p: 2, color: 'error.main' }}>
-          <Typography>{error}</Typography>
-        </Box>
-      )}
-      
-      {isLoading && !bettingData.length && (
-        <Box sx={{ p: 2 }}>
-          <Typography>Caricamento dati...</Typography>
-        </Box>
-      )}
-      
-      <TableContainer sx={{ 
-        flex: 1, 
-        overflowY: 'auto',
-      }}>
-        <Table stickyHeader size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ 
-                fontWeight: 'bold', 
-                bgcolor: 'tertiary.light',
-                color: 'primary.contrastText',
-                position: 'sticky',
-                top: 0,
-                zIndex: 10
-              }}>Data</TableCell>
-              <TableCell sx={{ 
-                fontWeight: 'bold', 
-                bgcolor: 'tertiary.light',
-                color: 'primary.contrastText',
-                position: 'sticky',
-                top: 0,
-                zIndex: 10
-              }}>Evento</TableCell>
-              <TableCell sx={{ 
-                fontWeight: 'bold', 
-                bgcolor: 'tertiary.light',
-                color: 'primary.contrastText',
-                position: 'sticky',
-                top: 0,
-                zIndex: 10
-              }}>Min</TableCell>
-              <TableCell sx={{ 
-                fontWeight: 'bold', 
-                bgcolor: 'tertiary.light',
-                color: 'primary.contrastText',
-                position: 'sticky',
-                top: 0,
-                zIndex: 10,
-                textAlign: 'center'
-              }}>Quota P.</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {bettingData.map((item, index) => (
-              <TableRow 
-                key={index} 
-                hover 
-                sx={{ 
-                  '&:nth-of-type(even)': { 
-                    backgroundColor: 'action.hover' 
-                  } 
-                }}
-              >
-                <TableCell>{item.startDate}</TableCell>
-                <TableCell>{item.eventName}</TableCell>
-                <TableCell>min{item.minOdds}</TableCell>
+
+      <Collapse in={isExpanded} orientation="horizontal" sx={{ width: '100%', height: '100%' }}>
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          {error && (
+            <Box sx={{ p: 2, color: 'error.main' }}>
+              <Typography>{error}</Typography>
+            </Box>
+          )}
+          
+          {isLoading && !bettingData.length && (
+            <Box sx={{ p: 2 }}>
+              <Typography>Caricamento dati...</Typography>
+            </Box>
+          )}
+          
+          <TableContainer sx={{ 
+            flex: 1, 
+            overflowY: 'auto',
+          }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ 
+                    fontWeight: 'bold', 
+                    bgcolor: 'tertiary.light',
+                    color: 'primary.contrastText',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10
+                  }}>Data</TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 'bold', 
+                    bgcolor: 'tertiary.light',
+                    color: 'primary.contrastText',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10
+                  }}>Evento</TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 'bold', 
+                    bgcolor: 'tertiary.light',
+                    color: 'primary.contrastText',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10
+                  }}>Min</TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 'bold', 
+                    bgcolor: 'tertiary.light',
+                    color: 'primary.contrastText',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10
+                  }}>Totale Giocato</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {bettingData.map((item, index) => (
+                  <TableRow 
+                    key={index} 
+                    hover 
+                    sx={{ 
+                      '&:nth-of-type(even)': { 
+                        backgroundColor: 'action.hover' 
+                      } 
+                    }}
+                  >
+                    <TableCell>{item.startDate}</TableCell>
+                    <TableCell>{item.eventName}</TableCell>
+                    <TableCell>min{item.minOdds}</TableCell>
                 <TableCell sx={{ textAlign: 'center' }}>{item.totalPlayed}@{item.weightedOdds} | {item.playsCount} bet</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      </Collapse>
     </Paper>
   );
 };
