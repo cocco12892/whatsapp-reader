@@ -1,5 +1,10 @@
 import AudioMessageWrapper from './AudioMessageWrapper';
-
+import { Box, Typography, Badge, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Radio } from '@mui/material';
+import NoteIcon from '@mui/icons-material/Note';
+import NotesGroupView from './NotesGroupView';
+import ReplyContext from './ReplyContext';
+import NoteSelectionDialog from './NoteSelectionDialog';
+import React, { useState, useEffect, useCallback } from 'react';
 
 // Extract image content from the message content
 const extractImageContent = (content) => {
@@ -14,12 +19,19 @@ const extractImageContent = (content) => {
   }
   
   return null;
-};import React, { useState, useEffect } from 'react';
-import { Box, Typography, Badge, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Radio } from '@mui/material';
-import NoteIcon from '@mui/icons-material/Note';
-import NotesGroupView from './NotesGroupView';
-import ReplyContext from './ReplyContext';
-import NoteSelectionDialog from './NoteSelectionDialog';
+};
+
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
 
 function MessageList({ 
 messages, 
@@ -36,6 +48,28 @@ const SPECIAL_SENDERS = {
   '971585527723': { color: 'rgb(225, 237, 247)', name: 'Fer87' },
   '393937049799': { color: 'rgb(227, 225, 247)', name: 'Jhs' },
   '393297425198': { color: 'rgb(247, 221, 215)', name: 'Ivan' } 
+};
+
+const markMessagesAsRead = (chatId, messageIds) => {
+  if (messageIds.length === 0) return;
+  
+  fetch(`/api/chats/${chatId}/mark-read`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messageIds: messageIds
+    }),
+  })
+  .then(response => {
+    if (!response.ok) {
+      console.error('Errore nel segnare i messaggi come letti:', response.statusText);
+    }
+  })
+  .catch(error => {
+    console.error('Errore di rete nel segnare i messaggi come letti:', error);
+  });
 };
 
 // Check if it's a special sender
@@ -510,10 +544,9 @@ return (
             onKeyDown={(e) => handleKeyDown(e, message.id)}
             onMouseEnter={() => {
               if (!seenMessages.has(message.id)) {
-                // Add the message to seen messages
+                // Add the message to seen messages locally
                 setSeenMessages(prev => {
                   const newSet = new Set([...prev, message.id]);
-                  // Save to storage for persistence
                   localStorage.setItem(`seenMessages_${chat.id}`, JSON.stringify([...newSet]));
                   return newSet;
                 });
@@ -527,6 +560,8 @@ return (
                   localStorage.setItem('lastSeenMessages', JSON.stringify(newLastSeen));
                   return newLastSeen;
                 });
+
+                markMessagesAsRead(chat.id, [message.id]);
               }
             }}
           >

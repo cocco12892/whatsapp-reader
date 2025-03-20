@@ -851,6 +851,104 @@ func main() {
 			"profileImage": profilePath,
 		})
 	})
+
+	// API per marcare i messaggi come letti
+	router.POST("/api/chats/:id/mark-read", func(c *gin.Context) {
+		chatID := c.Param("id")
+		
+		var requestData struct {
+			MessageIDs []string `json:"messageIds"` // Array di ID dei messaggi da segnare come letti
+		}
+		
+		if err := c.BindJSON(&requestData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
+			return
+		}
+		
+		if len(requestData.MessageIDs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Nessun ID messaggio fornito"})
+			return
+		}
+		
+		// Converti gli ID da stringhe a types.MessageID
+		var messageIDs []types.MessageID
+		for _, id := range requestData.MessageIDs {
+			messageIDs = append(messageIDs, types.MessageID(id))
+		}
+		
+		// Ottieni informazioni sulla chat
+		chatJID, err := types.ParseJID(chatID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "JID chat non valido"})
+			return
+		}
+		
+		// Ottieni l'ultimo messaggio dalla lista per determinare il mittente
+		// (Necessario nei gruppi)
+		mutex.RLock()
+		chat, exists := chats[chatID]
+		mutex.RUnlock()
+		
+		if !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata"})
+			return
+		}
+		
+		// In un gruppo, abbiamo bisogno del mittente specifico
+		var senderJID types.JID
+		isGroup := chatJID.Server == "g.us"
+		
+		if isGroup {
+			// Trova il messaggio corrispondente per ottenere il mittente
+			// Nota: questo è necessario perché in un gruppo è necessario specificare
+			// il mittente del messaggio da segnare come letto
+			found := false
+			mutex.RLock()
+			for _, msg := range chat.Messages {
+				if len(requestData.MessageIDs) > 0 && msg.ID == requestData.MessageIDs[0] {
+					senderJID, err = types.ParseJID(msg.Sender)
+					if err != nil {
+						mutex.RUnlock()
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Impossibile analizzare il JID del mittente"})
+						return
+					}
+					found = true
+					break
+				}
+			}
+			mutex.RUnlock()
+			
+			if !found {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Messaggio non trovato nella chat"})
+				return
+			}
+		}
+		
+		// Imposta la presenza come disponibile (opzionale, ma consigliato per le ricevute di lettura)
+		err = client.SendPresence(types.PresenceAvailable)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'impostare la presenza: %v", err)})
+			return
+		}
+		
+		// Marca i messaggi come letti
+		err = client.MarkRead(
+			messageIDs,
+			time.Now(),
+			chatJID,
+			senderJID, // In chat private può essere una JID vuota
+		)
+		
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel segnare i messaggi come letti: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{
+			"status": "success",
+			"message": fmt.Sprintf("%d messaggi segnati come letti", len(messageIDs)),
+		})
+	})
 	
 	// Avvia il server HTTP in una goroutine
 	go func() {
