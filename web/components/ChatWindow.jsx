@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Paper, Typography, Avatar, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button } from '@mui/material';
 import MessageList from './MessageList';
 import EditIcon from '@mui/icons-material/Edit';
+import SendIcon from '@mui/icons-material/Send';
 
 function ChatWindow({ 
   chat, 
@@ -14,7 +15,42 @@ function ChatWindow({
 }) {
   const [chatSynonym, setChatSynonym] = useState('');
   const [synonymDialogOpen, setSynonymDialogOpen] = useState(false);
+  const [messageInput, setMessageInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
   
+  const handleSendMessage = () => {
+    if (!messageInput.trim()) return;
+    
+    setIsSending(true);
+    
+    fetch(`/api/chats/${chat.id}/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: messageInput
+      }),
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Errore nell\'invio del messaggio');
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Messaggio inviato:', data);
+      setMessageInput(''); // Pulisci l'input dopo l'invio
+    })
+    .catch(error => {
+      console.error('Errore:', error);
+      alert('Errore nell\'invio del messaggio');
+    })
+    .finally(() => {
+      setIsSending(false);
+    });
+  };
+
   // Carica il sinonimo dal localStorage all'avvio
   useEffect(() => {
     const storedSynonyms = JSON.parse(localStorage.getItem('chatSynonyms') || '{}');
@@ -188,6 +224,38 @@ function ChatWindow({
           )}
         </DialogActions>
       </Dialog>
+      <Box sx={{
+        p: 2,
+        borderTop: '1px solid',
+        borderColor: 'divider',
+        display: 'flex',
+        alignItems: 'center',
+        bgcolor: 'background.paper'
+      }}>
+        <TextField
+          fullWidth
+          variant="outlined"
+          placeholder="Scrivi un messaggio..."
+          value={messageInput}
+          onChange={(e) => setMessageInput(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage();
+            }
+          }}
+          size="small"
+          disabled={isSending}
+          sx={{ mr: 1 }}
+        />
+        <IconButton 
+          color="primary" 
+          onClick={handleSendMessage}
+          disabled={isSending}
+        >
+          <SendIcon />
+        </IconButton>
+      </Box>
     </Paper>
   );
 }

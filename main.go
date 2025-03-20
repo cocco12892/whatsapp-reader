@@ -22,6 +22,8 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	"google.golang.org/protobuf/proto"
+	waProto "go.mau.fi/whatsmeow/binary/proto"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -357,8 +359,25 @@ func main() {
 				chatJID = v.Info.Chat.String()
 				chatName = getGroupName(client, v.Info.Chat)
 			} else {
-				chatJID = v.Info.Sender.String()
-				chatName = getContactName(client, v.Info.Sender)
+				// Per chat individuali, usa sempre l'ID dell'interlocutore (non il tuo)
+				if v.Info.Sender.String() == client.Store.ID.String() {
+					// Se il mittente sei tu, usa il destinatario come ID chat
+					chatJID = v.Info.Chat.String()
+				} else {
+					// Se il mittente è un'altra persona, usa il suo ID come ID chat
+					chatJID = v.Info.Sender.User + "@" + v.Info.Sender.Server
+				}
+				
+				// Usa il JID senza dispositivo per ottenere il nome
+				var contactJID types.JID
+				if v.Info.Sender.String() == client.Store.ID.String() {
+					// Se il mittente sei tu, prendi il nome dell'altro
+					contactJID = types.NewJID(strings.Split(chatJID, "@")[0], "s.whatsapp.net")
+				} else {
+					// Se il mittente è un'altra persona, prendi il suo nome
+					contactJID = types.NewJID(v.Info.Sender.User, v.Info.Sender.Server)
+				}
+				chatName = getContactName(client, contactJID)
 			}
 			
 			senderName := getContactName(client, v.Info.Sender)
@@ -782,8 +801,8 @@ func main() {
 			return chatList[i].LastMessage.Timestamp.After(chatList[j].LastMessage.Timestamp)
 		})
 		
-		// Prendi solo le ultime 10 (o meno se ce ne sono meno di 10)
-		limit := 10
+		// Prendi solo le ultime 20 (o meno se ce ne sono meno di 20)
+		limit := 20
 		if len(chatList) < limit {
 			limit = len(chatList)
 		}
@@ -947,6 +966,101 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "success",
 			"message": fmt.Sprintf("%d messaggi segnati come letti", len(messageIDs)),
+		})
+	})
+
+	// API per inviare un messaggio
+	router.POST("/api/chats/:id/send", func(c *gin.Context) {
+		chatID := c.Param("id")
+		
+		var requestData struct {
+			Content string `json:"content"` // Contenuto del messaggio
+		}
+		
+		if err := c.BindJSON(&requestData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
+			return
+		}
+		
+		if requestData.Content == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Contenuto del messaggio vuoto"})
+			return
+		}
+		
+		// Ottieni JID della chat
+		chatJID, err := types.ParseJID(chatID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "JID chat non valido"})
+			return
+		}
+		
+		// Crea un nuovo messaggio con il testo specificato
+		msg := &waProto.Message{
+			Conversation: proto.String(requestData.Content),
+		}
+		
+		// Invia il messaggio
+		resp, err := client.SendMessage(context.Background(), chatJID, msg)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'invio del messaggio: %v", err)})
+			return
+		}
+		
+		// Crea un messaggio locale che rappresenta quello appena inviato
+		msgID := resp.ID
+		timestamp := resp.Timestamp
+		
+		// Aggiungi il messaggio alla lista dei messaggi e alla chat corrispondente
+		mutex.Lock()
+		
+		// Trova il nome della chat
+		var chatName string
+		if chat, exists := chats[chatID]; exists {
+			chatName = chat.Name
+		} else {
+			if chatJID.Server == "g.us" {
+				chatName = getGroupName(client, chatJID)
+			} else {
+				chatName = getContactName(client, chatJID)
+			}
+		}
+		
+		// Crea il messaggio
+		selfJID := client.Store.ID
+		newMessage := Message{
+			ID:        msgID,
+			Chat:      chatID,
+			ChatName:  chatName,
+			Sender:    selfJID.String(),
+			SenderName: "Tu", // O puoi usare il tuo nome utente effettivo se disponibile
+			Content:   requestData.Content,
+			Timestamp: timestamp,
+			IsMedia:   false,
+		}
+		
+		// Aggiungi alla lista generale di messaggi
+		messages = append(messages, newMessage)
+		
+		// Aggiungi alla chat corrispondente o crea una nuova chat
+		if chat, exists := chats[chatID]; exists {
+			chat.LastMessage = newMessage
+			chat.Messages = append(chat.Messages, newMessage)
+		} else {
+			// Questo caso dovrebbe essere raro, poiché stai inviando un messaggio a una chat esistente
+			chats[chatID] = &Chat{
+				ID:          chatID,
+				Name:        chatName,
+				LastMessage: newMessage,
+				Messages:    []Message{newMessage},
+			}
+		}
+		mutex.Unlock()
+		
+		c.JSON(http.StatusOK, gin.H{
+			"status": "success",
+			"message": "Messaggio inviato con successo",
+			"timestamp": timestamp,
+			"messageData": newMessage, // Restituisci il messaggio creato
 		})
 	})
 	
