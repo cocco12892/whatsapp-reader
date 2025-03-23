@@ -24,6 +24,8 @@ const DirettaGames = () => {
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState('current'); // 'current', 'past' o 'future'
+  const [gameDetails, setGameDetails] = useState({});
+  const [loadingDetails, setLoadingDetails] = useState({});
 
   const fetchGames = async () => {
     setIsLoading(true);
@@ -69,7 +71,8 @@ const DirettaGames = () => {
             id,
             timestamp: gameData.AD,
             date: formatDate(gameData.AD * 1000), // Converti timestamp in millisecondi
-            isDuel: gameData.is_duel === 1
+            isDuel: gameData.is_duel === 1,
+            detailId: id.replace('g_1_', 'el_').replace('g_2_', 'el_').replace('g_3_', 'el_').replace('g_8_', 'el_')
           };
         });
         
@@ -119,6 +122,92 @@ const DirettaGames = () => {
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime() / 1000;
     
     return games.filter(game => game.timestamp > endOfToday);
+  };
+  
+  // Funzione per ottenere i dettagli di una partita
+  const fetchGameDetails = async (game) => {
+    if (gameDetails[game.id] || loadingDetails[game.id]) {
+      return; // Evita di richiedere i dettagli se già presenti o in caricamento
+    }
+    
+    setLoadingDetails(prev => ({ ...prev, [game.id]: true }));
+    
+    try {
+      const response = await fetch(`https://400.flashscore.ninja/400/x/feed/${game.detailId}`, {
+        method: 'GET',
+        headers: {
+          "accept": "*/*",
+          "accept-encoding": "gzip, deflate, br, zstd",
+          "accept-language": "en-US,en;q=0.9,it;q=0.8",
+          "origin": "https://www.diretta.it",
+          "referer": "https://www.diretta.it/",
+          "sec-ch-ua": "\"Chromium\";v=\"134\", \"Not:A-Brand\";v=\"24\", \"Google Chrome\";v=\"134\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"macOS\"",
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "cross-site",
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+          "x-fsign": "SW9D1eZo"
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.text();
+      
+      // Estrai le informazioni dalla risposta
+      const parsedDetails = parseGameDetails(data, game.id);
+      
+      setGameDetails(prev => ({
+        ...prev,
+        [game.id]: parsedDetails
+      }));
+    } catch (err) {
+      console.error(`Errore nel recupero dei dettagli per ${game.id}:`, err);
+    } finally {
+      setLoadingDetails(prev => ({ ...prev, [game.id]: false }));
+    }
+  };
+  
+  // Funzione per analizzare la risposta dell'API
+  const parseGameDetails = (responseText, gameId) => {
+    const details = {
+      teams: [],
+      league: '',
+      country: '',
+      timestamp: ''
+    };
+    
+    try {
+      // Estrai le informazioni dalle stringhe LV÷{...}
+      const parts = responseText.split('¬');
+      
+      for (const part of parts) {
+        if (part.includes('PD-FN-')) {
+          const teamName = part.split('}_')[1];
+          if (teamName && !details.teams.includes(teamName)) {
+            details.teams.push(teamName);
+          }
+        } else if (part.includes('EL-TN-')) {
+          details.league = part.split('}_')[1];
+        } else if (part.includes('EL-TK-')) {
+          details.country = part.split('}_')[1];
+        } else if (part.includes('EL-EH-')) {
+          const timestampPart = part.split('}_')[1];
+          if (timestampPart && timestampPart.includes('|')) {
+            details.timestamp = timestampPart.split('|')[0];
+          }
+        }
+      }
+      
+      return details;
+    } catch (error) {
+      console.error('Errore durante il parsing dei dettagli:', error);
+      return { error: 'Errore di parsing', raw: responseText };
+    }
   };
 
   // Carica i dati all'avvio e imposta lo stato di espansione
@@ -301,13 +390,23 @@ const DirettaGames = () => {
                   <TableRow 
                     key={index} 
                     hover 
+                    onClick={() => fetchGameDetails(game)}
                     sx={{ 
                       '&:nth-of-type(even)': { 
                         backgroundColor: 'action.hover' 
-                      } 
+                      },
+                      cursor: 'pointer',
+                      ...(gameDetails[game.id] ? { backgroundColor: 'rgba(25, 118, 210, 0.08)' } : {})
                     }}
                   >
-                    <TableCell>{game.id}</TableCell>
+                    <TableCell>
+                      {game.id}
+                      {loadingDetails[game.id] && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Caricamento...
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell>{game.date}</TableCell>
                     <TableCell>{game.isDuel ? 'Duel' : 'Altro'}</TableCell>
                   </TableRow>
@@ -317,13 +416,23 @@ const DirettaGames = () => {
                   <TableRow 
                     key={index} 
                     hover 
+                    onClick={() => fetchGameDetails(game)}
                     sx={{ 
                       '&:nth-of-type(even)': { 
                         backgroundColor: 'action.hover' 
-                      } 
+                      },
+                      cursor: 'pointer',
+                      ...(gameDetails[game.id] ? { backgroundColor: 'rgba(25, 118, 210, 0.08)' } : {})
                     }}
                   >
-                    <TableCell>{game.id}</TableCell>
+                    <TableCell>
+                      {game.id}
+                      {loadingDetails[game.id] && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Caricamento...
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell>{game.date}</TableCell>
                     <TableCell>{game.isDuel ? 'Duel' : 'Altro'}</TableCell>
                   </TableRow>
@@ -333,13 +442,23 @@ const DirettaGames = () => {
                   <TableRow 
                     key={index} 
                     hover 
+                    onClick={() => fetchGameDetails(game)}
                     sx={{ 
                       '&:nth-of-type(even)': { 
                         backgroundColor: 'action.hover' 
-                      } 
+                      },
+                      cursor: 'pointer',
+                      ...(gameDetails[game.id] ? { backgroundColor: 'rgba(25, 118, 210, 0.08)' } : {})
                     }}
                   >
-                    <TableCell>{game.id}</TableCell>
+                    <TableCell>
+                      {game.id}
+                      {loadingDetails[game.id] && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Caricamento...
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell>{game.date}</TableCell>
                     <TableCell>{game.isDuel ? 'Duel' : 'Altro'}</TableCell>
                   </TableRow>
@@ -347,6 +466,70 @@ const DirettaGames = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          
+          {/* Visualizzazione dei dettagli della partita */}
+          {Object.keys(gameDetails).length > 0 && (
+            <Box sx={{ 
+              p: 2, 
+              borderTop: 1, 
+              borderColor: 'divider',
+              maxHeight: '30%',
+              overflow: 'auto'
+            }}>
+              <Typography variant="subtitle1" fontWeight="bold">
+                Dettagli Partite
+              </Typography>
+              
+              {Object.entries(gameDetails).map(([gameId, details]) => (
+                <Box 
+                  key={gameId} 
+                  sx={{ 
+                    mt: 1, 
+                    p: 1, 
+                    borderRadius: 1, 
+                    bgcolor: 'background.paper',
+                    boxShadow: 1
+                  }}
+                >
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    {gameId}
+                  </Typography>
+                  
+                  {details.error ? (
+                    <Typography color="error" variant="body2">
+                      {details.error}
+                    </Typography>
+                  ) : (
+                    <>
+                      {details.teams.length > 0 && (
+                        <Typography variant="body2">
+                          <strong>Squadre:</strong> {details.teams.join(' vs ')}
+                        </Typography>
+                      )}
+                      
+                      {details.league && (
+                        <Typography variant="body2">
+                          <strong>Competizione:</strong> {details.league}
+                        </Typography>
+                      )}
+                      
+                      {details.country && (
+                        <Typography variant="body2">
+                          <strong>Paese:</strong> {details.country}
+                        </Typography>
+                      )}
+                      
+                      {details.timestamp && (
+                        <Typography variant="body2">
+                          <strong>Timestamp:</strong> {formatDate(details.timestamp * 1000)}
+                        </Typography>
+                      )}
+                    </>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          )}
         </Box>
       </Collapse>
     </Paper>
