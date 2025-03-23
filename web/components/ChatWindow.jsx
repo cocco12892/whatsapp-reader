@@ -229,7 +229,7 @@ function ChatWindow({
         borderTop: '1px solid',
         borderColor: 'divider',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         bgcolor: 'background.paper'
       }}>
         <TextField
@@ -238,20 +238,40 @@ function ChatWindow({
           placeholder="Scrivi un messaggio..."
           value={messageInput}
           onChange={(e) => setMessageInput(e.target.value)}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              if (e.shiftKey) {
+                // Con Shift+Invio aggiungiamo un ritorno a capo
+                // Non facciamo nulla qui perché il comportamento predefinito è corretto
+              } else {
+                // Solo Invio invia il messaggio
+                e.preventDefault();
+                handleSendMessage();
+              }
             }
           }}
           size="small"
           disabled={isSending}
-          sx={{ mr: 1 }}
+          sx={{ 
+            mr: 1,
+            '& .MuiInputBase-root': {
+              alignItems: 'flex-start', // Allinea il testo all'inizio
+              transition: 'min-height 0.1s ease', // Animazione fluida quando si espande
+            },
+            '& .MuiOutlinedInput-input': {
+              maxHeight: '200px', // Altezza massima prima di mostrare scrollbar
+              overflowY: 'auto' // Abilita scrollbar quando supera maxHeight
+            }
+          }}
+          multiline
+          minRows={1}
+          maxRows={8} 
         />
         <IconButton 
           color="primary" 
           onClick={handleSendMessage}
           disabled={isSending}
+          sx={{ mb: 0.5 }}
         >
           <SendIcon />
         </IconButton>

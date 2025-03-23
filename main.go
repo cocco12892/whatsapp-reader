@@ -358,26 +358,21 @@ func main() {
 			if v.Info.IsGroup {
 				chatJID = v.Info.Chat.String()
 				chatName = getGroupName(client, v.Info.Chat)
-			} else {
-				// Per chat individuali, usa sempre l'ID dell'interlocutore (non il tuo)
-				if v.Info.Sender.String() == client.Store.ID.String() {
-					// Se il mittente sei tu, usa il destinatario come ID chat
-					chatJID = v.Info.Chat.String()
-				} else {
-					// Se il mittente è un'altra persona, usa il suo ID come ID chat
-					chatJID = v.Info.Sender.User + "@" + v.Info.Sender.Server
-				}
 				
-				// Usa il JID senza dispositivo per ottenere il nome
-				var contactJID types.JID
-				if v.Info.Sender.String() == client.Store.ID.String() {
-					// Se il mittente sei tu, prendi il nome dell'altro
-					contactJID = types.NewJID(strings.Split(chatJID, "@")[0], "s.whatsapp.net")
-				} else {
-					// Se il mittente è un'altra persona, prendi il suo nome
-					contactJID = types.NewJID(v.Info.Sender.User, v.Info.Sender.Server)
-				}
-				chatName = getContactName(client, contactJID)
+				fmt.Printf("DEBUG GROUP MESSAGE:\n")
+				fmt.Printf("  Chat JID: %s\n", chatJID)
+				fmt.Printf("  Chat Name: %s\n", chatName)
+			} else {
+				chatJID = v.Info.Chat.String()
+				
+				// Usa sempre v.Info.Chat per ottenere il nome del contatto
+				chatName = getContactName(client, v.Info.Chat)
+				
+				
+				fmt.Printf("DEBUG PRIVATE MESSAGE:\n")
+				fmt.Printf("  Sender: %s\n", v.Info.Sender.String())
+				fmt.Printf("  Chat Name: %s\n", chatName)
+				fmt.Printf("  Message Content: %s\n\n", v.Message.GetConversation())
 			}
 			
 			senderName := getContactName(client, v.Info.Sender)

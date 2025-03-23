@@ -21,6 +21,13 @@ const extractImageContent = (content) => {
   return null;
 };
 
+const formatMessageContent = (content) => {
+  if (!content) return '';
+  
+  // Sostituisce il testo "\n" con veri ritorni a capo
+  return content.replace(/\\n/g, '\n');
+};
+
 function debounce(func, wait) {
   let timeout;
   return function executedFunction(...args) {
@@ -717,8 +724,8 @@ return (
                   </>
                 )}
                 {!message.isMedia && (
-                  <Typography variant="body2">
-                    {message.content}
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {formatMessageContent(message.content)}
                     {message.isEdited && (
                       <Typography 
                         component="span" 
@@ -965,63 +972,63 @@ return (
           <Box sx={{ flex: '0 0 55%', display: 'flex', flexDirection: 'column' }}>          
             {/* Selezione della nota */}
             <Box sx={{ mb: 2 }}>
-  <Typography variant="subtitle1" sx={{ 
-    mb: 1, 
-    fontWeight: 'bold',
-    color: 'primary.main',
-    fontSize: '1.1rem',
-    display: 'flex',
-    alignItems: 'center'
-  }}>
-    <span style={{ color: 'red', marginRight: '4px' }}>*</span>
-    Seleziona una giocata:
-  </Typography>
-  <Box sx={{ 
-    height: '180px', 
-    overflow: 'auto', 
-    border: '2px solid', 
-    borderColor: 'primary.main', 
-    borderRadius: 1,
-    p: 1,
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-  }}>
-    {Object.values(JSON.parse(localStorage.getItem('messageNotes') || '{}')).filter(note => note.chatId === chat.id).map((note, index) => (
-      <Box 
-        key={index} 
-        sx={{ 
-          p: 1.5, 
-          mb: 0.5, 
-          borderRadius: 1, 
-          cursor: 'pointer',
-          bgcolor: selectedNote && selectedNote.messageId === note.messageId ? 'primary.light' : 'background.paper',
-          color: selectedNote && selectedNote.messageId === note.messageId ? 'primary.contrastText' : 'text.primary',
-          '&:hover': {
-            bgcolor: selectedNote && selectedNote.messageId === note.messageId ? 'primary.main' : 'action.hover'
-          },
-          borderLeft: '4px solid',
-          borderColor: selectedNote && selectedNote.messageId === note.messageId ? 'primary.dark' : 'transparent',
-          transition: 'all 0.2s ease',
-          display: 'flex',
-          alignItems: 'center'
-        }}
-        onClick={() => setSelectedNote(note)}
-      >
-        <Radio 
-          checked={selectedNote && selectedNote.messageId === note.messageId}
-          onChange={() => setSelectedNote(note)}
-          color="primary"
-          sx={{ mr: 1 }}
-        />
-        <Box>
-          <Typography variant="body1" sx={{ fontWeight: 'medium' }}>{note.note}</Typography>
-          <Typography variant="caption" color={selectedNote && selectedNote.messageId === note.messageId ? 'inherit' : 'text.secondary'}>
-            Aggiunta: {new Date(note.addedAt).toLocaleString()}
-          </Typography>
-        </Box>
-      </Box>
-    ))}
-  </Box>
-</Box>
+            <Typography variant="subtitle1" sx={{ 
+              mb: 1, 
+              fontWeight: 'bold',
+              color: 'primary.main',
+              fontSize: '1.1rem',
+              display: 'flex',
+              alignItems: 'center'
+            }}>
+              <span style={{ color: 'red', marginRight: '4px' }}>*</span>
+              Seleziona una giocata:
+            </Typography>
+            <Box sx={{ 
+              height: '180px', 
+              overflow: 'auto', 
+              border: '2px solid', 
+              borderColor: 'primary.main', 
+              borderRadius: 1,
+              p: 1,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+            }}>
+              {Object.values(JSON.parse(localStorage.getItem('messageNotes') || '{}')).filter(note => note.chatId === chat.id).map((note, index) => (
+                <Box 
+                  key={index} 
+                  sx={{ 
+                    p: 1.5, 
+                    mb: 0.5, 
+                    borderRadius: 1, 
+                    cursor: 'pointer',
+                    bgcolor: selectedNote && selectedNote.messageId === note.messageId ? 'primary.light' : 'background.paper',
+                    color: selectedNote && selectedNote.messageId === note.messageId ? 'primary.contrastText' : 'text.primary',
+                    '&:hover': {
+                      bgcolor: selectedNote && selectedNote.messageId === note.messageId ? 'primary.main' : 'action.hover'
+                    },
+                    borderLeft: '4px solid',
+                    borderColor: selectedNote && selectedNote.messageId === note.messageId ? 'primary.dark' : 'transparent',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  onClick={() => setSelectedNote(note)}
+                >
+                  <Radio 
+                    checked={selectedNote && selectedNote.messageId === note.messageId}
+                    onChange={() => setSelectedNote(note)}
+                    color="primary"
+                    sx={{ mr: 1 }}
+                  />
+                  <Box>
+                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>{note.note}</Typography>
+                    <Typography variant="caption" color={selectedNote && selectedNote.messageId === note.messageId ? 'inherit' : 'text.secondary'}>
+                      Aggiunta: {new Date(note.addedAt).toLocaleString()}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          </Box>
             
             {/* Campo importo@quota */}
             <Box sx={{ mb: 3 }}>
