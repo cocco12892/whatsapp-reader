@@ -429,7 +429,15 @@ const DirettaGames = () => {
                     position: 'sticky',
                     top: 0,
                     zIndex: 10
-                  }}>Tipo</TableCell>
+                  }}>Squadre</TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 'bold', 
+                    bgcolor: 'secondary.light',
+                    color: 'primary.contrastText',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10
+                  }}>Competizione</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -453,7 +461,16 @@ const DirettaGames = () => {
                       )}
                     </TableCell>
                     <TableCell>{game.date}</TableCell>
-                    <TableCell>{game.isDuel ? 'Duel' : 'Altro'}</TableCell>
+                    <TableCell>
+                      {gameDetails[game.id] && gameDetails[game.id].teams && gameDetails[game.id].teams.length > 0 
+                        ? gameDetails[game.id].teams.join(' vs ') 
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {gameDetails[game.id] && gameDetails[game.id].league 
+                        ? `${gameDetails[game.id].country}: ${gameDetails[game.id].league}` 
+                        : '-'}
+                    </TableCell>
                   </TableRow>
                 ))}
                 
@@ -477,7 +494,16 @@ const DirettaGames = () => {
                       )}
                     </TableCell>
                     <TableCell>{game.date}</TableCell>
-                    <TableCell>{game.isDuel ? 'Duel' : 'Altro'}</TableCell>
+                    <TableCell>
+                      {gameDetails[game.id] && gameDetails[game.id].teams && gameDetails[game.id].teams.length > 0 
+                        ? gameDetails[game.id].teams.join(' vs ') 
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {gameDetails[game.id] && gameDetails[game.id].league 
+                        ? `${gameDetails[game.id].country}: ${gameDetails[game.id].league}` 
+                        : '-'}
+                    </TableCell>
                   </TableRow>
                 ))}
                 
@@ -501,76 +527,22 @@ const DirettaGames = () => {
                       )}
                     </TableCell>
                     <TableCell>{game.date}</TableCell>
-                    <TableCell>{game.isDuel ? 'Duel' : 'Altro'}</TableCell>
+                    <TableCell>
+                      {gameDetails[game.id] && gameDetails[game.id].teams && gameDetails[game.id].teams.length > 0 
+                        ? gameDetails[game.id].teams.join(' vs ') 
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {gameDetails[game.id] && gameDetails[game.id].league 
+                        ? `${gameDetails[game.id].country}: ${gameDetails[game.id].league}` 
+                        : '-'}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </TableContainer>
           
-          {/* Visualizzazione dei dettagli della partita */}
-          {Object.keys(gameDetails).length > 0 && (
-            <Box sx={{ 
-              p: 2, 
-              borderTop: 1, 
-              borderColor: 'divider',
-              maxHeight: '30%',
-              overflow: 'auto'
-            }}>
-              <Typography variant="subtitle1" fontWeight="bold">
-                Dettagli Partite
-              </Typography>
-              
-              {Object.entries(gameDetails).map(([gameId, details]) => (
-                <Box 
-                  key={gameId} 
-                  sx={{ 
-                    mt: 1, 
-                    p: 1, 
-                    borderRadius: 1, 
-                    bgcolor: 'background.paper',
-                    boxShadow: 1
-                  }}
-                >
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    {gameId}
-                  </Typography>
-                  
-                  {details.error ? (
-                    <Typography color="error" variant="body2">
-                      {details.error}
-                    </Typography>
-                  ) : (
-                    <>
-                      {details.teams.length > 0 && (
-                        <Typography variant="body2">
-                          <strong>Squadre:</strong> {details.teams.join(' vs ')}
-                        </Typography>
-                      )}
-                      
-                      {details.league && (
-                        <Typography variant="body2">
-                          <strong>Competizione:</strong> {details.league}
-                        </Typography>
-                      )}
-                      
-                      {details.country && (
-                        <Typography variant="body2">
-                          <strong>Paese:</strong> {details.country}
-                        </Typography>
-                      )}
-                      
-                      {details.timestamp && (
-                        <Typography variant="body2">
-                          <strong>Timestamp:</strong> {formatDate(details.timestamp * 1000)}
-                        </Typography>
-                      )}
-                    </>
-                  )}
-                </Box>
-              ))}
-            </Box>
-          )}
         </Box>
       </Collapse>
     </Paper>
