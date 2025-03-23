@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import ChatWindow from './components/ChatWindow';
+import DirettaGames from './components/DirettaGames';
 import { Helmet } from 'react-helmet';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -273,12 +274,15 @@ function App() {
                   borderRadius: '10px',  // Bordi arrotondati
                 }
               }}>
-                {/* Wrapper per BotSalvatore con larghezza controllata */}
+                {/* Wrapper per BotSalvatore e DirettaGames con larghezza controllata */}
                 <Box sx={{ 
+                  display: 'flex',
+                  gap: 2,
                   flexShrink: 0, 
                   flexGrow: 0 
                 }}>
                   <BotSalvatore />
+                  <DirettaGames />
                 </Box>
                 
                 {chats.map((chat) => (
