@@ -191,9 +191,17 @@ const [amountQuotaInput, setAmountQuotaInput] = useState('');
 
 const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null });
 
+// Stato per memorizzare il testo selezionato
+const [selectedText, setSelectedText] = useState('');
+
 // Handle context menu
 const handleContextMenu = (e, messageId) => {
   e.preventDefault();
+  
+  // Salva il testo selezionato prima di aprire il menu contestuale
+  const selection = window.getSelection().toString();
+  setSelectedText(selection);
+  
   setContextMenu({
     visible: true,
     x: e.clientX,
@@ -481,6 +489,8 @@ const handleNote = (messageId) => {
 // Close context menu
 const closeContextMenu = () => {
   setContextMenu({ visible: false, x: 0, y: 0, messageId: null });
+  // Resetta il testo selezionato quando si chiude il menu
+  setSelectedText('');
 };
 
 // Function to safely encode image paths
@@ -892,8 +902,7 @@ return (
             alignItems: 'center'
           }}
           onClick={() => {
-            // Ottieni il testo selezionato
-            const selectedText = window.getSelection().toString();
+            // Usa il testo selezionato salvato in precedenza
             if (selectedText) {
               navigator.clipboard.writeText(selectedText)
                 .then(() => {
@@ -922,6 +931,9 @@ return (
                   }
                 })
                 .catch(err => console.error('Errore durante la copia: ', err));
+            } else {
+              // Se non c'è testo selezionato, mostra un messaggio
+              alert("Nessun testo selezionato");
             }
             closeContextMenu();
           }}
