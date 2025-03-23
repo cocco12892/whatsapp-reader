@@ -212,6 +212,20 @@ const handleKeyDown = (e, messageId) => {
     e.preventDefault();
     handleNote(messageId);
   }
+  if (e.key === 'c' && e.ctrlKey) {
+    // Ctrl+C è già gestito dal browser per la copia
+    const selectedText = window.getSelection().toString();
+    if (selectedText) {
+      // Feedback visivo opzionale
+      const messageElement = document.getElementById(`message-${messageId}`);
+      if (messageElement) {
+        messageElement.style.animation = 'copyPulse 0.5s';
+        setTimeout(() => {
+          messageElement.style.animation = '';
+        }, 500);
+      }
+    }
+  }
 };
 
 // Handle recording a message with amount and quota
@@ -866,7 +880,54 @@ return (
         >
           💰 {recordedMessages.has(contextMenu.messageId) ? 'Rimuovi importo/quota': 'Registra importo/quota'}
         </Box>
-        
+        {/* Menu item for copying selected text */}
+        <Box
+          sx={{
+            p: 1,
+            cursor: 'pointer',
+            '&:hover': {
+              bgcolor: 'action.hover'
+            },
+            display: 'flex',
+            alignItems: 'center'
+          }}
+          onClick={() => {
+            // Ottieni il testo selezionato
+            const selectedText = window.getSelection().toString();
+            if (selectedText) {
+              navigator.clipboard.writeText(selectedText)
+                .then(() => {
+                  // Feedback visivo opzionale
+                  const messageElement = document.getElementById(`message-${contextMenu.messageId}`);
+                  if (messageElement) {
+                    messageElement.style.animation = 'copyPulse 0.5s';
+                    
+                    // Aggiungi l'animazione se non esiste
+                    if (!document.getElementById('copy-animation')) {
+                      const styleTag = document.createElement('style');
+                      styleTag.id = 'copy-animation';
+                      styleTag.innerHTML = `
+                        @keyframes copyPulse {
+                          0% { transform: scale(1); }
+                          50% { transform: scale(1.02); background-color: rgba(33, 150, 243, 0.2); }
+                          100% { transform: scale(1); }
+                        }
+                      `;
+                      document.head.appendChild(styleTag);
+                    }
+                    
+                    setTimeout(() => {
+                      messageElement.style.animation = '';
+                    }, 500);
+                  }
+                })
+                .catch(err => console.error('Errore durante la copia: ', err));
+            }
+            closeContextMenu();
+          }}
+        >
+          📋 Copia testo selezionato
+        </Box>
       </Box>
     )}
     {/* Notes Group View Dialog */}
