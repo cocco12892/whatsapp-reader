@@ -205,11 +205,12 @@ const DirettaGames = () => {
     };
     
     try {
-      // Estrai le informazioni dalle stringhe LV÷{...}
+      // Extract information from LV÷{...} strings
       const parts = responseText.split('¬');
       
       for (const part of parts) {
-        if (part.includes('PD-FN-')) {
+        // Check for multiple possible player/team name formats
+        if (part.includes('PD-FN-') || part.includes('PD-FNWC-')) {
           const teamName = part.split('}_')[1];
           if (teamName && !details.teams.includes(teamName)) {
             details.teams.push(teamName);
@@ -226,10 +227,18 @@ const DirettaGames = () => {
         }
       }
       
+      // For doubles matches, arrange players into teams
+      if (details.teams.length === 4 && (gameId.includes('_DOPPIO') || responseText.includes('DOPPIO'))) {
+        // Group into two teams of doubles partners
+        const team1 = `${details.teams[0]}/${details.teams[1]}`;
+        const team2 = `${details.teams[2]}/${details.teams[3]}`;
+        details.teams = [team1, team2];
+      }
+      
       return details;
     } catch (error) {
-      console.error('Errore durante il parsing dei dettagli:', error);
-      return { error: 'Errore di parsing', raw: responseText };
+      console.error('Error parsing details:', error);
+      return { error: 'Parsing error', raw: responseText };
     }
   };
 
@@ -250,11 +259,11 @@ const DirettaGames = () => {
       let gamesToFetch = [];
       
       if (activeTab === 'current') {
-        gamesToFetch = getCurrentGames().slice(0, 5); // Limita a 5 partite per prestazioni
+        gamesToFetch = getCurrentGames().slice(0, 50); // Limita a 5 partite per prestazioni
       } else if (activeTab === 'past') {
-        gamesToFetch = getPastGames().slice(0, 5);
+        gamesToFetch = getPastGames().slice(0, 50);
       } else if (activeTab === 'future') {
-        gamesToFetch = getFutureGames().slice(0, 5);
+        gamesToFetch = getFutureGames().slice(0, 50);
       }
       
       // Filtra solo le partite di cui non abbiamo già i dettagli
@@ -290,8 +299,8 @@ const DirettaGames = () => {
       // Animazione per transizione fluida della larghezza
       transition: 'all 0.3s ease-in-out',
       // Controlla la larghezza in base allo stato
-      minWidth: isExpanded ? '300px' : '50px',
-      maxWidth: isExpanded ? '300px' : '50px',
+      minWidth: isExpanded ? '500px' : '50px',
+      maxWidth: isExpanded ? '1900px' : '50px',
     }}>
       <Box sx={{
         p: isExpanded ? 2 : 1,
@@ -343,7 +352,7 @@ const DirettaGames = () => {
         )}
       </Box>
 
-      <Collapse in={isExpanded} orientation="horizontal" sx={{ width: '100%', height: '100%' }}>
+      <Collapse in={isExpanded} orientation="horizontal" sx={{ width: '100%', height: '100%', paddingBottom: '67px' }}>
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           {error && (
             <Box sx={{ p: 2, color: 'error.main' }}>
