@@ -928,6 +928,58 @@ return (
         >
           📋 Copia testo selezionato
         </Box>
+        
+        {/* Menu item for copying entire message text */}
+        <Box
+          sx={{
+            p: 1,
+            cursor: 'pointer',
+            '&:hover': {
+              bgcolor: 'action.hover'
+            },
+            display: 'flex',
+            alignItems: 'center'
+          }}
+          onClick={() => {
+            // Trova il messaggio corrente
+            const currentMessage = messages.find(m => m.id === contextMenu.messageId);
+            if (currentMessage && currentMessage.content) {
+              // Formatta il contenuto del messaggio
+              const messageText = formatMessageContent(currentMessage.content);
+              
+              navigator.clipboard.writeText(messageText)
+                .then(() => {
+                  // Feedback visivo
+                  const messageElement = document.getElementById(`message-${contextMenu.messageId}`);
+                  if (messageElement) {
+                    messageElement.style.animation = 'copyFullPulse 0.5s';
+                    
+                    // Aggiungi l'animazione se non esiste
+                    if (!document.getElementById('copy-full-animation')) {
+                      const styleTag = document.createElement('style');
+                      styleTag.id = 'copy-full-animation';
+                      styleTag.innerHTML = `
+                        @keyframes copyFullPulse {
+                          0% { transform: scale(1); }
+                          50% { transform: scale(1.02); background-color: rgba(156, 39, 176, 0.2); }
+                          100% { transform: scale(1); }
+                        }
+                      `;
+                      document.head.appendChild(styleTag);
+                    }
+                    
+                    setTimeout(() => {
+                      messageElement.style.animation = '';
+                    }, 500);
+                  }
+                })
+                .catch(err => console.error('Errore durante la copia del messaggio completo: ', err));
+            }
+            closeContextMenu();
+          }}
+        >
+          📄 Copia intero messaggio
+        </Box>
       </Box>
     )}
     {/* Notes Group View Dialog */}
