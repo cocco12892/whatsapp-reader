@@ -23,6 +23,7 @@ const DirettaGames = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState('current'); // 'current', 'past' o 'future'
 
   const fetchGames = async () => {
     setIsLoading(true);
@@ -95,6 +96,29 @@ const DirettaGames = () => {
     const minutes = date.getMinutes().toString().padStart(2, '0');
     
     return `${day}/${month} ${hours}:${minutes}`;
+  };
+  
+  // Filtra le partite in base alla data corrente
+  const getCurrentGames = () => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime() / 1000;
+    
+    return games.filter(game => game.timestamp >= startOfToday && game.timestamp <= endOfToday);
+  };
+  
+  const getPastGames = () => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+    
+    return games.filter(game => game.timestamp < startOfToday);
+  };
+  
+  const getFutureGames = () => {
+    const now = new Date();
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime() / 1000;
+    
+    return games.filter(game => game.timestamp > endOfToday);
   };
 
   // Carica i dati all'avvio e imposta lo stato di espansione
@@ -197,6 +221,48 @@ const DirettaGames = () => {
             </Box>
           )}
           
+          {/* Tabs per selezionare partite correnti, passate o future */}
+          <Box sx={{ 
+            display: 'flex', 
+            borderBottom: 1, 
+            borderColor: 'divider',
+            bgcolor: 'background.paper'
+          }}>
+            <Button 
+              variant={activeTab === 'current' ? 'contained' : 'text'}
+              onClick={() => setActiveTab('current')}
+              sx={{ 
+                flex: 1, 
+                borderRadius: 0,
+                py: 1
+              }}
+            >
+              Oggi ({getCurrentGames().length})
+            </Button>
+            <Button 
+              variant={activeTab === 'past' ? 'contained' : 'text'}
+              onClick={() => setActiveTab('past')}
+              sx={{ 
+                flex: 1, 
+                borderRadius: 0,
+                py: 1
+              }}
+            >
+              Passate ({getPastGames().length})
+            </Button>
+            <Button 
+              variant={activeTab === 'future' ? 'contained' : 'text'}
+              onClick={() => setActiveTab('future')}
+              sx={{ 
+                flex: 1, 
+                borderRadius: 0,
+                py: 1
+              }}
+            >
+              Future ({getFutureGames().length})
+            </Button>
+          </Box>
+          
           <TableContainer sx={{ 
             flex: 1, 
             overflowY: 'auto',
@@ -231,7 +297,39 @@ const DirettaGames = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {games.map((game, index) => (
+                {activeTab === 'current' && getCurrentGames().map((game, index) => (
+                  <TableRow 
+                    key={index} 
+                    hover 
+                    sx={{ 
+                      '&:nth-of-type(even)': { 
+                        backgroundColor: 'action.hover' 
+                      } 
+                    }}
+                  >
+                    <TableCell>{game.id}</TableCell>
+                    <TableCell>{game.date}</TableCell>
+                    <TableCell>{game.isDuel ? 'Duel' : 'Altro'}</TableCell>
+                  </TableRow>
+                ))}
+                
+                {activeTab === 'past' && getPastGames().map((game, index) => (
+                  <TableRow 
+                    key={index} 
+                    hover 
+                    sx={{ 
+                      '&:nth-of-type(even)': { 
+                        backgroundColor: 'action.hover' 
+                      } 
+                    }}
+                  >
+                    <TableCell>{game.id}</TableCell>
+                    <TableCell>{game.date}</TableCell>
+                    <TableCell>{game.isDuel ? 'Duel' : 'Altro'}</TableCell>
+                  </TableRow>
+                ))}
+                
+                {activeTab === 'future' && getFutureGames().map((game, index) => (
                   <TableRow 
                     key={index} 
                     hover 
