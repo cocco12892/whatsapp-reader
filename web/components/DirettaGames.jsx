@@ -172,6 +172,29 @@ const DirettaGames = () => {
     }
   };
   
+  // Funzione per caricare i dettagli di più partite in batch
+  const fetchMultipleGameDetails = async (gamesToFetch) => {
+    // Limita il numero di richieste simultanee per evitare sovraccarichi
+    const batchSize = 3;
+    const batches = [];
+    
+    // Dividi le partite in batch
+    for (let i = 0; i < gamesToFetch.length; i += batchSize) {
+      batches.push(gamesToFetch.slice(i, i + batchSize));
+    }
+    
+    // Processa ogni batch in sequenza
+    for (const batch of batches) {
+      // Avvia tutte le richieste del batch in parallelo
+      await Promise.all(batch.map(game => fetchGameDetails(game)));
+      
+      // Piccola pausa tra i batch per evitare rate limiting
+      if (batches.length > 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+  };
+  
   // Funzione per analizzare la risposta dell'API
   const parseGameDetails = (responseText, gameId) => {
     const details = {
@@ -220,6 +243,30 @@ const DirettaGames = () => {
       setIsExpanded(savedExpandedState === 'true');
     }
   }, []);
+  
+  // Carica automaticamente i dettagli delle partite quando cambia la tab o vengono caricati nuovi dati
+  useEffect(() => {
+    if (games.length > 0 && isExpanded) {
+      let gamesToFetch = [];
+      
+      if (activeTab === 'current') {
+        gamesToFetch = getCurrentGames().slice(0, 5); // Limita a 5 partite per prestazioni
+      } else if (activeTab === 'past') {
+        gamesToFetch = getPastGames().slice(0, 5);
+      } else if (activeTab === 'future') {
+        gamesToFetch = getFutureGames().slice(0, 5);
+      }
+      
+      // Filtra solo le partite di cui non abbiamo già i dettagli
+      const newGamesToFetch = gamesToFetch.filter(game => 
+        !gameDetails[game.id] && !loadingDetails[game.id]
+      );
+      
+      if (newGamesToFetch.length > 0) {
+        fetchMultipleGameDetails(newGamesToFetch);
+      }
+    }
+  }, [games, activeTab, isExpanded]);
   
   // Salva lo stato di espansione nel localStorage quando cambia
   useEffect(() => {
