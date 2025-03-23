@@ -437,12 +437,10 @@ const DirettaGames = () => {
                   <TableRow 
                     key={index} 
                     hover 
-                    onClick={() => fetchGameDetails(game)}
                     sx={{ 
                       '&:nth-of-type(even)': { 
                         backgroundColor: 'action.hover' 
                       },
-                      cursor: 'pointer',
                       ...(gameDetails[game.id] ? { backgroundColor: 'rgba(25, 118, 210, 0.08)' } : {})
                     }}
                   >
@@ -463,12 +461,10 @@ const DirettaGames = () => {
                   <TableRow 
                     key={index} 
                     hover 
-                    onClick={() => fetchGameDetails(game)}
                     sx={{ 
                       '&:nth-of-type(even)': { 
                         backgroundColor: 'action.hover' 
                       },
-                      cursor: 'pointer',
                       ...(gameDetails[game.id] ? { backgroundColor: 'rgba(25, 118, 210, 0.08)' } : {})
                     }}
                   >
@@ -489,12 +485,10 @@ const DirettaGames = () => {
                   <TableRow 
                     key={index} 
                     hover 
-                    onClick={() => fetchGameDetails(game)}
                     sx={{ 
                       '&:nth-of-type(even)': { 
                         backgroundColor: 'action.hover' 
                       },
-                      cursor: 'pointer',
                       ...(gameDetails[game.id] ? { backgroundColor: 'rgba(25, 118, 210, 0.08)' } : {})
                     }}
                   >
