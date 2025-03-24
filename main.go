@@ -968,8 +968,132 @@ func main() {
 	router.POST("/api/chats/:id/send", func(c *gin.Context) {
 		chatID := c.Param("id")
 		
+		// Ottieni JID della chat
+		chatJID, err := types.ParseJID(chatID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "JID chat non valido"})
+			return
+		}
+	
+		// Trova il nome della chat
+		var chatName string
+		if chat, exists := chats[chatID]; exists {
+			chatName = chat.Name
+		} else {
+			if chatJID.Server == "g.us" {
+				chatName = getGroupName(client, chatJID)
+			} else {
+				chatName = getContactName(client, chatJID)
+			}
+		}
+		
+		// ID del mittente (te stesso)
+		selfJID := client.Store.ID
+		
+		// Verifica se la richiesta contiene un'immagine
+		file, header, err := c.Request.FormFile("image")
+		if err == nil {
+			// Caricamento immagine
+			defer file.Close()
+			
+			// Leggi l'immagine
+			imageData, err := io.ReadAll(file)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Errore nella lettura dell'immagine: %v", err)})
+				return
+			}
+			
+			// Ottieni il tipo MIME dell'immagine
+			contentType := header.Header.Get("Content-Type")
+			if !strings.HasPrefix(contentType, "image/") {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Il file caricato non è un'immagine valida"})
+				return
+			}
+			
+			// Ottieni la didascalia se presente
+			caption := c.PostForm("caption")
+			
+			// Crea il messaggio immagine
+			uploadedImage, err := client.Upload(context.Background(), imageData, whatsmeow.MediaImage)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'upload dell'immagine: %v", err)})
+				return
+			}
+			
+			// Crea il messaggio con l'immagine
+			imageMsg := &waProto.ImageMessage{
+				URL:           proto.String(uploadedImage.URL),
+				DirectPath:    proto.String(uploadedImage.DirectPath),
+				MediaKey:      uploadedImage.MediaKey,
+				Mimetype:      proto.String(contentType),
+				FileEncSHA256: uploadedImage.FileEncSHA256,
+				FileSHA256:    uploadedImage.FileSHA256,
+				FileLength:    proto.Uint64(uploadedImage.FileLength),
+				Caption:       proto.String(caption),
+			}
+			
+			msg := &waProto.Message{
+				ImageMessage: imageMsg,
+			}
+			
+			// Genera un ID per il messaggio
+			msgID := client.GenerateMessageID()
+			
+			// Invia il messaggio
+			resp, err := client.SendMessage(context.Background(), chatJID, msg)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'invio dell'immagine: %v", err)})
+				return
+			}
+			
+			// Crea un messaggio locale che rappresenta quello appena inviato
+			timestamp := resp.Timestamp
+			
+			// Crea l'oggetto messaggio
+			newMessage := Message{
+				ID:        msgID,
+				Chat:      chatID,
+				ChatName:  chatName,
+				Sender:    selfJID.String(),
+				SenderName: "Tu", // O puoi usare il tuo nome utente effettivo se disponibile
+				Content:   fmt.Sprintf("📷 Immagine: %s", caption),
+				Timestamp: timestamp,
+				IsMedia:   true,
+				// Aggiungi qui il percorso del file se vuoi salvare una copia locale
+			}
+			
+			mutex.Lock()
+			// Aggiungi alla lista generale di messaggi
+			messages = append(messages, newMessage)
+			
+			// Aggiungi alla chat corrispondente
+			if chat, exists := chats[chatID]; exists {
+				chat.LastMessage = newMessage
+				chat.Messages = append(chat.Messages, newMessage)
+			} else {
+				chats[chatID] = &Chat{
+					ID:          chatID,
+					Name:        chatName,
+					LastMessage: newMessage,
+					Messages:    []Message{newMessage},
+				}
+			}
+			mutex.Unlock()
+			
+			c.JSON(http.StatusOK, gin.H{
+				"status": "success",
+				"message": "Immagine inviata con successo",
+				"timestamp": timestamp,
+				"messageData": newMessage,
+			})
+			return
+		}
+		
+		// Se non è un'immagine, procedi con il normale invio di messaggio di testo
 		var requestData struct {
-			Content string `json:"content"` // Contenuto del messaggio
+			Content string `json:"content"` 
+			IsReply bool   `json:"isReply"`
+			ReplyToMessageID string `json:"replyToMessageId"`
 		}
 		
 		if err := c.BindJSON(&requestData); err != nil {
@@ -982,16 +1106,46 @@ func main() {
 			return
 		}
 		
-		// Ottieni JID della chat
-		chatJID, err := types.ParseJID(chatID)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "JID chat non valido"})
-			return
-		}
+		// Crea un nuovo messaggio
+		var msg *waProto.Message
 		
-		// Crea un nuovo messaggio con il testo specificato
-		msg := &waProto.Message{
-			Conversation: proto.String(requestData.Content),
+		if requestData.IsReply && requestData.ReplyToMessageID != "" {
+			mutex.RLock()
+			// Cerca il messaggio originale a cui rispondere
+			var originalMessage *Message
+			for _, message := range messages {
+				if message.ID == requestData.ReplyToMessageID && message.Chat == chatID {
+					originalMessage = &message
+					break
+				}
+			}
+			mutex.RUnlock()
+			
+			if originalMessage != nil {
+				// Crea un messaggio di tipo ExtendedTextMessage per le risposte
+				msg = &waProto.Message{
+					ExtendedTextMessage: &waProto.ExtendedTextMessage{
+						Text: proto.String(requestData.Content),
+						ContextInfo: &waProto.ContextInfo{
+							StanzaID: proto.String(requestData.ReplyToMessageID),
+							Participant: proto.String(originalMessage.Sender),
+							QuotedMessage: &waProto.Message{
+								Conversation: proto.String(originalMessage.Content),
+							},
+						},
+					},
+				}
+			} else {
+				// Messaggio originale non trovato, invia un messaggio normale
+				msg = &waProto.Message{
+					Conversation: proto.String(requestData.Content),
+				}
+			}
+		} else {
+			// Messaggio normale (non di risposta)
+			msg = &waProto.Message{
+				Conversation: proto.String(requestData.Content),
+			}
 		}
 		
 		// Invia il messaggio
@@ -1005,23 +1159,7 @@ func main() {
 		msgID := resp.ID
 		timestamp := resp.Timestamp
 		
-		// Aggiungi il messaggio alla lista dei messaggi e alla chat corrispondente
-		mutex.Lock()
-		
-		// Trova il nome della chat
-		var chatName string
-		if chat, exists := chats[chatID]; exists {
-			chatName = chat.Name
-		} else {
-			if chatJID.Server == "g.us" {
-				chatName = getGroupName(client, chatJID)
-			} else {
-				chatName = getContactName(client, chatJID)
-			}
-		}
-		
-		// Crea il messaggio
-		selfJID := client.Store.ID
+		// Crea l'oggetto messaggio con le informazioni di risposta
 		newMessage := Message{
 			ID:        msgID,
 			Chat:      chatID,
@@ -1031,8 +1169,26 @@ func main() {
 			Content:   requestData.Content,
 			Timestamp: timestamp,
 			IsMedia:   false,
+			
+			// Aggiungi informazioni sulla risposta se applicabile
+			IsReply:         requestData.IsReply,
+			ReplyToMessageID: requestData.ReplyToMessageID,
 		}
 		
+		// Se è una risposta, aggiungi i dati del messaggio originale
+		if requestData.IsReply && requestData.ReplyToMessageID != "" {
+			mutex.RLock()
+			for _, message := range messages {
+				if message.ID == requestData.ReplyToMessageID && message.Chat == chatID {
+					newMessage.ReplyToSender = message.SenderName
+					newMessage.ReplyToContent = message.Content
+					break
+				}
+			}
+			mutex.RUnlock()
+		}
+		
+		mutex.Lock()
 		// Aggiungi alla lista generale di messaggi
 		messages = append(messages, newMessage)
 		

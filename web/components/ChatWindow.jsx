@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Paper, Typography, Avatar, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button } from '@mui/material';
 import MessageList from './MessageList';
 import EditIcon from '@mui/icons-material/Edit';
 import SendIcon from '@mui/icons-material/Send';
+import CloseIcon from '@mui/icons-material/Close';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import ImageIcon from '@mui/icons-material/Image';
 
 function ChatWindow({ 
   chat, 
@@ -17,39 +20,13 @@ function ChatWindow({
   const [synonymDialogOpen, setSynonymDialogOpen] = useState(false);
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
   
-  const handleSendMessage = () => {
-    if (!messageInput.trim()) return;
-    
-    setIsSending(true);
-    
-    fetch(`/api/chats/${chat.id}/send`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        content: messageInput
-      }),
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Errore nell\'invio del messaggio');
-      }
-      return response.json();
-    })
-    .then(data => {
-      console.log('Messaggio inviato:', data);
-      setMessageInput(''); // Pulisci l'input dopo l'invio
-    })
-    .catch(error => {
-      console.error('Errore:', error);
-      alert('Errore nell\'invio del messaggio');
-    })
-    .finally(() => {
-      setIsSending(false);
-    });
-  };
+  // Nuovo state per la gestione delle immagini
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageCaption, setImageCaption] = useState('');
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Carica il sinonimo dal localStorage all'avvio
   useEffect(() => {
@@ -59,6 +36,96 @@ function ChatWindow({
     }
   }, [chat.id]);
   
+  const handleSendMessage = () => {
+    if (!messageInput.trim() && !selectedImage) return;
+    
+    setIsSending(true);
+    
+    // Se c'è un'immagine selezionata, invia quella
+    if (selectedImage) {
+      const formData = new FormData();
+      formData.append('image', selectedImage);
+      if (imageCaption) {
+        formData.append('caption', imageCaption);
+      }
+      
+      // Se è una risposta, aggiungi l'ID del messaggio a cui rispondere
+      if (replyingTo) {
+        formData.append('isReply', 'true');
+        formData.append('replyToMessageId', replyingTo.id);
+      }
+      
+      fetch(`/api/chats/${chat.id}/send`, {
+        method: 'POST',
+        body: formData,
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Errore nell\'invio dell\'immagine');
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('Immagine inviata:', data);
+        setSelectedImage(null);
+        setImageCaption('');
+        setImageDialogOpen(false);
+        setReplyingTo(null);
+      })
+      .catch(error => {
+        console.error('Errore:', error);
+        alert('Errore nell\'invio dell\'immagine');
+      })
+      .finally(() => {
+        setIsSending(false);
+      });
+    } else {
+      // Codice esistente per invio messaggi di testo
+      const messageData = {
+        content: messageInput.trim()
+      };
+      
+      if (replyingTo) {
+        messageData.isReply = true;
+        messageData.replyToMessageId = replyingTo.id;
+      }
+      
+      fetch(`/api/chats/${chat.id}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messageData),
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Errore nell\'invio del messaggio');
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('Messaggio inviato:', data);
+        setMessageInput('');
+        setReplyingTo(null);
+      })
+      .catch(error => {
+        console.error('Errore:', error);
+        alert('Errore nell\'invio del messaggio');
+      })
+      .finally(() => {
+        setIsSending(false);
+      });
+    }
+  };
+
+  const handleImageSelect = (event) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedImage(event.target.files[0]);
+      setImageDialogOpen(true);
+    }
+  };
+  
+
   // Salva il sinonimo nel localStorage
   const saveSynonym = () => {
     const storedSynonyms = JSON.parse(localStorage.getItem('chatSynonyms') || '{}');
@@ -175,6 +242,7 @@ function ChatWindow({
           seenMessages={seenMessages}
           chat={chat}
           chats={chats} // Passiamo chats al componente
+          onReplyToMessage={(message) => setReplyingTo(message)}
         />
       </Box>
       
@@ -224,6 +292,46 @@ function ChatWindow({
           )}
         </DialogActions>
       </Dialog>
+      {/* Anteprima risposta */}
+
+      {replyingTo && (
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            p: 1.5, 
+            mb: 1.5, 
+            borderRadius: 1,
+            bgcolor: 'action.hover',
+            borderLeft: '4px solid',
+            borderColor: 'primary.main'
+          }}
+        >
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="caption" color="primary.main" fontWeight="bold">
+              Risposta a {replyingTo.senderName}
+            </Typography>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                fontSize: '0.85rem',
+                color: 'text.secondary'
+              }}
+            >
+              {replyingTo.content}
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={() => setReplyingTo(null)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      )}
+
       <Box sx={{
         p: 2,
         borderTop: '1px solid',
@@ -232,17 +340,31 @@ function ChatWindow({
         alignItems: 'flex-end',
         bgcolor: 'background.paper'
       }}>
+        <input
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          ref={fileInputRef}
+          onChange={handleImageSelect}
+        />
+        <IconButton 
+          color="primary" 
+          onClick={() => fileInputRef.current.click()}
+          disabled={isSending}
+        >
+          <ImageIcon />
+        </IconButton>
+        
         <TextField
           fullWidth
           variant="outlined"
-          placeholder="Scrivi un messaggio..."
+          placeholder="Scrivi..."
           value={messageInput}
           onChange={(e) => setMessageInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               if (e.shiftKey) {
                 // Con Shift+Invio aggiungiamo un ritorno a capo
-                // Non facciamo nulla qui perché il comportamento predefinito è corretto
               } else {
                 // Solo Invio invia il messaggio
                 e.preventDefault();
@@ -253,14 +375,14 @@ function ChatWindow({
           size="small"
           disabled={isSending}
           sx={{ 
-            mr: 1,
+            mx: 1,
             '& .MuiInputBase-root': {
-              alignItems: 'flex-start', // Allinea il testo all'inizio
-              transition: 'min-height 0.1s ease', // Animazione fluida quando si espande
+              alignItems: 'flex-start',
+              transition: 'min-height 0.1s ease',
             },
             '& .MuiOutlinedInput-input': {
-              maxHeight: '200px', // Altezza massima prima di mostrare scrollbar
-              overflowY: 'auto' // Abilita scrollbar quando supera maxHeight
+              maxHeight: '200px',
+              overflowY: 'auto'
             }
           }}
           multiline
@@ -276,6 +398,56 @@ function ChatWindow({
           <SendIcon />
         </IconButton>
       </Box>
+
+        {/* Dialog per l'anteprima e la didascalia dell'immagine */}
+        <Dialog 
+        open={imageDialogOpen} 
+        onClose={() => setImageDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Invia immagine</DialogTitle>
+        <DialogContent>
+          {selectedImage && (
+            <Box sx={{ textAlign: 'center', mb: 2 }}>
+              <img 
+                src={URL.createObjectURL(selectedImage)}
+                alt="Anteprima immagine"
+                style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px' }}
+              />
+            </Box>
+          )}
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Didascalia (opzionale)"
+            fullWidth
+            variant="outlined"
+            value={imageCaption}
+            onChange={(e) => setImageCaption(e.target.value)}
+            multiline
+            minRows={2}
+            maxRows={4}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setSelectedImage(null);
+            setImageCaption('');
+            setImageDialogOpen(false);
+          }}>
+            Annulla
+          </Button>
+          <Button 
+            onClick={handleSendMessage} 
+            variant="contained" 
+            color="primary"
+            disabled={isSending}
+          >
+            Invia
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }

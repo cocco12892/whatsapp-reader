@@ -1,10 +1,30 @@
 import AudioMessageWrapper from './AudioMessageWrapper';
-import { Box, Typography, Badge, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Radio } from '@mui/material';
+import { Box, Typography, Badge,IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Radio } from '@mui/material';
 import NoteIcon from '@mui/icons-material/Note';
 import NotesGroupView from './NotesGroupView';
 import ReplyContext from './ReplyContext';
 import NoteSelectionDialog from './NoteSelectionDialog';
 import React, { useState, useEffect, useCallback } from 'react';
+import ReplyIcon from '@mui/icons-material/Reply';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import FileCopyIcon from '@mui/icons-material/FileCopy';
+import CloseIcon from '@mui/icons-material/Close';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import DeleteIcon from '@mui/icons-material/Delete';
+import DOMPurify from 'dompurify'; // A library to sanitize HTML
+import parse from 'html-react-parser'; // A library to parse HTML into React components
+
+DOMPurify.addHook('afterSanitizeAttributes', function(node) {
+  // Se il nodo è un link
+  if (node.tagName === 'A') {
+    // Aggiungi target="_blank" a tutti i link
+    node.setAttribute('target', '_blank');
+    // Aggiungi anche rel="noopener noreferrer" per sicurezza
+    node.setAttribute('rel', 'noopener noreferrer');
+    // Aggiungi stile iniziale
+    node.setAttribute('style', 'color: #5aa3ec;');
+  }
+});
 
 // Extract image content from the message content
 const extractImageContent = (content) => {
@@ -24,8 +44,26 @@ const extractImageContent = (content) => {
 const formatMessageContent = (content) => {
   if (!content) return '';
   
-  // Sostituisce il testo "\n" con veri ritorni a capo
-  return content.replace(/\\n/g, '\n');
+  // Replace "\n" with real line breaks
+  let formattedText = content.replace(/\\n/g, '\n');
+  
+  // Controlla se il contenuto contiene già tag HTML <a>
+  if (!formattedText.includes('<a href=')) {
+    // Converti URL in link
+    formattedText = formattedText.replace(
+      /(https?:\/\/[^\s]+)/g, 
+      '<a href="$1">$1</a>'
+    );
+  }
+  
+  // Sanitize the HTML to prevent XSS attacks
+  const sanitizedHtml = DOMPurify.sanitize(formattedText, {
+    ADD_ATTR: ['target', 'rel', 'style'], // Consenti questi attributi
+    ALLOWED_TAGS: ['a', 'p', 'br', 'span'], // Consenti questi tag
+  });
+  
+  // Parse the sanitized HTML into React components
+  return parse(sanitizedHtml);
 };
 
 function debounce(func, wait) {
@@ -46,7 +84,8 @@ handleImageClick,
 lastSeenMessages: initialLastSeen,
 seenMessages: initialSeen,
 chat,
-chats
+chats,
+onReplyToMessage
 }) {
 // Special senders list
 const SPECIAL_SENDERS = {
@@ -190,9 +229,36 @@ const [selectedNote, setSelectedNote] = useState(null);
 const [amountQuotaInput, setAmountQuotaInput] = useState('');
 
 const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null });
-
-// Stato per memorizzare il testo selezionato
 const [selectedText, setSelectedText] = useState('');
+const [separateImporto, setSeparateImporto] = useState('');
+const [separateQuota, setSeparateQuota] = useState('');
+const [isEditMode, setIsEditMode] = useState(false);
+
+const resetDialogState = () => {
+  setAmountQuotaDialogOpen(false);
+  setAmountQuotaInput('');
+  setSeparateImporto('');
+  setSeparateQuota('');
+  setSelectedNote(null);
+  setIsEditMode(false);
+};
+
+
+
+// Aggiungi qui l'hook useEffect
+useEffect(() => {
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape' && contextMenu.visible) {
+      closeContextMenu();
+    }
+  };
+  
+  window.addEventListener('keydown', handleKeyDown);
+  
+  return () => {
+    window.removeEventListener('keydown', handleKeyDown);
+  };
+}, [contextMenu.visible]);
 
 // Handle context menu
 const handleContextMenu = (e, messageId) => {
@@ -236,7 +302,6 @@ const handleKeyDown = (e, messageId) => {
   }
 };
 
-// Handle recording a message with amount and quota
 const handleRecord = (messageId) => {
   console.log('Recording message:', messageId);
   
@@ -244,20 +309,35 @@ const handleRecord = (messageId) => {
   const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
   
   if (recordedData[messageId]) {
-    // If already recorded, remove it
-    const newRecordedData = { ...recordedData };
-    delete newRecordedData[messageId];
-    localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
+    // Se già registrato, ora apriamo il dialog per l'editing invece di rimuoverlo
+    const existingData = recordedData[messageId];
     
-    // Also remove from the set of recorded messages
-    setRecordedMessages(prev => {
-      const newSet = new Set([...prev]);
-      newSet.delete(messageId);
-      localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
-      return newSet;
-    });
+    // Prepopoliamo i campi con i dati esistenti
+    if (existingData.data && existingData.data.includes('@')) {
+      setAmountQuotaInput(existingData.data);
+      
+      // Prepopola anche i campi separati
+      const parts = existingData.data.split('@');
+      if (parts.length === 2) {
+        setSeparateImporto(parts[0]);
+        setSeparateQuota(parts[1]);
+      }
+    }
+    
+    // Recupera la nota associata
+    setSelectedNote(existingData.noteId ? {
+      messageId: existingData.noteId,
+      note: existingData.note
+    } : null);
+    
+    // Imposta la modalità di modifica
+    setIsEditMode(true);
+    
+    // Apri il dialog
+    setCurrentMessageId(messageId);
+    setAmountQuotaDialogOpen(true);
   } else {
-    // Trova tutte le note esistenti per questa chat
+    // Comportamento esistente per i nuovi record
     const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
     const chatNotes = Object.values(messageNotes).filter(note => note.chatId === chat.id);
     
@@ -265,6 +345,9 @@ const handleRecord = (messageId) => {
       alert("Non ci sono note in questa chat. Aggiungi prima una nota a un messaggio.");
       return;
     }
+    
+    // Reset modalità di modifica
+    setIsEditMode(false);
     
     // Apri direttamente il dialog contestuale
     setCurrentMessageId(messageId);
@@ -291,13 +374,110 @@ const getChatName = (chatId, defaultName) => {
   return storedSynonyms[chatId] || defaultName;
 };
 
-// Funzione per gestire l'inserimento di importo e quota
 const handleAmountQuotaSubmit = () => {
-  if (!amountQuotaInput || !amountQuotaInput.includes('@')) {
-    alert("Formato non valido. Usa il formato importo@quota (es: 1800@1,23)");
+  let formattedInput = '';
+  
+  // Determina quale opzione usare - priorità al campo singolo se presente
+  const useSingleField = amountQuotaInput && amountQuotaInput.includes('@');
+  
+  if (useSingleField) {
+    // Logica per il campo unico
+    formattedInput = amountQuotaInput;
+    
+    // Verifica se l'input è nel formato Importo@Vincita/Importo
+    if (amountQuotaInput.includes('/')) {
+      const parts = amountQuotaInput.split('@');
+      const importo = parseFloat(parts[0].replace(',', '.'));
+      
+      // Estrai vincita/importo
+      const vincitaImporto = parts[1].split('/');
+      if (vincitaImporto.length === 2) {
+        const vincita = parseFloat(vincitaImporto[0].replace(',', '.'));
+        const importoDivisore = parseFloat(vincitaImporto[1].replace(',', '.'));
+        
+        if (!isNaN(importo) && !isNaN(vincita) && !isNaN(importoDivisore) && importoDivisore !== 0) {
+          // Calcola la quota (vincita/importo) e arrotonda a 3 decimali
+          const quota = Math.round((vincita / importoDivisore) * 1000) / 1000;
+          // Formatta nel formato standard Importo@Quota
+          formattedInput = `${importo}@${quota}`;
+        } else {
+          alert("Formato non valido. Controlla i numeri inseriti.");
+          return;
+        }
+      } else {
+        alert("Formato non valido per vincita/importo. Usa il formato importo@vincita/importo");
+        return;
+      }
+    } else {
+      // Formato Importo@Quota - verifica che sia valido
+      const parts = amountQuotaInput.split('@');
+      if (parts.length !== 2) {
+        alert("Formato non valido. Usa il formato importo@quota o importo@vincita/importo");
+        return;
+      }
+      
+      const importo = parseFloat(parts[0].replace(',', '.'));
+      const quota = parseFloat(parts[1].replace(',', '.'));
+      
+      if (isNaN(importo) || isNaN(quota)) {
+        alert("Formato non valido. Controlla i numeri inseriti.");
+        return;
+      }
+      
+      // Arrotonda la quota a 3 decimali se necessario
+      const quotaArrotondata = Math.round(quota * 1000) / 1000;
+      formattedInput = `${importo}@${quotaArrotondata}`;
+    }
+  } 
+  else if (separateImporto && separateQuota) {
+    // Logica per i campi separati
+    const importo = parseFloat(separateImporto.replace(',', '.'));
+    
+    if (isNaN(importo)) {
+      alert("Importo non valido. Inserisci un numero valido.");
+      return;
+    }
+    
+    // Verifica se il campo quota contiene vincita/importo
+    if (separateQuota.includes('/')) {
+      const vincitaImporto = separateQuota.split('/');
+      if (vincitaImporto.length === 2) {
+        const vincita = parseFloat(vincitaImporto[0].replace(',', '.'));
+        const importoDivisore = parseFloat(vincitaImporto[1].replace(',', '.'));
+        
+        if (!isNaN(vincita) && !isNaN(importoDivisore) && importoDivisore !== 0) {
+          // Calcola la quota (vincita/importo) e arrotonda a 3 decimali
+          const quota = Math.round((vincita / importoDivisore) * 1000) / 1000;
+          // Formatta nel formato standard
+          formattedInput = `${importo}@${quota}`;
+        } else {
+          alert("Formato vincita/importo non valido. Controlla i numeri inseriti.");
+          return;
+        }
+      } else {
+        alert("Formato vincita/importo non valido. Usa il formato vincita/importo.");
+        return;
+      }
+    } 
+    else {
+      // È una quota diretta
+      const quota = parseFloat(separateQuota.replace(',', '.'));
+      
+      if (isNaN(quota)) {
+        alert("Quota non valida. Inserisci un numero valido.");
+        return;
+      }
+      
+      // Arrotonda la quota a 3 decimali
+      const quotaArrotondata = Math.round(quota * 1000) / 1000;
+      formattedInput = `${importo}@${quotaArrotondata}`;
+    }
+  }
+  else {
+    alert("Inserisci i dati in uno dei due formati disponibili");
     return;
   }
-    
+  
   const messageId = currentMessageId;
   const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
     
@@ -312,16 +492,18 @@ const handleAmountQuotaSubmit = () => {
   const newRecordedData = { ...recordedData };
   newRecordedData[messageId] = {
     messageId: messageId,
-    data: amountQuotaInput,
+    data: formattedInput,
     chatId: chat.id,
     chatName: getChatName(chat.id, chat.name),
     senderName: message.senderName,
     content: message.content,
     timestamp: message.timestamp,
-    recordedAt: new Date().toISOString(),
+    recordedAt: isEditMode ? recordedData[messageId].recordedAt : new Date().toISOString(), // Mantieni il timestamp originale
+    updatedAt: isEditMode ? new Date().toISOString() : null, // Aggiungi timestamp di aggiornamento
     noteId: selectedNote.messageId,
     note: selectedNote.note
   };
+
   
   localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
   
@@ -333,18 +515,14 @@ const handleAmountQuotaSubmit = () => {
     return newSet;
   });
   
-  // Reset state and close dialog
-  setAmountQuotaDialogOpen(false);
-  setAmountQuotaInput('');
-  setSelectedNote(null);
+  resetDialogState();
   
   // Add visual effect
-  addVisualEffect(messageId, 'recordPulse');
+  addVisualEffect(messageId, isEditMode ? 'updatePulse' : 'recordPulse');
 };
 
 // Funzione per aggiungere effetti visivi
 const addVisualEffect = (messageId, effectName) => {
-  
   const messageElement = document.getElementById(`message-${messageId}`);
   if (messageElement) {
     messageElement.style.animation = `${effectName} 0.8s`;
@@ -357,6 +535,20 @@ const addVisualEffect = (messageId, effectName) => {
         @keyframes recordPulse {
           0% { transform: scale(1); }
           50% { transform: scale(1.03); background-color: rgba(233, 30, 99, 0.2); }
+          100% { transform: scale(1); }
+        }
+      `;
+      document.head.appendChild(styleTag);
+    }
+    
+    // Aggiungi animazione per l'aggiornamento
+    if (!document.getElementById('update-animation') && effectName === 'updatePulse') {
+      const styleTag = document.createElement('style');
+      styleTag.id = 'update-animation';
+      styleTag.innerHTML = `
+        @keyframes updatePulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.03); background-color: rgba(156, 39, 176, 0.2); }
           100% { transform: scale(1); }
         }
       `;
@@ -425,6 +617,40 @@ const addMessageNote = (messageId) => {
         messageElement.style.animation = '';
       }, 800);
     });
+  }
+};
+
+// Funzione per gestire l'eliminazione
+const handleDeleteRecord = () => {
+  if (!currentMessageId) return;
+  
+  // Conferma prima di eliminare
+  if (!window.confirm("Sei sicuro di voler eliminare questo importo/quota?")) {
+    return;
+  }
+  
+  // Ottieni i dati salvati
+  const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+  
+  // Elimina il record specifico
+  if (recordedData[currentMessageId]) {
+    const newRecordedData = { ...recordedData };
+    delete newRecordedData[currentMessageId];
+    localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
+    
+    // Rimuovi dalla lista dei messaggi registrati
+    setRecordedMessages(prev => {
+      const newSet = new Set([...prev]);
+      newSet.delete(currentMessageId);
+      localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
+      return newSet;
+    });
+    
+    // Aggiungi effetto visivo di rimozione
+    addVisualEffect(currentMessageId, 'deleteAnimation');
+    
+    // Chiudi il dialog
+    resetDialogState();
   }
 };
 
@@ -599,65 +825,54 @@ return (
             {/* Indicators at the top right of the message */}
             <Box sx={{ position: 'absolute', top: -5, right: -5, display: 'flex', gap: 1 }}>
               {isRecorded && (
-                <Tooltip title={() => {
-                  const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
-                  return recordedData[message.id] ? 
-                    `Importo/Quota: ${recordedData[message.id].data}` : 
-                    "Messaggio registrato";
-                }}>
-                  <Box
-                    sx={{
-                      bgcolor: '#e91e63', // Pink-500
-                      color: 'white',
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 10,
-                      cursor: 'pointer'
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRecord(message.id);
-                    }}
-                  >
-                    <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                      {/* Mostra il valore registrato */}
-                      {(() => {
-                        const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
-                        if (recordedData[message.id]?.data) {
-                          return (
-                            <Typography 
-                              variant="caption" 
-                              sx={{ 
-                                position: 'absolute', 
-                                right: '100%', 
-                                mr: 0.5,
-                                bgcolor: 'background.record', 
-                                p: 0.5, 
-                                borderRadius: 1,
-                                boxShadow: 1,
-                                fontSize: 12,
-                                color: 'text.white',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                maxWidth: 100,
-                                zIndex: 10
-                              }}
-                            >
-                              {recordedData[message.id].data}
-                            </Typography>
-                          );
-                        }
-                        return null;
-                      })()}
-                      <span style={{ fontSize: '10px' }}>💰</span>
-                    </Box>
+                <Box
+                  sx={{
+                    bgcolor: '#e91e63', // Pink-500
+                    color: 'white',
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 10,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    {/* Mostra il valore registrato */}
+                    {(() => {
+                      const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+                      if (recordedData[message.id]?.data) {
+                        return (
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              position: 'absolute', 
+                              right: '100%', 
+                              mr: 0.5,
+                              bgcolor: 'background.record', 
+                              p: 0.5, 
+                              borderRadius: 1,
+                              boxShadow: 1,
+                              fontSize: 12,
+                              color: 'text.white',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: 100,
+                              zIndex: 10
+                            }}
+                          >
+                            {recordedData[message.id].data}
+                          </Typography>
+                        );
+                      }
+                      return null;
+                    })()}
+                    <span style={{ fontSize: '10px' }}>💰</span>
                   </Box>
-                </Tooltip>
+                </Box>
               )}
               {/* Indicator for noted messages */}
               {isNoted && (
@@ -673,10 +888,6 @@ return (
                     justifyContent: 'center',
                     fontSize: 10,
                     cursor: 'pointer'
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleNote(message.id);
                   }}
                   title={`Messaggio annotato: ${messageNotes[message.id]?.note}`}
                 >
@@ -748,7 +959,21 @@ return (
                   </>
                 )}
                 {!message.isMedia && (
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  <Typography 
+                    variant="body2" 
+                    component="div" // Changed to div to allow HTML content
+                    sx={{ 
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      '& a': { // Styling for links
+                        color: '#1976d2',
+                        textDecoration: 'none',
+                        '&:hover': {
+                          textDecoration: 'underline'
+                        }
+                      }
+                    }}
+                    >
                     {formatMessageContent(message.content)}
                     {message.isEdited && (
                       <Typography 
@@ -840,160 +1065,236 @@ return (
     })}
 
     {contextMenu.visible && (
-      <Box
-        sx={{
-          position: 'fixed',
-          top: contextMenu.y,
-          left: contextMenu.x,
-          bgcolor: 'background.paper',
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: 1,
-          boxShadow: 3,
-          zIndex: 1000
-        }}
-      >
+      <>
+        {/* Overlay per chiudere il menu quando si fa clic altrove */}
         <Box
           sx={{
-            p: 1,
-            cursor: 'pointer',
-            '&:hover': {
-              bgcolor: 'action.hover'
-            },
-            display: 'flex',
-            alignItems: 'center',
-            color: notedMessages.has(contextMenu.messageId) ? '#4caf50' : 'inherit'
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999
           }}
-          onClick={() => {
-            handleNote(contextMenu.messageId);
-            closeContextMenu();
-          }}
-        >
-          📝 {notedMessages.has(contextMenu.messageId) ? 'Rimuovi nota' : 'Aggiungi nota'}
-        </Box>
-        {/* Menu item for recording */}
-        <Box
-          sx={{
-            p: 1,
-            cursor: 'pointer',
-            '&:hover': {
-              bgcolor: 'action.hover'
-            },
-            display: 'flex',
-            alignItems: 'center',
-            color: recordedMessages.has(contextMenu.messageId) ? '#e91e63' : 'inherit'
-          }}
-          onClick={() => {
-            handleRecord(contextMenu.messageId);
-            closeContextMenu();
-          }}
-        >
-          💰 {recordedMessages.has(contextMenu.messageId) ? 'Rimuovi importo/quota': 'Registra importo/quota'}
-        </Box>
-        {/* Menu item for copying selected text */}
-        <Box
-          sx={{
-            p: 1,
-            cursor: 'pointer',
-            '&:hover': {
-              bgcolor: 'action.hover'
-            },
-            display: 'flex',
-            alignItems: 'center'
-          }}
-          onClick={() => {
-            // Usa il testo selezionato salvato in precedenza
-            if (selectedText) {
-              navigator.clipboard.writeText(selectedText)
-                .then(() => {
-                  // Feedback visivo opzionale
-                  const messageElement = document.getElementById(`message-${contextMenu.messageId}`);
-                  if (messageElement) {
-                    messageElement.style.animation = 'copyPulse 0.5s';
-                    
-                    // Aggiungi l'animazione se non esiste
-                    if (!document.getElementById('copy-animation')) {
-                      const styleTag = document.createElement('style');
-                      styleTag.id = 'copy-animation';
-                      styleTag.innerHTML = `
-                        @keyframes copyPulse {
-                          0% { transform: scale(1); }
-                          50% { transform: scale(1.02); background-color: rgba(33, 150, 243, 0.2); }
-                          100% { transform: scale(1); }
-                        }
-                      `;
-                      document.head.appendChild(styleTag);
-                    }
-                    
-                    setTimeout(() => {
-                      messageElement.style.animation = '';
-                    }, 500);
-                  }
-                })
-                .catch(err => console.error('Errore durante la copia: ', err));
-            } else {
-              // Se non c'è testo selezionato, mostra un messaggio
-              alert("Nessun testo selezionato");
-            }
-            closeContextMenu();
-          }}
-        >
-          📋 Copia testo selezionato
-        </Box>
+          onClick={closeContextMenu}
+        />
         
-        {/* Menu item for copying entire message text */}
         <Box
           sx={{
-            p: 1,
-            cursor: 'pointer',
-            '&:hover': {
-              bgcolor: 'action.hover'
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            bgcolor: 'background.paper',
+            borderRadius: 2,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            overflow: 'hidden',
+            width: 230,
+            transition: 'all 0.2s ease',
+            animation: 'scaleIn 0.15s ease-out forwards',
+            '@keyframes scaleIn': {
+              '0%': { opacity: 0, transform: 'scale(0.95) translateY(5px)' },
+              '100%': { opacity: 1, transform: 'scale(1) translateY(0)' }
             },
-            display: 'flex',
-            alignItems: 'center'
-          }}
-          onClick={() => {
-            // Trova il messaggio corrente
-            const currentMessage = messages.find(m => m.id === contextMenu.messageId);
-            if (currentMessage && currentMessage.content) {
-              // Formatta il contenuto del messaggio
-              const messageText = formatMessageContent(currentMessage.content);
-              
-              navigator.clipboard.writeText(messageText)
-                .then(() => {
-                  // Feedback visivo
-                  const messageElement = document.getElementById(`message-${contextMenu.messageId}`);
-                  if (messageElement) {
-                    messageElement.style.animation = 'copyFullPulse 0.5s';
-                    
-                    // Aggiungi l'animazione se non esiste
-                    if (!document.getElementById('copy-full-animation')) {
-                      const styleTag = document.createElement('style');
-                      styleTag.id = 'copy-full-animation';
-                      styleTag.innerHTML = `
-                        @keyframes copyFullPulse {
-                          0% { transform: scale(1); }
-                          50% { transform: scale(1.02); background-color: rgba(156, 39, 176, 0.2); }
-                          100% { transform: scale(1); }
-                        }
-                      `;
-                      document.head.appendChild(styleTag);
-                    }
-                    
-                    setTimeout(() => {
-                      messageElement.style.animation = '';
-                    }, 500);
-                  }
-                })
-                .catch(err => console.error('Errore durante la copia del messaggio completo: ', err));
-            }
-            closeContextMenu();
+            zIndex: 1000
           }}
         >
-          📄 Copia intero messaggio
+          
+          {/* Sovramenu per reazioni rapide */}
+          <Box sx={{ 
+            p: 2, 
+            display: 'flex', 
+            justifyContent: 'center',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            gap: 3
+          }}>
+            <Tooltip title={notedMessages.has(contextMenu.messageId) ? "Rimuovi nota" : "Aggiungi nota"}>
+              <IconButton 
+                size="medium" 
+                onClick={() => {
+                  handleNote(contextMenu.messageId);
+                  closeContextMenu();
+                }}
+                sx={{ 
+                  bgcolor: notedMessages.has(contextMenu.messageId) ? 'rgba(76, 175, 80, 0.15)' : 'transparent',
+                  border: '1px solid',
+                  borderColor: notedMessages.has(contextMenu.messageId) ? 'success.main' : 'divider',
+                  '&:hover': { 
+                    bgcolor: notedMessages.has(contextMenu.messageId) ? 'rgba(76, 175, 80, 0.25)' : 'rgba(0, 0, 0, 0.04)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  },
+                  transition: 'all 0.2s ease',
+                  color: notedMessages.has(contextMenu.messageId) ? 'success.main' : 'text.secondary',
+                }}
+              >
+                <NoteIcon />
+              </IconButton>
+            </Tooltip>
+            
+            <Tooltip title={recordedMessages.has(contextMenu.messageId) ? "Modifica importo/quota" : "Registra importo/quota"}>
+              <IconButton 
+                size="medium" 
+                onClick={() => {
+                  handleRecord(contextMenu.messageId);
+                  closeContextMenu();
+                }}
+                sx={{ 
+                  bgcolor: recordedMessages.has(contextMenu.messageId) ? 'rgba(233, 30, 99, 0.15)' : 'transparent',
+                  border: '1px solid',
+                  borderColor: recordedMessages.has(contextMenu.messageId) ? 'secondary.main' : 'divider',
+                  '&:hover': { 
+                    bgcolor: recordedMessages.has(contextMenu.messageId) ? 'rgba(233, 30, 99, 0.25)' : 'rgba(0, 0, 0, 0.04)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  },
+                  transition: 'all 0.2s ease',
+                  color: recordedMessages.has(contextMenu.messageId) ? 'secondary.main' : 'text.secondary',
+                }}
+              >
+                <AttachMoneyIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          
+          {/* Menu principale */}
+          <Box sx={{ py: 0.5 }}>
+            {/* Opzione Rispondi */}
+            <Box
+              sx={{
+                px: 2.5,
+                py: 1.5,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                '&:hover': {
+                  bgcolor: 'rgba(25, 118, 210, 0.08)'
+                },
+                transition: 'background-color 0.15s'
+              }}
+              onClick={() => {
+                const messageToReply = messages.find(m => m.id === contextMenu.messageId);
+                if (messageToReply) {
+                  onReplyToMessage(messageToReply);
+                }
+                closeContextMenu();
+              }}
+            >
+              <ReplyIcon sx={{ color: 'primary.main' }} />
+              <Typography variant="body2" fontWeight="500">Rispondi</Typography>
+            </Box>
+            
+            {/* Opzione Copia testo selezionato - visibile solo se c'è testo selezionato */}
+            {selectedText && (
+              <Box
+                sx={{
+                  px: 2.5,
+                  py: 1.5,
+                  cursor: selectedText ? 'pointer' : 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  '&:hover': {
+                    bgcolor: selectedText ? 'rgba(3, 169, 244, 0.08)' : 'transparent'
+                  },
+                  transition: 'background-color 0.15s',
+                  opacity: selectedText ? 1 : 0.6
+                }}
+                onClick={() => {
+                  if (selectedText) {
+                    navigator.clipboard.writeText(selectedText)
+                      .then(() => {
+                        // Feedback visivo che indica il successo
+                        const messageElement = document.getElementById(`message-${contextMenu.messageId}`);
+                        if (messageElement) {
+                          messageElement.style.animation = 'copyPulse 0.5s';
+                          
+                          if (!document.getElementById('copy-animation')) {
+                            const styleTag = document.createElement('style');
+                            styleTag.id = 'copy-animation';
+                            styleTag.innerHTML = `
+                              @keyframes copyPulse {
+                                0% { transform: scale(1); }
+                                50% { transform: scale(1.02); background-color: rgba(33, 150, 243, 0.2); }
+                                100% { transform: scale(1); }
+                              }
+                            `;
+                            document.head.appendChild(styleTag);
+                          }
+                          
+                          setTimeout(() => {
+                            messageElement.style.animation = '';
+                          }, 500);
+                        }
+                      });
+                  }
+                  closeContextMenu();
+                }}
+              >
+                <ContentCopyIcon sx={{ color: 'info.main' }} />
+                <Typography variant="body2" fontWeight="500">
+                  Copia testo selezionato
+                </Typography>
+              </Box>
+            )}
+            {/* Opzione Copia messaggio intero */}
+            <Box
+              sx={{
+                px: 2.5,
+                py: 1.5,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                '&:hover': {
+                  bgcolor: 'rgba(158, 158, 158, 0.08)'
+                },
+                transition: 'background-color 0.15s'
+              }}
+              onClick={() => {
+                const currentMessage = messages.find(m => m.id === contextMenu.messageId);
+                if (currentMessage && currentMessage.content) {
+                  const messageText = formatMessageContent(currentMessage.content);
+                  
+                  navigator.clipboard.writeText(messageText)
+                    .then(() => {
+                      // Feedback visivo
+                      const messageElement = document.getElementById(`message-${contextMenu.messageId}`);
+                      if (messageElement) {
+                        messageElement.style.animation = 'copyFullPulse 0.5s';
+                        
+                        if (!document.getElementById('copy-full-animation')) {
+                          const styleTag = document.createElement('style');
+                          styleTag.id = 'copy-full-animation';
+                          styleTag.innerHTML = `
+                            @keyframes copyFullPulse {
+                              0% { transform: scale(1); }
+                              50% { transform: scale(1.02); background-color: rgba(156, 39, 176, 0.2); }
+                              100% { transform: scale(1); }
+                            }
+                          `;
+                          document.head.appendChild(styleTag);
+                        }
+                        
+                        setTimeout(() => {
+                          messageElement.style.animation = '';
+                        }, 500);
+                      }
+                    });
+                }
+                closeContextMenu();
+              }}
+            >
+              <FileCopyIcon sx={{ color: 'text.secondary' }} />
+              <Typography variant="body2" fontWeight="500">
+                Copia messaggio
+              </Typography>
+            </Box>
+          </Box>
+          
         </Box>
-      </Box>
+      </>
     )}
+
     {/* Notes Group View Dialog */}
     <NotesGroupView 
       open={notesGroupViewOpen} 
@@ -1016,7 +1317,9 @@ return (
       maxWidth="md"
       fullWidth
     >
-      <DialogTitle>Inserisci Importo e Quota</DialogTitle>
+      <DialogTitle>
+        {isEditMode ? "Modifica Importo e Quota" : "Inserisci Importo e Quota"}
+      </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', mt: 1, gap: 1 }}>
           {/* Colonna sinistra SOLO con l'immagine */}
@@ -1155,37 +1458,85 @@ return (
             </Box>
           </Box>
             
-            {/* Campo importo@quota */}
             <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>Importo@Quota</Typography>
-              <TextField
-                autoFocus
-                fullWidth
-                variant="outlined"
-                value={amountQuotaInput}
-                onChange={(e) => setAmountQuotaInput(e.target.value)}
-                placeholder="Es: 1800@1,23"
-                helperText="Inserisci nel formato importo@quota"
-                InputProps={{
-                  sx: { fontSize: '1.2rem' }
-                }}
-              />
+              {/* Opzione 1: Campo unico */}
+              <Box sx={{ mb: 3, pb: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>
+                  Opzione 1: Campo unico
+                </Typography>
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  value={amountQuotaInput}
+                  onChange={(e) => setAmountQuotaInput(e.target.value)}
+                  placeholder="Es: 1800@1,23 o 1800@2214/1200"
+                  helperText="Inserisci nel formato importo@quota o importo@vincita/importo"
+                  InputProps={{
+                    sx: { fontSize: '1.1rem' }
+                  }}
+                />
+              </Box>
+            
+              {/* Opzione 2: Campi separati */}
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>
+                  Opzione 2: Campi separati
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                  <TextField
+                    label="Importo"
+                    variant="outlined"
+                    value={separateImporto}
+                    onChange={(e) => setSeparateImporto(e.target.value)}
+                    placeholder="Es: 1800"
+                    sx={{ flex: '0 0 40%' }}
+                  />
+                  
+                  <TextField
+                    label="Quota o Vincita/Importo"
+                    variant="outlined"
+                    value={separateQuota}
+                    onChange={(e) => setSeparateQuota(e.target.value)}
+                    placeholder="Es: 1,23 o 2214/1200"
+                    sx={{ flex: '1' }}
+                    helperText="Quota diretta o formato vincita/importo"
+                  />
+                </Box>
+              </Box>
             </Box>
           </Box>
         </Box>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={() => setAmountQuotaDialogOpen(false)} color="primary">
-          Annulla
-        </Button>
-        <Button 
-          onClick={handleAmountQuotaSubmit} 
-          color="primary" 
-          variant="contained"
-          disabled={!amountQuotaInput || !amountQuotaInput.includes('@') || !selectedNote}
-        >
-          Salva
-        </Button>
+      <DialogActions sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        <Box>
+          {isEditMode && (
+            <Button 
+              onClick={handleDeleteRecord} 
+              color="error"
+              variant="outlined"
+              startIcon={<DeleteIcon />}
+            >
+              Elimina
+            </Button>
+          )}
+        </Box>
+        <Box>
+          <Button onClick={resetDialogState} color="primary" sx={{ mr: 1 }}>
+            Annulla
+          </Button>
+          <Button 
+            onClick={handleAmountQuotaSubmit} 
+            color="primary" 
+            variant="contained"
+            disabled={
+              (!amountQuotaInput || !amountQuotaInput.includes('@')) && 
+              (!separateImporto || !separateQuota) || 
+              !selectedNote
+            }
+          >
+            {isEditMode ? "Aggiorna" : "Salva"}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   </Box>
