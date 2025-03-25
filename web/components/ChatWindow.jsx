@@ -27,6 +27,8 @@ function ChatWindow({
   const [imageCaption, setImageCaption] = useState('');
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const dropAreaRef = useRef(null);
+  const textFieldRef = useRef(null);
 
   // Carica il sinonimo dal localStorage all'avvio
   useEffect(() => {
@@ -35,6 +37,80 @@ function ChatWindow({
       setChatSynonym(storedSynonyms[chat.id]);
     }
   }, [chat.id]);
+
+  // Gestione del drag-and-drop con overlay
+  const [isDragging, setIsDragging] = useState(false);
+  
+  useEffect(() => {
+    const dropArea = dropAreaRef.current;
+    
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(true);
+    };
+    
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Verifichiamo che il cursore sia realmente uscito dall'area
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        setIsDragging(false);
+      }
+    };
+    
+    const handleDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        const file = e.dataTransfer.files[0];
+        if (file.type.startsWith('image/')) {
+          setSelectedImage(file);
+          setImageDialogOpen(true);
+        }
+      }
+    };
+    
+    if (dropArea) {
+      dropArea.addEventListener('dragover', handleDragOver);
+      dropArea.addEventListener('dragleave', handleDragLeave);
+      dropArea.addEventListener('drop', handleDrop);
+      
+      return () => {
+        dropArea.removeEventListener('dragover', handleDragOver);
+        dropArea.removeEventListener('dragleave', handleDragLeave);
+        dropArea.removeEventListener('drop', handleDrop);
+      };
+    }
+  }, []);
+
+  // Gestione dell'incolla da clipboard
+  useEffect(() => {
+    const handlePaste = (e) => {
+      if (e.clipboardData && e.clipboardData.items) {
+        const items = e.clipboardData.items;
+        
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            const blob = items[i].getAsFile();
+            setSelectedImage(blob);
+            setImageDialogOpen(true);
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    };
+    
+    // Aggiungiamo l'event listener al document per catturare l'evento paste ovunque
+    document.addEventListener('paste', handlePaste);
+    
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, []);
   
   const handleSendMessage = () => {
     if (!messageInput.trim() && !selectedImage) return;
@@ -125,7 +201,6 @@ function ChatWindow({
     }
   };
   
-
   // Salva il sinonimo nel localStorage
   const saveSynonym = () => {
     const storedSynonyms = JSON.parse(localStorage.getItem('chatSynonyms') || '{}');
@@ -196,6 +271,7 @@ function ChatWindow({
         </Box>
       </Box>
       <Box 
+        ref={dropAreaRef}
         sx={{
           flex: 1,
           overflowY: 'auto',
@@ -203,11 +279,47 @@ function ChatWindow({
           bgcolor: 'background.default',
           position: 'relative',
           display: 'flex',
-          flexDirection: 'column-reverse'
+          flexDirection: 'column-reverse',
+          transition: 'all 0.3s ease'
         }} 
         onScroll={handleScroll}
         data-chat-id={chat.id}
       >
+        {isDragging && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(25, 118, 210, 0.08)',
+              borderRadius: 1,
+              border: '2px dashed #1976d2',
+              zIndex: 10,
+              backdropFilter: 'blur(2px)',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <Box 
+              sx={{ 
+                color: 'primary.main', 
+                fontSize: '48px',
+                mb: 2,
+                animation: 'pulse 1.5s infinite ease-in-out'
+              }}
+            >
+              <ImageIcon fontSize="inherit" />
+            </Box>
+            <Typography variant="h6" color="primary.main">
+              Rilascia l'immagine qui
+            </Typography>
+          </Box>
+        )}
         {unreadMessages[chat.id] > 0 && (
           <Box
             sx={{
@@ -347,13 +459,15 @@ function ChatWindow({
           ref={fileInputRef}
           onChange={handleImageSelect}
         />
-        <IconButton 
-          color="primary" 
-          onClick={() => fileInputRef.current.click()}
-          disabled={isSending}
-        >
-          <ImageIcon />
-        </IconButton>
+        <Tooltip title="Carica immagine">
+          <IconButton 
+            color="primary" 
+            onClick={() => fileInputRef.current.click()}
+            disabled={isSending}
+          >
+            <ImageIcon />
+          </IconButton>
+        </Tooltip>
         
         <TextField
           fullWidth
@@ -372,6 +486,7 @@ function ChatWindow({
               }
             }
           }}
+          inputRef={textFieldRef}
           size="small"
           disabled={isSending}
           sx={{ 
@@ -399,8 +514,8 @@ function ChatWindow({
         </IconButton>
       </Box>
 
-        {/* Dialog per l'anteprima e la didascalia dell'immagine */}
-        <Dialog 
+      {/* Dialog per l'anteprima e la didascalia dell'immagine */}
+      <Dialog 
         open={imageDialogOpen} 
         onClose={() => setImageDialogOpen(false)}
         maxWidth="sm"
@@ -448,6 +563,24 @@ function ChatWindow({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Stili globali per l'effetto drag-and-drop */}
+      <style jsx global>{`
+        @keyframes pulse {
+          0% {
+            transform: scale(1);
+            opacity: 0.8;
+          }
+          50% {
+            transform: scale(1.1);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 0.8;
+          }
+        }
+      `}</style>
     </Paper>
   );
 }

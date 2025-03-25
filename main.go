@@ -974,7 +974,7 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "JID chat non valido"})
 			return
 		}
-	
+
 		// Trova il nome della chat
 		var chatName string
 		if chat, exists := chats[chatID]; exists {
@@ -1046,20 +1046,58 @@ func main() {
 				return
 			}
 			
-			// Crea un messaggio locale che rappresenta quello appena inviato
-			timestamp := resp.Timestamp
+			// Salva l'immagine localmente
+			var mediaPath string
 			
-			// Crea l'oggetto messaggio
+			// Calcola l'hash SHA-256 dell'immagine
+			imageHash := sha256.Sum256(imageData)
+			imageHashString := hex.EncodeToString(imageHash[:])
+			
+			// Genera i path per il salvataggio
+			timestamp := resp.Timestamp
+			dataDir := timestamp.Format("2006-01-02")
+			oraPrefisso := timestamp.Format("15-04-05")
+			
+			// Sanitizza i nomi
+			sanitizedChatName := sanitizePathComponent(chatName)
+			sanitizedSenderName := sanitizePathComponent("Tu")
+			
+			// Crea le directory
+			basePath := "Immagini"
+			groupPath := fmt.Sprintf("%s/%s", basePath, sanitizedChatName)
+			dataPath := fmt.Sprintf("%s/%s", groupPath, dataDir)
+			
+			err = os.MkdirAll(dataPath, 0755)
+			if err != nil {
+				fmt.Printf("Errore creazione directory: %v\n", err)
+			} else {
+				// Crea il nome file
+				fileName := fmt.Sprintf("%s_%s_ID%s.jpg", oraPrefisso, sanitizedSenderName, msgID)
+				fullPath := fmt.Sprintf("%s/%s", dataPath, fileName)
+				
+				// Salva il file
+				err = os.WriteFile(fullPath, imageData, 0644)
+				if err != nil {
+					fmt.Printf("Errore salvataggio file: %v\n", err)
+				} else {
+					// Crea URL per il browser
+					mediaPath = fmt.Sprintf("/images/%s/%s/%s", sanitizedChatName, dataDir, fileName)
+					fmt.Printf("Immagine salvata: %s, Hash: %s\n", mediaPath, imageHashString)
+				}
+			}
+			
+			// Crea un messaggio locale che rappresenta quello appena inviato
 			newMessage := Message{
 				ID:        msgID,
 				Chat:      chatID,
 				ChatName:  chatName,
 				Sender:    selfJID.String(),
-				SenderName: "Tu", // O puoi usare il tuo nome utente effettivo se disponibile
+				SenderName: "Tu", 
 				Content:   fmt.Sprintf("📷 Immagine: %s", caption),
 				Timestamp: timestamp,
 				IsMedia:   true,
-				// Aggiungi qui il percorso del file se vuoi salvare una copia locale
+				MediaPath: mediaPath,
+				ImageHash: imageHashString,
 			}
 			
 			mutex.Lock()
@@ -1087,8 +1125,8 @@ func main() {
 				"messageData": newMessage,
 			})
 			return
-		}
-		
+    	}
+    
 		// Se non è un'immagine, procedi con il normale invio di messaggio di testo
 		var requestData struct {
 			Content string `json:"content"` 
@@ -1147,7 +1185,7 @@ func main() {
 				Conversation: proto.String(requestData.Content),
 			}
 		}
-		
+    
 		// Invia il messaggio
 		resp, err := client.SendMessage(context.Background(), chatJID, msg)
 		if err != nil {
@@ -1165,7 +1203,7 @@ func main() {
 			Chat:      chatID,
 			ChatName:  chatName,
 			Sender:    selfJID.String(),
-			SenderName: "Tu", // O puoi usare il tuo nome utente effettivo se disponibile
+			SenderName: "Tu",
 			Content:   requestData.Content,
 			Timestamp: timestamp,
 			IsMedia:   false,
