@@ -500,7 +500,60 @@ function App() {
                 borderRadius: '4px',
                 transform: `rotate(${rotation}deg) scale(${zoom})`,
                 padding: '60px 20px 20px 20px',
-                transition: 'transform 0.3s ease, max-width 0.3s ease, max-height 0.3s ease'
+                transition: 'transform 0.3s ease, max-width 0.3s ease, max-height 0.3s ease',
+                cursor: 'grab'
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const img = e.currentTarget;
+                
+                // Cambia il cursore durante il trascinamento
+                img.style.cursor = 'grabbing';
+                
+                // Posizione iniziale del mouse
+                const startX = e.clientX;
+                const startY = e.clientY;
+                
+                // Estrai i valori di traslazione correnti
+                const currentTransform = img.style.transform;
+                const initialTranslateX = currentTransform.includes('translateX') 
+                  ? parseFloat(currentTransform.split('translateX(')[1].split('px)')[0]) 
+                  : 0;
+                const initialTranslateY = currentTransform.includes('translateY') 
+                  ? parseFloat(currentTransform.split('translateY(')[1].split('px)')[0]) 
+                  : 0;
+                
+                // Funzione per gestire il movimento del mouse
+                const handleMouseMove = (moveEvent) => {
+                  // Calcola lo spostamento
+                  const deltaX = moveEvent.clientX - startX;
+                  const deltaY = moveEvent.clientY - startY;
+                  
+                  // Applica la nuova traslazione
+                  const newTranslateX = initialTranslateX + deltaX;
+                  const newTranslateY = initialTranslateY + deltaY;
+                  
+                  // Estrai rotazione e zoom correnti
+                  const rotateValue = `rotate(${rotation}deg)`;
+                  const scaleValue = `scale(${zoom})`;
+                  
+                  // Aggiorna la trasformazione
+                  img.style.transform = `translateX(${newTranslateX}px) translateY(${newTranslateY}px) ${rotateValue} ${scaleValue}`;
+                };
+                
+                // Funzione per terminare il trascinamento
+                const handleMouseUp = () => {
+                  // Ripristina il cursore
+                  img.style.cursor = 'grab';
+                  
+                  // Rimuovi gli event listener
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+                
+                // Aggiungi gli event listener per il trascinamento
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
               }}
             />
           </Box>

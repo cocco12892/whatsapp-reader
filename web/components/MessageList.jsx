@@ -1362,7 +1362,8 @@ return (
                           boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
                           transform: 'scale(1)',
                           transition: 'transform 0.1s ease',
-                          cursor: 'zoom-in'
+                          cursor: 'grab',
+                          transformOrigin: 'center'
                         }}
                         onError={(e) => {
                           console.error("Errore caricamento immagine:", mediaMessage.mediaPath);
@@ -1371,7 +1372,7 @@ return (
                         onWheel={(e) => {
                           e.preventDefault();
                           const img = e.currentTarget;
-                          const currentScale = parseFloat(img.style.transform.replace('scale(', '').replace(')', '') || '1');
+                          const currentScale = parseFloat(img.style.transform.split('scale(')[1]?.split(')')[0] || '1');
                           
                           // Calcola il nuovo scale basato sulla direzione dello scroll
                           let newScale = currentScale - (e.deltaY * 0.01);
@@ -1379,8 +1380,66 @@ return (
                           // Limita lo scale tra 0.5 e 3
                           newScale = Math.min(Math.max(newScale, 0.5), 3);
                           
-                          // Applica il nuovo scale
-                          img.style.transform = `scale(${newScale})`;
+                          // Estrai i valori di traslazione correnti
+                          const currentTransform = img.style.transform;
+                          const translateX = currentTransform.includes('translateX') 
+                            ? parseFloat(currentTransform.split('translateX(')[1].split('px)')[0]) 
+                            : 0;
+                          const translateY = currentTransform.includes('translateY') 
+                            ? parseFloat(currentTransform.split('translateY(')[1].split('px)')[0]) 
+                            : 0;
+                          
+                          // Applica il nuovo scale mantenendo la traslazione
+                          img.style.transform = `translateX(${translateX}px) translateY(${translateY}px) scale(${newScale})`;
+                        }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const img = e.currentTarget;
+                          
+                          // Cambia il cursore durante il trascinamento
+                          img.style.cursor = 'grabbing';
+                          
+                          // Posizione iniziale del mouse
+                          const startX = e.clientX;
+                          const startY = e.clientY;
+                          
+                          // Estrai i valori di traslazione correnti
+                          const currentTransform = img.style.transform;
+                          const currentScale = parseFloat(currentTransform.split('scale(')[1]?.split(')')[0] || '1');
+                          const initialTranslateX = currentTransform.includes('translateX') 
+                            ? parseFloat(currentTransform.split('translateX(')[1].split('px)')[0]) 
+                            : 0;
+                          const initialTranslateY = currentTransform.includes('translateY') 
+                            ? parseFloat(currentTransform.split('translateY(')[1].split('px)')[0]) 
+                            : 0;
+                          
+                          // Funzione per gestire il movimento del mouse
+                          const handleMouseMove = (moveEvent) => {
+                            // Calcola lo spostamento
+                            const deltaX = moveEvent.clientX - startX;
+                            const deltaY = moveEvent.clientY - startY;
+                            
+                            // Applica la nuova traslazione
+                            const newTranslateX = initialTranslateX + deltaX;
+                            const newTranslateY = initialTranslateY + deltaY;
+                            
+                            // Aggiorna la trasformazione
+                            img.style.transform = `translateX(${newTranslateX}px) translateY(${newTranslateY}px) scale(${currentScale})`;
+                          };
+                          
+                          // Funzione per terminare il trascinamento
+                          const handleMouseUp = () => {
+                            // Ripristina il cursore
+                            img.style.cursor = 'grab';
+                            
+                            // Rimuovi gli event listener
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+                          };
+                          
+                          // Aggiungi gli event listener per il trascinamento
+                          document.addEventListener('mousemove', handleMouseMove);
+                          document.addEventListener('mouseup', handleMouseUp);
                         }}
                       />
                     </Box>
