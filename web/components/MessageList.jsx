@@ -11,6 +11,7 @@ import FileCopyIcon from '@mui/icons-material/FileCopy';
 import CloseIcon from '@mui/icons-material/Close';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import DeleteIcon from '@mui/icons-material/Delete';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import DOMPurify from 'dompurify'; // A library to sanitize HTML
 import parse from 'html-react-parser'; // A library to parse HTML into React components
 
@@ -1350,6 +1351,28 @@ return (
                       }}
                       className="zoomable-image-container"
                     >
+                      <IconButton
+                        size="small"
+                        sx={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                          color: 'white',
+                          zIndex: 10,
+                          '&:hover': {
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)'
+                          }
+                        }}
+                        onClick={() => {
+                          const img = document.querySelector('.zoomable-image');
+                          if (img) {
+                            img.style.transform = 'scale(1)';
+                          }
+                        }}
+                      >
+                        <RefreshIcon fontSize="small" />
+                      </IconButton>
                       <img 
                         src={safeImagePath(mediaMessage.mediaPath)} 
                         alt="Media content" 
@@ -1430,11 +1453,11 @@ return (
                             // Calcola i limiti di traslazione per mantenere almeno il 30% dell'immagine visibile
                             const minVisiblePercent = 0.3; // 30% dell'immagine deve rimanere visibile
                             
-                            // Calcola i limiti di traslazione
-                            const maxTranslateX = (imgRect.width * currentScale - containerRect.width * minVisiblePercent);
-                            const minTranslateX = -(imgRect.width * currentScale - containerRect.width * minVisiblePercent);
-                            const maxTranslateY = (imgRect.height * currentScale - containerRect.height * minVisiblePercent);
-                            const minTranslateY = -(imgRect.height * currentScale - containerRect.height * minVisiblePercent);
+                            // Calcola i limiti di traslazione con Math.max/min per evitare valori estremi
+                            const maxTranslateX = Math.max(0, (imgRect.width * currentScale - containerRect.width * minVisiblePercent));
+                            const minTranslateX = Math.min(0, -(imgRect.width * currentScale - containerRect.width * minVisiblePercent));
+                            const maxTranslateY = Math.max(0, (imgRect.height * currentScale - containerRect.height * minVisiblePercent));
+                            const minTranslateY = Math.min(0, -(imgRect.height * currentScale - containerRect.height * minVisiblePercent));
                             
                             // Limita la traslazione
                             const limitedTranslateX = Math.min(Math.max(newTranslateX, minTranslateX), maxTranslateX);

@@ -541,10 +541,10 @@ function App() {
                   const minVisiblePercent = 0.3; // 30% dell'immagine deve rimanere visibile
                   
                   // Calcola i limiti di traslazione
-                  const maxTranslateX = (imgRect.width * zoom - containerRect.width * minVisiblePercent);
-                  const minTranslateX = -(imgRect.width * zoom - containerRect.width * minVisiblePercent);
-                  const maxTranslateY = (imgRect.height * zoom - containerRect.height * minVisiblePercent);
-                  const minTranslateY = -(imgRect.height * zoom - containerRect.height * minVisiblePercent);
+                  const maxTranslateX = Math.max(0, (imgRect.width * zoom - containerRect.width * minVisiblePercent));
+                  const minTranslateX = Math.min(0, -(imgRect.width * zoom - containerRect.width * minVisiblePercent));
+                  const maxTranslateY = Math.max(0, (imgRect.height * zoom - containerRect.height * minVisiblePercent));
+                  const minTranslateY = Math.min(0, -(imgRect.height * zoom - containerRect.height * minVisiblePercent));
                   
                   // Limita la traslazione
                   const limitedTranslateX = Math.min(Math.max(newTranslateX, minTranslateX), maxTranslateX);
