@@ -17,12 +17,15 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import PauseIcon from '@mui/icons-material/Pause';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
 const DirettaGames = () => {
   const [games, setGames] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
   const [activeTab, setActiveTab] = useState('current'); // 'current', 'past' o 'future'
   const [gameDetails, setGameDetails] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
@@ -251,6 +254,12 @@ const DirettaGames = () => {
     if (savedExpandedState !== null) {
       setIsExpanded(savedExpandedState === 'true');
     }
+    
+    // Carica lo stato di pausa dal localStorage se disponibile
+    const savedPausedState = localStorage.getItem('direttaGamesPaused');
+    if (savedPausedState !== null) {
+      setIsPaused(savedPausedState === 'true');
+    }
   }, []);
   
   // Carica automaticamente i dettagli delle partite quando cambia la tab o vengono caricati nuovi dati
@@ -281,6 +290,26 @@ const DirettaGames = () => {
   useEffect(() => {
     localStorage.setItem('direttaGamesExpanded', isExpanded.toString());
   }, [isExpanded]);
+  
+  // Salva lo stato di pausa nel localStorage quando cambia
+  useEffect(() => {
+    localStorage.setItem('direttaGamesPaused', isPaused.toString());
+  }, [isPaused]);
+  
+  // Imposta aggiornamento automatico ogni 5 minuti se non in pausa
+  useEffect(() => {
+    let intervalId;
+    
+    if (!isPaused) {
+      intervalId = setInterval(() => {
+        fetchGames();
+      }, 300000); // 5 minuti
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isPaused]);
 
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
@@ -327,6 +356,16 @@ const DirettaGames = () => {
               >
                 <RefreshIcon />
               </IconButton>
+              <Tooltip title={isPaused ? "Riprendi aggiornamenti" : "Metti in pausa"}>
+                <IconButton 
+                  onClick={() => setIsPaused(!isPaused)} 
+                  color={isPaused ? "error" : "inherit"}
+                  size="small"
+                  sx={{ mr: 1 }}
+                >
+                  {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
+                </IconButton>
+              </Tooltip>
               <Tooltip title="Chiudi">
                 <IconButton 
                   onClick={toggleExpanded} 

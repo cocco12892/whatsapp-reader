@@ -17,6 +17,8 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import PauseIcon from '@mui/icons-material/Pause';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
 const BotSalvatore = () => {
   const [token, setToken] = useState(null);
@@ -24,6 +26,7 @@ const BotSalvatore = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
 
   const LOGIN_URL = "https://tennisbestingbet.info:48634/LOGIN";
   
@@ -198,12 +201,38 @@ const BotSalvatore = () => {
     if (savedExpandedState !== null) {
       setIsExpanded(savedExpandedState === 'true');
     }
+    
+    // Load paused state from localStorage if available
+    const savedPausedState = localStorage.getItem('botSalvatorePaused');
+    if (savedPausedState !== null) {
+      setIsPaused(savedPausedState === 'true');
+    }
   }, []);
   
   // Save expanded state to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('botSalvatoreExpanded', isExpanded.toString());
   }, [isExpanded]);
+  
+  // Save paused state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('botSalvatorePaused', isPaused.toString());
+  }, [isPaused]);
+  
+  // Set up auto-refresh every 60 seconds if not paused
+  useEffect(() => {
+    let intervalId;
+    
+    if (token && !isPaused) {
+      intervalId = setInterval(() => {
+        fetchBettingHistory();
+      }, 60000); // 60 seconds
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [token, isPaused]);
 
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
@@ -262,6 +291,16 @@ const BotSalvatore = () => {
                 >
                   <RefreshIcon />
                 </IconButton>
+                <Tooltip title={isPaused ? "Riprendi aggiornamenti" : "Metti in pausa"}>
+                  <IconButton 
+                    onClick={() => setIsPaused(!isPaused)} 
+                    color={isPaused ? "error" : "inherit"}
+                    size="small"
+                    sx={{ mr: 1 }}
+                  >
+                    {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
+                  </IconButton>
+                </Tooltip>
               )}
               <Tooltip title="Chiudi">
                 <IconButton 
