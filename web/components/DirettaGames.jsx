@@ -393,7 +393,7 @@ const DirettaGames = () => {
     try {
       const chatId = "393472195905@s.whatsapp.net";
       const messageData = {
-        content: reminder.message || `⏰ Promemoria: ${reminder.gameTeams} - ${reminder.gameLeague} - ${new Date(reminder.gameTime).toLocaleString('it-IT')}`
+        content: reminder.message || `Reminder: ${reminder.gameTeams}`
       };
       
       const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
@@ -452,9 +452,10 @@ const DirettaGames = () => {
       return;
     }
     
-    const gameDetails = gameDetails[selectedGame.id] || {};
-    const teams = gameDetails.teams || ['Squadra 1', 'Squadra 2'];
-    const league = gameDetails.league || 'Competizione sconosciuta';
+    // Accedi ai dettagli della partita usando la variabile di stato, non la variabile locale
+    const gameDetailsData = gameDetails[selectedGame.id] || {};
+    const teams = gameDetailsData.teams || ['Squadra 1', 'Squadra 2'];
+    const league = gameDetailsData.league || 'Competizione sconosciuta';
     
     const newReminder = {
       id: `reminder_${Date.now()}`,
@@ -899,7 +900,7 @@ const DirettaGames = () => {
                   rows={3}
                   value={reminderMessage}
                   onChange={(e) => setReminderMessage(e.target.value)}
-                  placeholder="Lascia vuoto per un messaggio standard"
+                  placeholder="Lascia vuoto per il messaggio: Reminder: [nome partita]"
                 />
               </Box>
             </Box>
