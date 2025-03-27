@@ -198,31 +198,63 @@ const AlertTable = () => {
       .catch(err => null);
   };
 
-  // Changed to Promise-based approach instead of async/await
+  // Calcola il NoVig Price utilizzando i valori NVP dalla matrice di quote
   const calculateNoVigPrice = (fromOdds, toOdds, eventId, lineType, outcome, points) => {
     return fetchMarketData(eventId)
       .then(marketData => {
-        if (!marketData || !marketData.markets) {
+        if (!marketData || !marketData.periods || !marketData.periods.num_0) {
+          // Fallback al calcolo semplificato se non ci sono dati
           const impliedProb = 1 / parseFloat(toOdds);
           return (1 / (impliedProb / 1.05)).toFixed(3);
         }
         
-        let relevantMarket = marketData.markets.find(m => 
-          m.marketType === lineType && (!points || m.points === points)
-        );
+        const period0 = marketData.periods.num_0;
+        let nvpValue = null;
         
-        if (!relevantMarket) {
-          const impliedProb = 1 / parseFloat(toOdds);
-          return (1 / (impliedProb / 1.05)).toFixed(3);
+        // Determina il tipo di mercato e l'outcome per trovare il valore NVP corretto
+        if (lineType === 'SPREAD') {
+          const spreads = period0.spreads || {};
+          // Trova il punto spread corretto
+          const spreadKey = points || Object.keys(spreads)[0];
+          if (spreads[spreadKey]) {
+            const nvp = calculateTwoWayNVP(spreads[spreadKey].home, spreads[spreadKey].away);
+            nvpValue = outcome.toLowerCase().includes('home') ? nvp.homeNVP : nvp.awayNVP;
+          }
+        } 
+        else if (lineType === 'TOTAL') {
+          const totals = period0.totals || {};
+          // Trova il punto total corretto
+          const totalKey = points || Object.keys(totals)[0];
+          if (totals[totalKey]) {
+            const nvp = calculateTwoWayNVP(totals[totalKey].over, totals[totalKey].under);
+            nvpValue = outcome.toLowerCase().includes('over') ? nvp.homeNVP : nvp.awayNVP;
+          }
+        }
+        else if (lineType === 'MONEYLINE') {
+          const moneyline = period0.money_line || {};
+          if (moneyline.home && moneyline.away) {
+            // Controlla se è un mercato a 3 vie (con pareggio)
+            if (moneyline.draw) {
+              const nvp = calculateThreeWayNVP(moneyline.home, moneyline.draw, moneyline.away);
+              if (outcome.toLowerCase().includes('home')) nvpValue = nvp.homeNVP;
+              else if (outcome.toLowerCase().includes('draw')) nvpValue = nvp.drawNVP;
+              else nvpValue = nvp.awayNVP;
+            } else {
+              // Mercato a 2 vie
+              const nvp = calculateTwoWayNVP(moneyline.home, moneyline.away);
+              nvpValue = outcome.toLowerCase().includes('home') ? nvp.homeNVP : nvp.awayNVP;
+            }
+          }
         }
         
-        let totalImpliedProb = relevantMarket.outcomes.reduce((sum, outcomeData) => 
-          sum + (1 / parseFloat(outcomeData.price)), 0
-        );
+        // Se abbiamo trovato un valore NVP, lo restituiamo
+        if (nvpValue) {
+          return nvpValue;
+        }
         
-        const currentImpliedProb = 1 / parseFloat(toOdds);
-        const trueNoVigProb = currentImpliedProb / totalImpliedProb;
-        return (1 / trueNoVigProb).toFixed(3);
+        // Fallback al calcolo originale se non troviamo un valore NVP
+        const impliedProb = 1 / parseFloat(toOdds);
+        return (1 / (impliedProb / 1.05)).toFixed(3);
       });
   };
 
@@ -261,7 +293,12 @@ const AlertTable = () => {
             const eventId = alert.eventId || alert.id.split('-')[1];
             return calculateNoVigPrice(
               alert.changeFrom, alert.changeTo, eventId, alert.lineType, alert.outcome, alert.points
-            ).then(noVigPrice => ({...alert, noVigPrice}));
+            ).then(noVigPrice => ({
+              ...alert, 
+              noVigPrice,
+              // Calcola la differenza tra NoVig e quota attuale
+              nvpDiff: (parseFloat(noVigPrice) - parseFloat(alert.changeTo)).toFixed(3)
+            }));
           });
           
           return Promise.all(promises).then(alertsWithNoVig => {
@@ -850,11 +887,18 @@ const AlertTable = () => {
                                         <TableCell>{alert.changeFrom}</TableCell>
                                         <TableCell>{alert.changeTo}</TableCell>
                                         <TableCell>{parseFloat(alert.percentageChange).toFixed(2)}%</TableCell>
-                                        <TableCell sx={{ color: 'success.main' }}>{alert.noVigPrice}</TableCell>
-                                        <TableCell sx={{ color: 'success.main' }}>
-                                          {parseFloat(alert.noVigPrice) > parseFloat(alert.changeTo) ? 
-                                            `+${(parseFloat(alert.noVigPrice) - parseFloat(alert.changeTo)).toFixed(2)}` : 
-                                            (parseFloat(alert.noVigPrice) - parseFloat(alert.changeTo)).toFixed(2)}
+                                        <TableCell sx={{ 
+                                          color: parseFloat(alert.noVigPrice) > parseFloat(alert.changeTo) ? 'success.main' : 'text.primary'
+                                        }}>
+                                          {alert.noVigPrice}
+                                        </TableCell>
+                                        <TableCell sx={{ 
+                                          color: parseFloat(alert.nvpDiff) > 0 ? 'success.main' : 'error.main',
+                                          fontWeight: Math.abs(parseFloat(alert.nvpDiff)) > 0.1 ? 'bold' : 'normal'
+                                        }}>
+                                          {parseFloat(alert.nvpDiff) > 0 ? 
+                                            `+${alert.nvpDiff}` : 
+                                            alert.nvpDiff}
                                         </TableCell>
                                       </TableRow>
                                     );
