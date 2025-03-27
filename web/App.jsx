@@ -533,12 +533,29 @@ function App() {
                   const newTranslateX = initialTranslateX + deltaX;
                   const newTranslateY = initialTranslateY + deltaY;
                   
+                  // Ottieni le dimensioni dell'immagine e del contenitore
+                  const imgRect = img.getBoundingClientRect();
+                  const containerRect = img.parentElement.getBoundingClientRect();
+                  
+                  // Calcola i limiti di traslazione per mantenere almeno il 30% dell'immagine visibile
+                  const minVisiblePercent = 0.3; // 30% dell'immagine deve rimanere visibile
+                  
+                  // Calcola i limiti di traslazione
+                  const maxTranslateX = (imgRect.width * zoom - containerRect.width * minVisiblePercent);
+                  const minTranslateX = -(imgRect.width * zoom - containerRect.width * minVisiblePercent);
+                  const maxTranslateY = (imgRect.height * zoom - containerRect.height * minVisiblePercent);
+                  const minTranslateY = -(imgRect.height * zoom - containerRect.height * minVisiblePercent);
+                  
+                  // Limita la traslazione
+                  const limitedTranslateX = Math.min(Math.max(newTranslateX, minTranslateX), maxTranslateX);
+                  const limitedTranslateY = Math.min(Math.max(newTranslateY, minTranslateY), maxTranslateY);
+                  
                   // Estrai rotazione e zoom correnti
                   const rotateValue = `rotate(${rotation}deg)`;
                   const scaleValue = `scale(${zoom})`;
                   
                   // Aggiorna la trasformazione
-                  img.style.transform = `translateX(${newTranslateX}px) translateY(${newTranslateY}px) ${rotateValue} ${scaleValue}`;
+                  img.style.transform = `translateX(${limitedTranslateX}px) translateY(${limitedTranslateY}px) ${rotateValue} ${scaleValue}`;
                 };
                 
                 // Funzione per terminare il trascinamento

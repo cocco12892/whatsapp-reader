@@ -1423,8 +1423,25 @@ return (
                             const newTranslateX = initialTranslateX + deltaX;
                             const newTranslateY = initialTranslateY + deltaY;
                             
+                            // Ottieni le dimensioni dell'immagine e del contenitore
+                            const imgRect = img.getBoundingClientRect();
+                            const containerRect = img.parentElement.getBoundingClientRect();
+                            
+                            // Calcola i limiti di traslazione per mantenere almeno il 30% dell'immagine visibile
+                            const minVisiblePercent = 0.3; // 30% dell'immagine deve rimanere visibile
+                            
+                            // Calcola i limiti di traslazione
+                            const maxTranslateX = (imgRect.width * currentScale - containerRect.width * minVisiblePercent);
+                            const minTranslateX = -(imgRect.width * currentScale - containerRect.width * minVisiblePercent);
+                            const maxTranslateY = (imgRect.height * currentScale - containerRect.height * minVisiblePercent);
+                            const minTranslateY = -(imgRect.height * currentScale - containerRect.height * minVisiblePercent);
+                            
+                            // Limita la traslazione
+                            const limitedTranslateX = Math.min(Math.max(newTranslateX, minTranslateX), maxTranslateX);
+                            const limitedTranslateY = Math.min(Math.max(newTranslateY, minTranslateY), maxTranslateY);
+                            
                             // Aggiorna la trasformazione
-                            img.style.transform = `translateX(${newTranslateX}px) translateY(${newTranslateY}px) scale(${currentScale})`;
+                            img.style.transform = `translateX(${limitedTranslateX}px) translateY(${limitedTranslateY}px) scale(${currentScale})`;
                           };
                           
                           // Funzione per terminare il trascinamento
