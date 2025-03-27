@@ -130,6 +130,7 @@ const DirettaGames = () => {
   // Filtra le partite in base alla data corrente
   const getCurrentGames = () => {
     const now = new Date();
+    const nowTimestamp = Math.floor(now.getTime() / 1000);
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime() / 1000;
     
@@ -138,16 +139,16 @@ const DirettaGames = () => {
   
   const getPastGames = () => {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+    const nowTimestamp = Math.floor(now.getTime() / 1000);
     
-    return games.filter(game => game.timestamp < startOfToday);
+    return games.filter(game => game.timestamp < nowTimestamp);
   };
   
   const getFutureGames = () => {
     const now = new Date();
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime() / 1000;
+    const nowTimestamp = Math.floor(now.getTime() / 1000);
     
-    return games.filter(game => game.timestamp > endOfToday);
+    return games.filter(game => game.timestamp > nowTimestamp);
   };
   
   // Funzione per ottenere i dettagli di una partita
@@ -659,38 +660,67 @@ const DirettaGames = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {activeTab === 'current' && getCurrentGames().map((game, index) => (
-                  <TableRow 
-                    key={index} 
-                    hover 
-                    sx={{ 
-                      '&:nth-of-type(even)': { 
-                        backgroundColor: 'action.hover' 
-                      },
-                      ...(gameDetails[game.id] ? { backgroundColor: 'rgba(25, 118, 210, 0.08)' } : {})
-                    }}
-                  >
-                    <TableCell>
-                      {game.id}
-                      {loadingDetails[game.id] && (
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          Caricamento...
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>{game.date}</TableCell>
-                    <TableCell>
-                      {gameDetails[game.id] && gameDetails[game.id].teams && gameDetails[game.id].teams.length > 0 
-                        ? gameDetails[game.id].teams.join(' vs ') 
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {gameDetails[game.id] && gameDetails[game.id].league 
-                        ? `${gameDetails[game.id].country}: ${gameDetails[game.id].league}` 
-                        : '-'}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {activeTab === 'current' && getCurrentGames().map((game, index) => {
+                  const now = new Date();
+                  const nowTimestamp = Math.floor(now.getTime() / 1000);
+                  const isFutureGame = game.timestamp > nowTimestamp;
+                  
+                  return (
+                    <TableRow 
+                      key={index} 
+                      hover 
+                      sx={{ 
+                        '&:nth-of-type(even)': { 
+                          backgroundColor: 'action.hover' 
+                        },
+                        ...(gameDetails[game.id] ? { backgroundColor: 'rgba(25, 118, 210, 0.08)' } : {})
+                      }}
+                    >
+                      <TableCell>
+                        {game.id}
+                        {loadingDetails[game.id] && (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Caricamento...
+                          </Typography>
+                        )}
+                        {/* Indicatore di promemoria attivo */}
+                        {savedReminders.some(r => r.gameId === game.id && !r.sent) && (
+                          <Chip 
+                            icon={<AlarmIcon fontSize="small" />} 
+                            label="Promemoria" 
+                            size="small" 
+                            color="secondary" 
+                            sx={{ mt: 0.5 }}
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {game.date}
+                        {isFutureGame && (
+                          <IconButton 
+                            size="small" 
+                            color="primary" 
+                            onClick={() => openReminderDialog(game)}
+                            sx={{ ml: 1 }}
+                            title="Imposta promemoria"
+                          >
+                            <NotificationsIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {gameDetails[game.id] && gameDetails[game.id].teams && gameDetails[game.id].teams.length > 0 
+                          ? gameDetails[game.id].teams.join(' vs ') 
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {gameDetails[game.id] && gameDetails[game.id].league 
+                          ? `${gameDetails[game.id].country}: ${gameDetails[game.id].league}` 
+                          : '-'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 
                 {activeTab === 'past' && getPastGames().map((game, index) => (
                   <TableRow 
@@ -783,7 +813,7 @@ const DirettaGames = () => {
           </TableContainer>
           
           {/* Sezione promemoria attivi */}
-          {activeTab === 'future' && savedReminders.filter(r => !r.sent).length > 0 && (
+          {(activeTab === 'future' || activeTab === 'current') && savedReminders.filter(r => !r.sent).length > 0 && (
             <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
               <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
                 Promemoria attivi
