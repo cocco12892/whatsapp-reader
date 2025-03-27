@@ -994,6 +994,7 @@ const AlertTable = () => {
             </Paper>
           </Box>
         )}
+      </Collapse>
     </Paper>
   );
 };
