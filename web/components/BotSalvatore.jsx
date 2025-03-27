@@ -219,14 +219,14 @@ const BotSalvatore = () => {
     localStorage.setItem('botSalvatorePaused', isPaused.toString());
   }, [isPaused]);
   
-  // Set up auto-refresh every 60 seconds if not paused
+  // Set up auto-refresh every 10 seconds if not paused
   useEffect(() => {
     let intervalId;
     
     if (token && !isPaused) {
       intervalId = setInterval(() => {
         fetchBettingHistory();
-      }, 60000); // 60 seconds
+      }, 10000); // 10 seconds
     }
     
     return () => {
