@@ -28,6 +28,8 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import PauseIcon from '@mui/icons-material/Pause';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
 const AlertTable = () => {
   const [alerts, setAlerts] = useState([]);
@@ -41,6 +43,7 @@ const AlertTable = () => {
   const [matrixData, setMatrixData] = useState(null);
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
   const [latestCursor, setLatestCursor] = useState(() => {
     // Initialize latestCursor from localStorage if available
     const savedCursor = localStorage.getItem('alertCursor');
@@ -304,14 +307,19 @@ const AlertTable = () => {
   useEffect(() => {
     fetchAlerts();
     
-    // Set up auto-refresh every 5 seconds
-    const intervalId = setInterval(() => {
-      fetchAlerts(latestCursor);
-    }, 5000);
+    // Set up auto-refresh every 5 seconds, but only if not paused
+    let intervalId;
+    if (!isPaused) {
+      intervalId = setInterval(() => {
+        fetchAlerts(latestCursor);
+      }, 5000);
+    }
     
     // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
-  }, [latestCursor]);
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [latestCursor, isPaused]);
 
   // Load expanded state from localStorage on component mount
   useEffect(() => {
@@ -628,6 +636,16 @@ const AlertTable = () => {
               >
                 <RefreshIcon />
               </IconButton>
+              <Tooltip title={isPaused ? "Riprendi aggiornamenti" : "Metti in pausa"}>
+                <IconButton 
+                  onClick={() => setIsPaused(!isPaused)} 
+                  color={isPaused ? "error" : "inherit"}
+                  size="small"
+                  sx={{ mr: 1 }}
+                >
+                  {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
+                </IconButton>
+              </Tooltip>
               <Tooltip title="Chiudi">
                 <IconButton 
                   onClick={toggleExpanded} 
