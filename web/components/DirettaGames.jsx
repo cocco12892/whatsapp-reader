@@ -12,13 +12,25 @@ import {
   Box,
   Button,
   Collapse,
-  Tooltip
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import AlarmIcon from '@mui/icons-material/Alarm';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 
 const DirettaGames = () => {
   const [games, setGames] = useState([]);
@@ -29,6 +41,17 @@ const DirettaGames = () => {
   const [activeTab, setActiveTab] = useState('current'); // 'current', 'past' o 'future'
   const [gameDetails, setGameDetails] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
+  
+  // Stati per il dialog del promemoria
+  const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
+  const [selectedGame, setSelectedGame] = useState(null);
+  const [reminderTime, setReminderTime] = useState('');
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderType, setReminderType] = useState('before');
+  const [reminderMinutes, setReminderMinutes] = useState(30);
+  
+  // Stato per i promemoria salvati
+  const [savedReminders, setSavedReminders] = useState([]);
 
   const fetchGames = async () => {
     setIsLoading(true);
@@ -310,6 +333,153 @@ const DirettaGames = () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [isPaused]);
+  
+  // Carica i promemoria salvati dal localStorage
+  useEffect(() => {
+    const savedRemindersData = localStorage.getItem('gameReminders');
+    if (savedRemindersData) {
+      try {
+        const parsedReminders = JSON.parse(savedRemindersData);
+        setSavedReminders(parsedReminders);
+      } catch (e) {
+        console.error('Errore nel parsing dei promemoria salvati:', e);
+      }
+    }
+  }, []);
+  
+  // Controlla periodicamente se ci sono promemoria da inviare
+  useEffect(() => {
+    const checkRemindersInterval = setInterval(() => {
+      checkAndSendReminders();
+    }, 60000); // Controlla ogni minuto
+    
+    // Controlla anche all'avvio
+    checkAndSendReminders();
+    
+    return () => {
+      clearInterval(checkRemindersInterval);
+    };
+  }, [savedReminders]);
+  
+  // Funzione per controllare e inviare i promemoria
+  const checkAndSendReminders = () => {
+    const now = new Date();
+    const remindersToSend = savedReminders.filter(reminder => {
+      const reminderTime = new Date(reminder.triggerTime);
+      return reminderTime <= now && !reminder.sent;
+    });
+    
+    if (remindersToSend.length > 0) {
+      remindersToSend.forEach(reminder => {
+        sendReminderMessage(reminder);
+      });
+      
+      // Aggiorna lo stato dei promemoria inviati
+      const updatedReminders = savedReminders.map(reminder => {
+        if (remindersToSend.some(r => r.id === reminder.id)) {
+          return { ...reminder, sent: true };
+        }
+        return reminder;
+      });
+      
+      setSavedReminders(updatedReminders);
+      localStorage.setItem('gameReminders', JSON.stringify(updatedReminders));
+    }
+  };
+  
+  // Funzione per inviare il messaggio di promemoria
+  const sendReminderMessage = async (reminder) => {
+    try {
+      const chatId = "393472195905@s.whatsapp.net";
+      const messageData = {
+        content: reminder.message || `⏰ Promemoria: ${reminder.gameTeams} - ${reminder.gameLeague} - ${new Date(reminder.gameTime).toLocaleString('it-IT')}`
+      };
+      
+      const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messageData),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Errore nell'invio del promemoria: ${response.statusText}`);
+      }
+      
+      console.log('Promemoria inviato con successo:', reminder);
+    } catch (error) {
+      console.error('Errore nell\'invio del promemoria:', error);
+    }
+  };
+  
+  // Funzione per aprire il dialog del promemoria
+  const openReminderDialog = (game) => {
+    setSelectedGame(game);
+    
+    // Imposta valori predefiniti
+    const gameDate = new Date(game.timestamp * 1000);
+    setReminderTime('');
+    setReminderMessage('');
+    setReminderType('before');
+    setReminderMinutes(30);
+    
+    setReminderDialogOpen(true);
+  };
+  
+  // Funzione per salvare un nuovo promemoria
+  const saveReminder = () => {
+    if (!selectedGame) return;
+    
+    const gameDate = new Date(selectedGame.timestamp * 1000);
+    let triggerTime;
+    
+    if (reminderType === 'custom' && reminderTime) {
+      // Usa l'orario personalizzato
+      const [hours, minutes] = reminderTime.split(':').map(Number);
+      triggerTime = new Date(gameDate);
+      triggerTime.setHours(hours, minutes, 0, 0);
+    } else if (reminderType === 'before') {
+      // Calcola l'orario in base ai minuti prima della partita
+      triggerTime = new Date(gameDate);
+      triggerTime.setMinutes(triggerTime.getMinutes() - reminderMinutes);
+    }
+    
+    // Se l'orario del promemoria è già passato, non salvare
+    if (triggerTime < new Date()) {
+      alert('L\'orario del promemoria è già passato. Scegli un orario futuro.');
+      return;
+    }
+    
+    const gameDetails = gameDetails[selectedGame.id] || {};
+    const teams = gameDetails.teams || ['Squadra 1', 'Squadra 2'];
+    const league = gameDetails.league || 'Competizione sconosciuta';
+    
+    const newReminder = {
+      id: `reminder_${Date.now()}`,
+      gameId: selectedGame.id,
+      gameTime: gameDate.toISOString(),
+      gameTeams: teams.join(' vs '),
+      gameLeague: league,
+      triggerTime: triggerTime.toISOString(),
+      message: reminderMessage,
+      created: new Date().toISOString(),
+      sent: false
+    };
+    
+    const updatedReminders = [...savedReminders, newReminder];
+    setSavedReminders(updatedReminders);
+    localStorage.setItem('gameReminders', JSON.stringify(updatedReminders));
+    
+    setReminderDialogOpen(false);
+  };
+  
+  // Funzione per eliminare un promemoria
+  const deleteReminder = (reminderId) => {
+    const updatedReminders = savedReminders.filter(reminder => reminder.id !== reminderId);
+    setSavedReminders(updatedReminders);
+    localStorage.setItem('gameReminders', JSON.stringify(updatedReminders));
+  };
 
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
@@ -573,8 +743,29 @@ const DirettaGames = () => {
                           Caricamento...
                         </Typography>
                       )}
+                      {/* Indicatore di promemoria attivo */}
+                      {savedReminders.some(r => r.gameId === game.id && !r.sent) && (
+                        <Chip 
+                          icon={<AlarmIcon fontSize="small" />} 
+                          label="Promemoria" 
+                          size="small" 
+                          color="secondary" 
+                          sx={{ mt: 0.5 }}
+                        />
+                      )}
                     </TableCell>
-                    <TableCell>{game.date}</TableCell>
+                    <TableCell>
+                      {game.date}
+                      <IconButton 
+                        size="small" 
+                        color="primary" 
+                        onClick={() => openReminderDialog(game)}
+                        sx={{ ml: 1 }}
+                        title="Imposta promemoria"
+                      >
+                        <NotificationsIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
                     <TableCell>
                       {gameDetails[game.id] && gameDetails[game.id].teams && gameDetails[game.id].teams.length > 0 
                         ? gameDetails[game.id].teams.join(' vs ') 
@@ -591,8 +782,111 @@ const DirettaGames = () => {
             </Table>
           </TableContainer>
           
+          {/* Sezione promemoria attivi */}
+          {activeTab === 'future' && savedReminders.filter(r => !r.sent).length > 0 && (
+            <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
+                Promemoria attivi
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {savedReminders
+                  .filter(r => !r.sent)
+                  .map(reminder => (
+                    <Chip
+                      key={reminder.id}
+                      label={`${reminder.gameTeams} - ${new Date(reminder.triggerTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`}
+                      onDelete={() => deleteReminder(reminder.id)}
+                      color="primary"
+                      variant="outlined"
+                      icon={<AlarmIcon />}
+                    />
+                  ))}
+              </Box>
+            </Box>
+          )}
         </Box>
       </Collapse>
+      
+      {/* Dialog per impostare un promemoria */}
+      <Dialog 
+        open={reminderDialogOpen} 
+        onClose={() => setReminderDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Imposta promemoria per la partita
+        </DialogTitle>
+        <DialogContent>
+          {selectedGame && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                {gameDetails[selectedGame.id]?.teams?.join(' vs ') || 'Partita'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                {new Date(selectedGame.timestamp * 1000).toLocaleString('it-IT')}
+              </Typography>
+              
+              <Box sx={{ mt: 3 }}>
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Tipo di promemoria</InputLabel>
+                  <Select
+                    value={reminderType}
+                    onChange={(e) => setReminderType(e.target.value)}
+                    label="Tipo di promemoria"
+                  >
+                    <MenuItem value="before">Minuti prima della partita</MenuItem>
+                    <MenuItem value="custom">Orario specifico</MenuItem>
+                  </Select>
+                </FormControl>
+                
+                {reminderType === 'before' ? (
+                  <TextField
+                    fullWidth
+                    label="Minuti prima"
+                    type="number"
+                    value={reminderMinutes}
+                    onChange={(e) => setReminderMinutes(parseInt(e.target.value) || 30)}
+                    InputProps={{ inputProps: { min: 1, max: 1440 } }}
+                    sx={{ mb: 2 }}
+                  />
+                ) : (
+                  <TextField
+                    fullWidth
+                    label="Orario del promemoria"
+                    type="time"
+                    value={reminderTime}
+                    onChange={(e) => setReminderTime(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ mb: 2 }}
+                  />
+                )}
+                
+                <TextField
+                  fullWidth
+                  label="Messaggio personalizzato (opzionale)"
+                  multiline
+                  rows={3}
+                  value={reminderMessage}
+                  onChange={(e) => setReminderMessage(e.target.value)}
+                  placeholder="Lascia vuoto per un messaggio standard"
+                />
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReminderDialogOpen(false)}>Annulla</Button>
+          <Button 
+            onClick={saveReminder} 
+            variant="contained" 
+            color="primary"
+            disabled={reminderType === 'custom' && !reminderTime}
+          >
+            Salva promemoria
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 };
