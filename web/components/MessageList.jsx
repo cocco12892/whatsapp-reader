@@ -314,11 +314,12 @@ const handleRecord = (messageId) => {
     // Se già registrato, ora apriamo il dialog per l'editing invece di rimuoverlo
     const existingData = recordedData[messageId];
     
-    // Prepopoliamo i campi con i dati esistenti
+    // Prepopoliamo solo i campi separati (opzione 2)
     if (existingData.data && existingData.data.includes('@')) {
-      setAmountQuotaInput(existingData.data);
+      // Non popoliamo il campo unico in modalità modifica
+      // setAmountQuotaInput(existingData.data);
       
-      // Prepopola anche i campi separati
+      // Prepopola solo i campi separati
       const parts = existingData.data.split('@');
       if (parts.length === 2) {
         setSeparateImporto(parts[0]);
