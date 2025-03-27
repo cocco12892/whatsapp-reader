@@ -281,26 +281,28 @@ const BotSalvatore = () => {
                   {isLoading ? '...' : 'Login'}
                 </Button>
               ) : (
-                <IconButton 
-                  onClick={() => fetchBettingHistory()} 
-                  color="inherit"
-                  title="Aggiorna dati"
-                  disabled={isLoading}
-                  size="small"
-                  sx={{ mr: 1 }}
-                >
-                  <RefreshIcon />
-                </IconButton>
-                <Tooltip title={isPaused ? "Riprendi aggiornamenti" : "Metti in pausa"}>
+                <>
                   <IconButton 
-                    onClick={() => setIsPaused(!isPaused)} 
-                    color={isPaused ? "error" : "inherit"}
+                    onClick={() => fetchBettingHistory()} 
+                    color="inherit"
+                    title="Aggiorna dati"
+                    disabled={isLoading}
                     size="small"
                     sx={{ mr: 1 }}
                   >
-                    {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
+                    <RefreshIcon />
                   </IconButton>
-                </Tooltip>
+                  <Tooltip title={isPaused ? "Riprendi aggiornamenti" : "Metti in pausa"}>
+                    <IconButton 
+                      onClick={() => setIsPaused(!isPaused)} 
+                      color={isPaused ? "error" : "inherit"}
+                      size="small"
+                      sx={{ mr: 1 }}
+                    >
+                      {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
+                    </IconButton>
+                  </Tooltip>
+                </>
               )}
               <Tooltip title="Chiudi">
                 <IconButton 
