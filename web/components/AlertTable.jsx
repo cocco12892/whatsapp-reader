@@ -441,21 +441,33 @@ const AlertTable = () => {
     });
 
     return (
-      <Dialog 
-        open={true} 
-        onClose={onClose} 
-        maxWidth="lg" 
-        fullWidth
+      <Paper 
+        sx={{ 
+          width: '90%', 
+          maxWidth: '1200px', 
+          maxHeight: '90%',
+          overflow: 'auto',
+          position: 'relative'
+        }}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ 
+          p: 2, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText'
+        }}>
           <Typography variant="h6">
             {data.home} vs {data.away} | {data.league_name}
           </Typography>
-          <IconButton onClick={onClose} size="small">
+          <IconButton onClick={onClose} size="small" color="inherit">
             <CloseIcon />
           </IconButton>
-        </DialogTitle>
-        <DialogContent>
+        </Box>
+        <Box sx={{ p: 3, overflow: 'auto' }}>
           <Typography variant="body2" sx={{ mb: 2 }}>
             Match Time: {new Date(data.starts).toLocaleString()}
           </Typography>
@@ -627,8 +639,8 @@ const AlertTable = () => {
               </Table>
             </TableContainer>
           </Box>
-        </DialogContent>
-      </Dialog>
+        </Box>
+      </Paper>
     );
   };
 
@@ -708,7 +720,7 @@ const AlertTable = () => {
         )}
       </Box>
 
-      <Collapse in={isExpanded} orientation="horizontal" sx={{ width: '100%', height: '100%' }}>
+      <Collapse in={isExpanded} orientation="horizontal" sx={{ width: '100%', height: '100%', position: 'relative' }}>
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
           <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
             <TextField
@@ -938,24 +950,50 @@ const AlertTable = () => {
         </Box>
       </Collapse>
       
-      {showMatrix && matrixData && (
-        <BettingMatrix 
-          data={matrixData} 
-          onClose={() => {
-            setShowMatrix(false);
-            setMatrixData(null);
-          }} 
-        />
-      )}
-      
-      {matrixLoading && (
-        <Dialog open={true}>
-          <DialogContent sx={{ display: 'flex', alignItems: 'center', p: 4 }}>
-            <CircularProgress size={24} sx={{ mr: 2 }} />
-            <Typography>Loading odds data...</Typography>
-          </DialogContent>
-        </Dialog>
-      )}
+      <Collapse in={isExpanded} orientation="horizontal" sx={{ width: '100%', height: '100%', position: 'relative' }}>
+        {/* Modale delle odds all'interno del Collapse */}
+        {showMatrix && matrixData && (
+          <Box sx={{ 
+            position: 'absolute', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            zIndex: 1200,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <BettingMatrix 
+              data={matrixData} 
+              onClose={() => {
+                setShowMatrix(false);
+                setMatrixData(null);
+              }} 
+            />
+          </Box>
+        )}
+        
+        {matrixLoading && (
+          <Box sx={{ 
+            position: 'absolute', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            zIndex: 1200,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <Paper sx={{ p: 4, display: 'flex', alignItems: 'center' }}>
+              <CircularProgress size={24} sx={{ mr: 2 }} />
+              <Typography>Loading odds data...</Typography>
+            </Paper>
+          </Box>
+        )}
     </Paper>
   );
 };
