@@ -1338,26 +1338,49 @@ return (
                 // Se abbiamo trovato un messaggio media, mostra l'immagine
                 if (mediaMessage && mediaMessage.mediaPath) {
                   return (
-                    <Box sx={{ 
-                      width: '100%', 
-                      height: '100%',
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center'
-                    }}>
+                    <Box 
+                      sx={{ 
+                        width: '100%', 
+                        height: '100%',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        overflow: 'hidden',
+                        position: 'relative'
+                      }}
+                      className="zoomable-image-container"
+                    >
                       <img 
                         src={safeImagePath(mediaMessage.mediaPath)} 
                         alt="Media content" 
+                        className="zoomable-image"
                         style={{ 
                           maxWidth: '100%',
                           maxHeight: '400px',
                           objectFit: 'contain',
                           borderRadius: '8px',
-                          boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                          boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                          transform: 'scale(1)',
+                          transition: 'transform 0.1s ease',
+                          cursor: 'zoom-in'
                         }}
                         onError={(e) => {
                           console.error("Errore caricamento immagine:", mediaMessage.mediaPath);
                           e.target.style.display = 'none';
+                        }}
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          const img = e.currentTarget;
+                          const currentScale = parseFloat(img.style.transform.replace('scale(', '').replace(')', '') || '1');
+                          
+                          // Calcola il nuovo scale basato sulla direzione dello scroll
+                          let newScale = currentScale - (e.deltaY * 0.01);
+                          
+                          // Limita lo scale tra 0.5 e 3
+                          newScale = Math.min(Math.max(newScale, 0.5), 3);
+                          
+                          // Applica il nuovo scale
+                          img.style.transform = `scale(${newScale})`;
                         }}
                       />
                     </Box>
