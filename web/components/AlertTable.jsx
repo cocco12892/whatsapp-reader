@@ -721,7 +721,30 @@ const AlertTable = () => {
       </Box>
 
       <Collapse in={isExpanded} orientation="horizontal" sx={{ width: '100%', height: '100%', position: 'relative' }}>
-        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2, position: 'relative' }}>
+          {/* Modale delle odds all'interno del Box principale */}
+          {showMatrix && matrixData && (
+            <Box sx={{ 
+              position: 'absolute', 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              zIndex: 1200,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}>
+              <BettingMatrix 
+                data={matrixData} 
+                onClose={() => {
+                  setShowMatrix(false);
+                  setMatrixData(null);
+                }} 
+              />
+            </Box>
+          )}
           <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
             <TextField
               size="small"
@@ -947,53 +970,28 @@ const AlertTable = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          
+          {/* Indicatore di caricamento per i dati delle quote */}
+          {matrixLoading && (
+            <Box sx={{ 
+              position: 'absolute', 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              zIndex: 1200,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}>
+              <Paper sx={{ p: 4, display: 'flex', alignItems: 'center' }}>
+                <CircularProgress size={24} sx={{ mr: 2 }} />
+                <Typography>Loading odds data...</Typography>
+              </Paper>
+            </Box>
+          )}
         </Box>
-      </Collapse>
-      
-      <Collapse in={isExpanded} orientation="horizontal" sx={{ width: '100%', height: '100%', position: 'relative' }}>
-        {/* Modale delle odds all'interno del Collapse */}
-        {showMatrix && matrixData && (
-          <Box sx={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            zIndex: 1200,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}>
-            <BettingMatrix 
-              data={matrixData} 
-              onClose={() => {
-                setShowMatrix(false);
-                setMatrixData(null);
-              }} 
-            />
-          </Box>
-        )}
-        
-        {matrixLoading && (
-          <Box sx={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            zIndex: 1200,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}>
-            <Paper sx={{ p: 4, display: 'flex', alignItems: 'center' }}>
-              <CircularProgress size={24} sx={{ mr: 2 }} />
-              <Typography>Loading odds data...</Typography>
-            </Paper>
-          </Box>
-        )}
       </Collapse>
     </Paper>
   );
