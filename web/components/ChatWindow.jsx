@@ -349,7 +349,7 @@ function ChatWindow({
         )}
         <MessageList 
           messages={chat.messages}
-          handleImageClick={handleImageClick}          
+          handleImageClick={(imageSrc, messageTime) => handleImageClick(imageSrc, chat.name, chatSynonym, messageTime)}          
           lastSeenMessages={lastSeenMessages}
           seenMessages={seenMessages}
           chat={chat}

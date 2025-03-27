@@ -952,7 +952,7 @@ return (
                           marginTop: '10px',
                           cursor: 'pointer'
                         }}
-                        onClick={() => handleImageClick(message.mediaPath)}
+                        onClick={() => handleImageClick(message.mediaPath, formatTime(message.timestamp))}
                         onError={(e) => e.target.style.display = 'none'}
                       />
                     </Box>

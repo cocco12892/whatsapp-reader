@@ -186,9 +186,14 @@ function App() {
     }
   };
 
-  const handleImageClick = useCallback((imageSrc) => {
+  const handleImageClick = useCallback((imageSrc, chatName, chatSynonym, messageTime) => {
     // Utilizziamo safeImagePath per codificare il percorso dell'immagine
-    setModalImage(imageSrc);
+    setModalImage({
+      src: imageSrc,
+      chatName,
+      chatSynonym,
+      messageTime
+    });
   }, []);
 
   const closeModal = useCallback(() => {
@@ -420,6 +425,7 @@ function App() {
               setTimeout(() => {
                 setRotation(0);
                 setZoom(1);
+                setModalImage(null);
               }, 300);
             }}
             sx={{
@@ -437,6 +443,39 @@ function App() {
             <CloseIcon />
           </IconButton>
           
+          {/* Informazioni sul messaggio */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 60, // Posizionato sotto i controlli di rotazione
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              p: '4px 12px',
+              bgcolor: 'rgba(0, 0, 0, 0.7)',
+              borderRadius: 2,
+              zIndex: 1100,
+              color: 'white',
+              maxWidth: '80%'
+            }}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+              {modalImage?.chatName}
+            </Typography>
+            {modalImage?.chatSynonym && (
+              <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                {modalImage.chatSynonym}
+              </Typography>
+            )}
+            {modalImage?.messageTime && (
+              <Typography variant="caption" sx={{ mt: 0.5 }}>
+                {modalImage.messageTime}
+              </Typography>
+            )}
+          </Box>
+
           {/* Immagine con rotazione - Utilizziamo safeImagePath */}
           <Box
             sx={{
@@ -450,7 +489,7 @@ function App() {
             }}
           >
             <img 
-              src={safeImagePath(modalImage)} 
+              src={safeImagePath(modalImage?.src)} 
               alt="Immagine ingrandita" 
               style={{
                 maxWidth: Math.abs(rotation) % 180 === 90 ? '70vh' : '90vw',
