@@ -296,14 +296,14 @@ const DirettaGames = () => {
     localStorage.setItem('direttaGamesPaused', isPaused.toString());
   }, [isPaused]);
   
-  // Imposta aggiornamento automatico ogni 5 minuti se non in pausa
+  // Imposta aggiornamento automatico ogni 30 secondi se non in pausa
   useEffect(() => {
     let intervalId;
     
     if (!isPaused) {
       intervalId = setInterval(() => {
         fetchGames();
-      }, 300000); // 5 minuti
+      }, 30000); // 30 secondi
     }
     
     return () => {
