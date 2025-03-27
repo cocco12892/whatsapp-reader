@@ -391,7 +391,7 @@ const DirettaGames = () => {
   // Funzione per inviare il messaggio di promemoria
   const sendReminderMessage = async (reminder) => {
     try {
-      const chatId = "393472195905@s.whatsapp.net";
+      const chatId = "120363020650012487@g.us";
       const messageData = {
         content: reminder.message || `Reminder: ${reminder.gameTeams}`
       };
