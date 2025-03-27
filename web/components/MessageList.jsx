@@ -90,6 +90,7 @@ onReplyToMessage
 // Special senders list
 const SPECIAL_SENDERS = {
   '393472195905': { color: 'rgb(223, 250, 228)', name: 'Andrea Cocco' },
+  '393518669456': { color: 'rgb(223, 250, 228)', name: 'AC iliad' },
   '393802541389': { color: 'rgb(225, 237, 247)', name: 'Ste' },
   '971585527723': { color: 'rgb(225, 237, 247)', name: 'Fer87' },
   '393937049799': { color: 'rgb(227, 225, 247)', name: 'Jhs' },
