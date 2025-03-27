@@ -564,7 +564,7 @@ function ChatWindow({
         </DialogActions>
       </Dialog>
 
-      {/* Stili globali per l'effetto drag-and-drop */}
+      {/* Stili globali per l'effetto drag-and-drop e zoom immagini */}
       <style jsx global>{`
         @keyframes pulse {
           0% {
@@ -579,6 +579,15 @@ function ChatWindow({
             transform: scale(1);
             opacity: 0.8;
           }
+        }
+        
+        .zoomable-image-container {
+          overflow: hidden;
+        }
+        
+        .zoomable-image {
+          transform-origin: center;
+          will-change: transform;
         }
       `}</style>
     </Paper>
