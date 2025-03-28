@@ -98,7 +98,8 @@ const SPECIAL_SENDERS = {
   '393297425198': { color: 'rgb(247, 221, 215)', name: 'Ivan' } 
 };
 
-const markMessagesAsRead = (chatId, messageIds) => {
+// Utilizziamo debounce per limitare le chiamate API
+const markMessagesAsRead = debounce((chatId, messageIds) => {
   if (messageIds.length === 0) return;
   
   // Verifica se l'API è disponibile prima di fare la richiesta
@@ -126,7 +127,7 @@ const markMessagesAsRead = (chatId, messageIds) => {
     // Imposta un flag per evitare di fare ulteriori richieste inutili
     window.markReadApiUnavailable = true;
   });
-};
+}, 1000); // Limita a una chiamata ogni secondo
 
 // Check if it's a special sender
 const isSpecialSender = (sender) => {

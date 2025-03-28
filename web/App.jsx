@@ -68,7 +68,7 @@ function App() {
   const [chatSynonyms, setChatSynonyms] = useState({});
   
   // Carica i sinonimi dal database
-  const loadChatSynonyms = async () => {
+  const loadChatSynonyms = useCallback(async () => {
     try {
       const synonymsMap = {};
       const response = await fetch(`${API_BASE_URL}/api/chats`);
@@ -81,7 +81,7 @@ function App() {
       for (const chat of chatsData) {
         try {
           const synonymResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/synonym`);
-          if (synonymResponse.ok) {
+          if (synonymResponse.ok)Vedo che ci sono problemi con i blocchi {
             const data = await synonymResponse.json();
             if (data.synonym) {
               synonymsMap[chat.id] = data.synonym;
@@ -95,7 +95,7 @@ function App() {
     } catch (error) {
       console.error("Errore nel caricamento dei sinonimi:", error);
     }
-  };
+  }, [API_BASE_URL]);
 
   // Funzione per impostare un sinonimo per una chat
   const setChatSynonym = async (chatId, synonym) => {
@@ -145,7 +145,7 @@ function App() {
     }
   };
 
-  const fetchChats = async () => {
+  const fetchChats = useCallback(async () => {
     try {
       console.log("Fetching chats...");
       const response = await fetch(`${API_BASE_URL}/api/chats`);
@@ -198,7 +198,7 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [API_BASE_URL, chatOrder]);
   
   // Funzione per gestire i nuovi messaggi
   const handleNewMessage = useCallback((payload) => {
@@ -267,6 +267,11 @@ function App() {
   // Riferimento al WebSocket
   const wsRef = useRef(null);
   
+  // Carica i sinonimi all'avvio
+  useEffect(() => {
+    loadChatSynonyms();
+  }, [loadChatSynonyms]);
+
   // Gestione della connessione WebSocket
   useEffect(() => {
     // Stato della connessione

@@ -32,10 +32,12 @@ function ChatWindow({
 
   // Carica il sinonimo dal database all'avvio
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchSynonym = async () => {
       try {
         const response = await fetch(`/api/chats/${chat.id}/synonym`);
-        if (response.ok) {
+        if (response.ok && isMounted) {
           const data = await response.json();
           if (data.synonym) {
             setChatSynonym(data.synonym);
@@ -47,6 +49,10 @@ function ChatWindow({
     };
     
     fetchSynonym();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [chat.id]);
 
   // Gestione del drag-and-drop con overlay
