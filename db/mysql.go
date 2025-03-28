@@ -257,7 +257,7 @@ func (m *MySQLManager) LoadMessageNote(messageID string) (*MessageNote, error) {
 	query := `
 		SELECT message_id, note, type, chat_id, chat_name, added_at 
 		FROM message_notes 
-		WHERE message_id = ? AND deleted_at IS NULL
+		WHERE message_id = ? AND is_deleted = FALSE
 	`
 	
 	var note MessageNote
