@@ -974,7 +974,8 @@ return (
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         maxWidth: 100,
-                        zIndex: 10
+                        zIndex: 10,
+                        display: 'block' // Sempre visibile
                       }}
                       id={`recorded-value-${message.id}`}
                     >
