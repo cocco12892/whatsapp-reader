@@ -25,6 +25,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/go-sql-driver/mysql"
+	"./db"
+	"./utils"
 )
 
 // Struttura per memorizzare i messaggi
@@ -64,9 +67,8 @@ type Chat struct {
 }
 
 var (
-	messages []Message
-	chats    map[string]*Chat
-	mutex    sync.RWMutex
+	dbManager *db.MySQLManager
+	mutex     sync.RWMutex
 	
 	// Cache per i nomi
 	groupNameCache   sync.Map
@@ -239,8 +241,38 @@ func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup boo
 }
 
 func main() {
-	// Inizializza lo storage
-	chats = make(map[string]*Chat)
+	// Carica la configurazione
+	config, err := utils.LoadConfig("config.json")
+	if err != nil {
+		fmt.Println("Errore nel caricamento della configurazione:", err)
+		// Usa valori predefiniti se la configurazione non è disponibile
+		config = &utils.Config{
+			Database: utils.DatabaseConfig{
+				Host:     "localhost",
+				Port:     3306,
+				User:     "root",
+				Password: "password",
+				DBName:   "whatsapp_viewer",
+			},
+			Server: utils.ServerConfig{
+				Port: 8080,
+			},
+		}
+	}
+	
+	// Inizializza il database MySQL
+	dbManager, err = db.NewMySQLManager(config.Database.GetDSN())
+	if err != nil {
+		fmt.Println("Errore nella connessione al database MySQL:", err)
+		return
+	}
+	defer dbManager.Close()
+	
+	// Inizializza le tabelle
+	if err := dbManager.InitTables(); err != nil {
+		fmt.Println("Errore nell'inizializzazione delle tabelle:", err)
+		return
+	}
 	
 	// Configura un logger
 	logger := waLog.Stdout("Info", "INFO", true)
@@ -674,42 +706,30 @@ func main() {
 				ImageHash:           imageHashString,
 			}
 			
-			// Aggiorna la lista dei messaggi e delle chat
-			mutex.Lock()
-			messages = append(messages, message)
-			
-			// Aggiorna o crea la chat
-			if chat, exists := chats[chatJID]; exists {
-				chat.LastMessage = message
-				chat.Messages = append(chat.Messages, message)
-				
-				// Aggiungi l'immagine del profilo se non è già presente
-				if chat.ProfileImage == "" {
-					isGroup := v.Info.IsGroup
-					profilePath, err := downloadProfilePicture(client, v.Info.Chat, isGroup)
-					if err == nil {
-						chat.ProfileImage = profilePath
-					}
-				}
-			} else {
-				// Prova a scaricare l'immagine del profilo
-				isGroup := v.Info.IsGroup
-				profilePath, err := downloadProfilePicture(client, v.Info.Chat, isGroup)
-				if err != nil {
-					fmt.Printf("Errore nel download dell'immagine del profilo: %v\n", err)
-					profilePath = "" // Imposta a stringa vuota se il download fallisce
-				}
-				
-				// Crea la nuova chat
-				chats[chatJID] = &Chat{
-					ID:           chatJID,
-					Name:         chatName,
-					LastMessage:  message,
-					Messages:     []Message{message},
-					ProfileImage: profilePath, // Potrebbe essere vuoto se il download fallisce
-				}
+			// Salva il messaggio nel database
+			if err := dbManager.SaveMessage(&message); err != nil {
+				fmt.Printf("Errore nel salvataggio del messaggio: %v\n", err)
 			}
-			mutex.Unlock()
+			
+			// Crea o aggiorna la chat
+			chat := &db.Chat{
+				ID:           chatJID,
+				Name:         chatName,
+				LastMessage:  message,
+				ProfileImage: "",
+			}
+			
+			// Prova a scaricare l'immagine del profilo
+			isGroup := v.Info.IsGroup
+			profilePath, err := downloadProfilePicture(client, v.Info.Chat, isGroup)
+			if err == nil {
+				chat.ProfileImage = profilePath
+			}
+			
+			// Salva la chat nel database
+			if err := dbManager.SaveChat(chat); err != nil {
+				fmt.Printf("Errore nel salvataggio della chat: %v\n", err)
+			}
 			
 			fmt.Printf("Nuovo messaggio da %s in %s: %s\n", senderName, chatName, content)
 		
@@ -780,19 +800,38 @@ func main() {
 		fmt.Println("Richiesta API /api/chats ricevuta")
 		fmt.Println("Headers:", c.Request.Header)
 		
-		mutex.RLock()
-		defer mutex.RUnlock()
+		// Carica le chat dal database
+		chatList, err := dbManager.LoadChats()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento delle chat: %v", err)})
+			return
+		}
 		
-		fmt.Println("Numero di chat trovate:", len(chats))
+		fmt.Println("Numero di chat trovate:", len(chatList))
 		
-		// Converti la mappa in slice per ordinarla
-		var chatList []*Chat
-		for _, chat := range chats {
-			chatList = append(chatList, chat)
+		// Per ogni chat, carica l'ultimo messaggio
+		for _, chat := range chatList {
+			messages, err := dbManager.LoadChatMessages(chat.ID)
+			if err != nil {
+				continue
+			}
+			
+			if len(messages) > 0 {
+				// Ordina i messaggi per timestamp (più recente prima)
+				sort.Slice(messages, func(i, j int) bool {
+					return messages[i].Timestamp.After(messages[j].Timestamp)
+				})
+				
+				chat.LastMessage = messages[0]
+				chat.Messages = messages
+			}
 		}
 		
 		// Ordina le chat per timestamp dell'ultimo messaggio (più recente prima)
 		sort.Slice(chatList, func(i, j int) bool {
+			if len(chatList[i].Messages) == 0 || len(chatList[j].Messages) == 0 {
+				return false
+			}
 			return chatList[i].LastMessage.Timestamp.After(chatList[j].LastMessage.Timestamp)
 		})
 		
@@ -817,26 +856,40 @@ func main() {
 	router.GET("/api/chats/:id/messages", func(c *gin.Context) {
 		chatID := c.Param("id")
 		
-		mutex.RLock()
-		defer mutex.RUnlock()
-		
-		chat, exists := chats[chatID]
-		if !exists {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata"})
+		// Carica i messaggi dal database
+		messages, err := dbManager.LoadChatMessages(chatID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento dei messaggi: %v", err)})
 			return
 		}
 		
-		c.JSON(http.StatusOK, chat.Messages)
+		if len(messages) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata o nessun messaggio"})
+			return
+		}
+		
+		c.JSON(http.StatusOK, messages)
 	})
 
 	router.GET("/api/chats/:id/profile-image", func(c *gin.Context) {
 		chatID := c.Param("id")
 		
-		mutex.RLock()
-		chat, exists := chats[chatID]
-		mutex.RUnlock()
+		// Carica la chat dal database
+		chats, err := dbManager.LoadChats()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento delle chat: %v", err)})
+			return
+		}
 		
-		if !exists {
+		var chat *db.Chat
+		for _, ch := range chats {
+			if ch.ID == chatID {
+				chat = ch
+				break
+			}
+		}
+		
+		if chat == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata"})
 			return
 		}
@@ -857,9 +910,11 @@ func main() {
 			return
 		}
 		
-		mutex.Lock()
+		// Aggiorna l'immagine del profilo nel database
 		chat.ProfileImage = profilePath
-		mutex.Unlock()
+		if err := dbManager.SaveChat(chat); err != nil {
+			fmt.Printf("Errore nell'aggiornamento dell'immagine del profilo: %v\n", err)
+		}
 		
 		c.JSON(http.StatusOK, gin.H{
 			"profileImage": profilePath,
@@ -1253,9 +1308,131 @@ func main() {
 		})
 	})
 	
+	// API per gestire i sinonimi delle chat
+	router.GET("/api/chats/:id/synonym", func(c *gin.Context) {
+		chatID := c.Param("id")
+		
+		// Carica tutti i sinonimi
+		synonyms, err := dbManager.LoadChatSynonyms()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento dei sinonimi: %v", err)})
+			return
+		}
+		
+		synonym, exists := synonyms[chatID]
+		if !exists {
+			c.JSON(http.StatusOK, gin.H{"synonym": ""})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"synonym": synonym})
+	})
+	
+	router.POST("/api/chats/:id/synonym", func(c *gin.Context) {
+		chatID := c.Param("id")
+		
+		var requestData struct {
+			Synonym string `json:"synonym"`
+		}
+		
+		if err := c.BindJSON(&requestData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
+			return
+		}
+		
+		// Salva il sinonimo nel database
+		if err := dbManager.SaveChatSynonym(chatID, requestData.Synonym); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel salvataggio del sinonimo: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"status": "success"})
+	})
+	
+	router.DELETE("/api/chats/:id/synonym", func(c *gin.Context) {
+		chatID := c.Param("id")
+		
+		// Rimuovi il sinonimo dal database (imposta a stringa vuota)
+		if err := dbManager.SaveChatSynonym(chatID, ""); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nella rimozione del sinonimo: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"status": "success"})
+	})
+	
+	// API per gestire le note dei messaggi
+	router.GET("/api/message-notes", func(c *gin.Context) {
+		// Carica tutte le note dei messaggi
+		notes, err := dbManager.LoadMessageNotes()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento delle note: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, notes)
+	})
+	
+	router.POST("/api/messages/:id/note", func(c *gin.Context) {
+		messageID := c.Param("id")
+		
+		var requestData struct {
+			Note      string `json:"note"`
+			Type      string `json:"type"`
+			ChatID    string `json:"chatId"`
+			ChatName  string `json:"chatName"`
+			AddedAt   string `json:"addedAt"`
+		}
+		
+		if err := c.BindJSON(&requestData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
+			return
+		}
+		
+		// Converti la data in time.Time
+		addedAt, err := time.Parse(time.RFC3339, requestData.AddedAt)
+		if err != nil {
+			addedAt = time.Now()
+		}
+		
+		// Crea l'oggetto nota
+		noteData := &db.MessageNote{
+			MessageID: messageID,
+			Note:      requestData.Note,
+			Type:      requestData.Type,
+			ChatID:    requestData.ChatID,
+			ChatName:  requestData.ChatName,
+			AddedAt:   addedAt,
+		}
+		
+		// Salva la nota nel database
+		if err := dbManager.SaveMessageNote(messageID, noteData); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel salvataggio della nota: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"status": "success", "note": noteData})
+	})
+	
+	router.DELETE("/api/messages/:id/note", func(c *gin.Context) {
+		messageID := c.Param("id")
+		
+		// Rimuovi la nota dal database
+		if err := dbManager.DeleteMessageNote(messageID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nella rimozione della nota: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"status": "success"})
+	})
+
 	// Avvia il server HTTP in una goroutine
 	go func() {
-		if err := router.Run(":8080"); err != nil {
+		port := ":8080"
+		if config != nil {
+			port = fmt.Sprintf(":%d", config.Server.Port)
+		}
+		if err := router.Run(port); err != nil {
 			fmt.Printf("Errore nell'avvio del server: %v\n", err)
 		}
 	}()

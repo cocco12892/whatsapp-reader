@@ -592,8 +592,8 @@ const addMessageNote = (messageId) => {
   const noteData = {
     note: note,
     type: 'nota',
-    chatName: getChatName(chat?.id, chat?.name) || 'Chat sconosciuta',
     chatId: chat?.id || '',
+    chatName: getChatName(chat?.id, chat?.name) || 'Chat sconosciuta',
     addedAt: new Date().toISOString()
   };
   
