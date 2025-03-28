@@ -46,7 +46,11 @@ const NotesGroupView = ({ open, onClose, chats }) => {
         try {
           const response = await fetch('/api/notes');
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            console.warn(`API notes non disponibile: ${response.status}`);
+            // Fallback al localStorage per retrocompatibilità
+            const storedNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+            setNotes(storedNotes);
+            return;
           }
           const notesData = await response.json();
           
@@ -59,6 +63,9 @@ const NotesGroupView = ({ open, onClose, chats }) => {
           setNotes(notesObj);
         } catch (error) {
           console.error("Errore nel caricamento delle note:", error);
+          // Fallback al localStorage in caso di errore
+          const storedNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+          setNotes(storedNotes);
         }
       };
       
@@ -67,7 +74,11 @@ const NotesGroupView = ({ open, onClose, chats }) => {
         try {
           const response = await fetch('/api/recorded-data');
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            console.warn(`API recorded-data non disponibile: ${response.status}`);
+            // Fallback al localStorage per retrocompatibilità
+            const storedRecorded = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+            setRecordedData(storedRecorded);
+            return;
           }
           const recordedData = await response.json();
           
@@ -80,6 +91,9 @@ const NotesGroupView = ({ open, onClose, chats }) => {
           setRecordedData(recordedObj);
         } catch (error) {
           console.error("Errore nel caricamento dei dati registrati:", error);
+          // Fallback al localStorage in caso di errore
+          const storedRecorded = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+          setRecordedData(storedRecorded);
         }
       };
       
@@ -238,14 +252,28 @@ const NotesGroupView = ({ open, onClose, chats }) => {
   // Handle deleting a note
   const handleDeleteNote = async (messageId) => {
     try {
-      const response = await fetch(`/api/notes/${messageId}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Tenta di eliminare dal database
+      try {
+        const response = await fetch(`/api/notes/${messageId}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          console.warn(`API delete note non disponibile: ${response.status}`);
+          // Se l'API non è disponibile, elimina solo dal localStorage
+          const storedNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+          delete storedNotes[messageId];
+          localStorage.setItem('messageNotes', JSON.stringify(storedNotes));
+        }
+      } catch (error) {
+        console.warn("Errore nell'eliminazione della nota dal database:", error);
+        // Elimina dal localStorage in caso di errore
+        const storedNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
+        delete storedNotes[messageId];
+        localStorage.setItem('messageNotes', JSON.stringify(storedNotes));
       }
       
+      // Aggiorna lo stato locale
       const updatedNotes = {...notes};
       delete updatedNotes[messageId];
       setNotes(updatedNotes);
@@ -290,14 +318,28 @@ const NotesGroupView = ({ open, onClose, chats }) => {
   // Handle deleting recorded data
   const handleDeleteRecorded = async (messageId) => {
     try {
-      const response = await fetch(`/api/recorded-data/${messageId}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Tenta di eliminare dal database
+      try {
+        const response = await fetch(`/api/recorded-data/${messageId}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          console.warn(`API delete recorded-data non disponibile: ${response.status}`);
+          // Se l'API non è disponibile, elimina solo dal localStorage
+          const storedRecorded = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+          delete storedRecorded[messageId];
+          localStorage.setItem('recordedMessagesData', JSON.stringify(storedRecorded));
+        }
+      } catch (error) {
+        console.warn("Errore nell'eliminazione del dato registrato dal database:", error);
+        // Elimina dal localStorage in caso di errore
+        const storedRecorded = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
+        delete storedRecorded[messageId];
+        localStorage.setItem('recordedMessagesData', JSON.stringify(storedRecorded));
       }
       
+      // Aggiorna lo stato locale
       const updatedRecorded = {...recordedData};
       delete updatedRecorded[messageId];
       setRecordedData(updatedRecorded);
