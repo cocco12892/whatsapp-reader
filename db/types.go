@@ -43,4 +43,5 @@ type MessageNote struct {
 	ChatID    string    `json:"chatId"`
 	ChatName  string    `json:"chatName"`
 	AddedAt   time.Time `json:"addedAt"`
+	IsDeleted bool      `json:"isDeleted"`
 }

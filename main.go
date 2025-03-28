@@ -1515,8 +1515,8 @@ func main() {
 	router.DELETE("/api/messages/:id/note", func(c *gin.Context) {
 		messageID := c.Param("id")
 		
-		// Rimuovi la nota dal database
-		if err := dbManager.DeleteMessageNote(messageID); err != nil {
+		// Soft delete della nota dal database
+		if err := dbManager.SoftDeleteMessageNote(messageID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nella rimozione della nota: %v", err)})
 			return
 		}
@@ -1528,8 +1528,8 @@ func main() {
 	router.DELETE("/api/notes/:id", func(c *gin.Context) {
 		messageID := c.Param("id")
 		
-		// Rimuovi la nota dal database
-		if err := dbManager.DeleteMessageNote(messageID); err != nil {
+		// Soft delete della nota dal database
+		if err := dbManager.SoftDeleteMessageNote(messageID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nella rimozione della nota: %v", err)})
 			return
 		}

@@ -95,6 +95,7 @@ func (m *MySQLManager) InitTables() error {
 			chat_id VARCHAR(255),
 			chat_name VARCHAR(255),
 			added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			is_deleted BOOLEAN DEFAULT FALSE,
 			FOREIGN KEY (message_id) REFERENCES messages(id)
 		)
 	`)
@@ -223,7 +224,7 @@ func (m *MySQLManager) LoadChatSynonyms() (map[string]string, error) {
 // Salva una nota per un messaggio
 func (m *MySQLManager) SaveMessageNote(messageID string, noteData *MessageNote) error {
 	_, err := m.db.Exec(
-		"INSERT INTO message_notes (message_id, note, type, chat_id, chat_name, added_at) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE note = ?, type = ?, chat_id = ?, chat_name = ?, added_at = ?",
+		"INSERT INTO message_notes (message_id, note, type, chat_id, chat_name, added_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, FALSE) ON DUPLICATE KEY UPDATE note = ?, type = ?, chat_id = ?, chat_name = ?, added_at = ?, is_deleted = FALSE",
 		messageID, noteData.Note, noteData.Type, noteData.ChatID, noteData.ChatName, noteData.AddedAt,
 		noteData.Note, noteData.Type, noteData.ChatID, noteData.ChatName, noteData.AddedAt,
 	)
@@ -232,7 +233,7 @@ func (m *MySQLManager) SaveMessageNote(messageID string, noteData *MessageNote) 
 
 // Carica tutte le note dei messaggi
 func (m *MySQLManager) LoadMessageNotes() (map[string]*MessageNote, error) {
-	rows, err := m.db.Query("SELECT message_id, note, type, chat_id, chat_name, added_at FROM message_notes")
+	rows, err := m.db.Query("SELECT message_id, note, type, chat_id, chat_name, added_at, is_deleted FROM message_notes WHERE is_deleted = FALSE")
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +243,7 @@ func (m *MySQLManager) LoadMessageNotes() (map[string]*MessageNote, error) {
 	for rows.Next() {
 		var messageID string
 		var note MessageNote
-		if err := rows.Scan(&messageID, &note.Note, &note.Type, &note.ChatID, &note.ChatName, &note.AddedAt); err != nil {
+		if err := rows.Scan(&messageID, &note.Note, &note.Type, &note.ChatID, &note.ChatName, &note.AddedAt, &note.IsDeleted); err != nil {
 			return nil, err
 		}
 		note.MessageID = messageID
@@ -252,9 +253,15 @@ func (m *MySQLManager) LoadMessageNotes() (map[string]*MessageNote, error) {
 	return notes, nil
 }
 
-// Elimina una nota di un messaggio
+// Elimina una nota di un messaggio (hard delete)
 func (m *MySQLManager) DeleteMessageNote(messageID string) error {
 	_, err := m.db.Exec("DELETE FROM message_notes WHERE message_id = ?", messageID)
+	return err
+}
+
+// Soft delete di una nota di un messaggio
+func (m *MySQLManager) SoftDeleteMessageNote(messageID string) error {
+	_, err := m.db.Exec("UPDATE message_notes SET is_deleted = TRUE WHERE message_id = ?", messageID)
 	return err
 }
 
