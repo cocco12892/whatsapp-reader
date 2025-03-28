@@ -43,7 +43,7 @@ const AlertTable = () => {
   const [matrixData, setMatrixData] = useState(null);
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(true);
   const [latestCursor, setLatestCursor] = useState(() => {
     // Initialize latestCursor from localStorage if available
     const savedCursor = localStorage.getItem('alertCursor');

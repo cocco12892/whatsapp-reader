@@ -26,7 +26,7 @@ const BotSalvatore = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(true);
 
   const LOGIN_URL = "https://tennisbestingbet.info:48634/LOGIN";
   
@@ -202,11 +202,9 @@ const BotSalvatore = () => {
       setIsExpanded(savedExpandedState === 'true');
     }
     
-    // Load paused state from localStorage if available
-    const savedPausedState = localStorage.getItem('botSalvatorePaused');
-    if (savedPausedState !== null) {
-      setIsPaused(savedPausedState === 'true');
-    }
+    // Sempre in pausa all'avvio, indipendentemente dal valore salvato
+    setIsPaused(true);
+    localStorage.setItem('botSalvatorePaused', 'true');
   }, []);
   
   // Save expanded state to localStorage when it changes

@@ -37,7 +37,7 @@ const DirettaGames = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(true);
   const [activeTab, setActiveTab] = useState('current'); // 'current', 'past' o 'future'
   const [gameDetails, setGameDetails] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
@@ -279,11 +279,9 @@ const DirettaGames = () => {
       setIsExpanded(savedExpandedState === 'true');
     }
     
-    // Carica lo stato di pausa dal localStorage se disponibile
-    const savedPausedState = localStorage.getItem('direttaGamesPaused');
-    if (savedPausedState !== null) {
-      setIsPaused(savedPausedState === 'true');
-    }
+    // Sempre in pausa all'avvio, indipendentemente dal valore salvato
+    setIsPaused(true);
+    localStorage.setItem('direttaGamesPaused', 'true');
   }, []);
   
   // Carica automaticamente i dettagli delle partite quando cambia la tab o vengono caricati nuovi dati
