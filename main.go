@@ -1493,6 +1493,9 @@ func main() {
 			ChatID    string `json:"chatId"`
 			ChatName  string `json:"chatName"`
 			AddedAt   string `json:"addedAt"`
+			FromDuplicateGroup bool `json:"fromDuplicateGroup"`
+			GroupId   string `json:"groupId"`
+			ImageHash string `json:"imageHash"`
 		}
 		
 		if err := c.BindJSON(&requestData); err != nil {
@@ -1519,6 +1522,51 @@ func main() {
 		// Salva la nota nel database
 		if err := dbManager.SaveMessageNote(messageID, noteData); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel salvataggio della nota: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"status": "success", "note": noteData})
+	})
+	
+	// Endpoint PUT per aggiornare una nota esistente (per compatibilità)
+	router.PUT("/api/messages/:id/note", func(c *gin.Context) {
+		messageID := c.Param("id")
+		
+		var requestData struct {
+			Note      string `json:"note"`
+			Type      string `json:"type"`
+			ChatID    string `json:"chatId"`
+			ChatName  string `json:"chatName"`
+			AddedAt   string `json:"addedAt"`
+			FromDuplicateGroup bool `json:"fromDuplicateGroup"`
+			GroupId   string `json:"groupId"`
+			ImageHash string `json:"imageHash"`
+		}
+		
+		if err := c.BindJSON(&requestData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
+			return
+		}
+		
+		// Converti la data in time.Time
+		addedAt, err := time.Parse(time.RFC3339, requestData.AddedAt)
+		if err != nil {
+			addedAt = time.Now()
+		}
+		
+		// Crea l'oggetto nota
+		noteData := &db.MessageNote{
+			MessageID: messageID,
+			Note:      requestData.Note,
+			Type:      requestData.Type,
+			ChatID:    requestData.ChatID,
+			ChatName:  requestData.ChatName,
+			AddedAt:   addedAt,
+		}
+		
+		// Salva la nota nel database (stessa funzione di POST)
+		if err := dbManager.SaveMessageNote(messageID, noteData); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'aggiornamento della nota: %v", err)})
 			return
 		}
 		

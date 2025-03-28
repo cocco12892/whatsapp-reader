@@ -141,7 +141,7 @@ const DuplicateImageFinder = ({ chats }) => {
     
     // Invia la nota al server
     fetch(`/api/messages/${image.id}/note`, {
-      method: isUpdate ? 'PUT' : 'POST',
+      method: 'POST', // Usiamo sempre POST perché il backend gestisce sia l'inserimento che l'aggiornamento
       headers: {
         'Content-Type': 'application/json',
       },
@@ -361,7 +361,7 @@ const DuplicateImageFinder = ({ chats }) => {
         
         // Invia la nota al server
         return fetch(`/api/messages/${image.id}/note`, {
-          method: isUpdate ? 'PUT' : 'POST',
+          method: 'POST', // Usiamo sempre POST perché il backend gestisce sia l'inserimento che l'aggiornamento
           headers: {
             'Content-Type': 'application/json',
           },
