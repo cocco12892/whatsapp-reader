@@ -16,6 +16,7 @@ import (
     "encoding/hex"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -77,6 +78,19 @@ var (
 	// Cache per i nomi
 	groupNameCache   sync.Map
 	contactNameCache sync.Map
+	
+	// WebSocket clients
+	wsClients    = make(map[*websocket.Conn]bool)
+	wsClientsMux sync.Mutex
+	
+	// WebSocket upgrader
+	wsUpgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true // Consenti tutte le origini in sviluppo
+		},
+	}
 )
 
 func getProtocolMessageTypeName(typeNum int) string {
@@ -242,6 +256,38 @@ func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup boo
 	}
 	webPath := fmt.Sprintf("/profile-images/%s/%s", folderType, fileName)
 	return webPath, nil
+}
+
+// Struttura per i messaggi WebSocket
+type WSMessage struct {
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload"`
+}
+
+// Funzione per inviare un messaggio a tutti i client WebSocket
+func broadcastToClients(messageType string, payload interface{}) {
+	wsClientsMux.Lock()
+	defer wsClientsMux.Unlock()
+	
+	message := WSMessage{
+		Type:    messageType,
+		Payload: payload,
+	}
+	
+	messageJSON, err := json.Marshal(message)
+	if err != nil {
+		fmt.Println("Errore nella serializzazione del messaggio WebSocket:", err)
+		return
+	}
+	
+	for client := range wsClients {
+		err := client.WriteMessage(websocket.TextMessage, messageJSON)
+		if err != nil {
+			fmt.Println("Errore nell'invio del messaggio WebSocket:", err)
+			client.Close()
+			delete(wsClients, client)
+		}
+	}
 }
 
 func main() {
@@ -748,6 +794,12 @@ func main() {
 				ProfileImage: "",
 			}
 			
+			// Notifica i client WebSocket del nuovo messaggio
+			broadcastToClients("new_message", map[string]interface{}{
+				"chatId":   chatJID,
+				"message":  dbMessage,
+			})
+			
 			// Prova a scaricare l'immagine del profilo
 			isGroup := v.Info.IsGroup
 			profilePath, err := downloadProfilePicture(client, v.Info.Chat, isGroup)
@@ -759,6 +811,9 @@ func main() {
 			if err := dbManager.SaveChat(chat); err != nil {
 				fmt.Printf("Errore nel salvataggio della chat: %v\n", err)
 			}
+			
+			// Notifica i client WebSocket dell'aggiornamento della chat
+			broadcastToClients("chat_updated", chat)
 			
 			fmt.Printf("Nuovo messaggio da %s in %s: %s\n", senderName, chatName, content)
 		
@@ -871,6 +926,44 @@ func main() {
 		}
 		
 		c.JSON(http.StatusOK, chatList[:limit])
+	})
+	
+	// Endpoint WebSocket per le notifiche in tempo reale
+	router.GET("/ws", func(c *gin.Context) {
+		conn, err := wsUpgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			fmt.Printf("Errore nell'upgrade della connessione WebSocket: %v\n", err)
+			return
+		}
+		
+		// Aggiungi il client alla mappa dei client WebSocket
+		wsClientsMux.Lock()
+		wsClients[conn] = true
+		wsClientsMux.Unlock()
+		
+		fmt.Println("Nuovo client WebSocket connesso")
+		
+		// Gestisci la disconnessione
+		go func() {
+			defer func() {
+				wsClientsMux.Lock()
+				delete(wsClients, conn)
+				wsClientsMux.Unlock()
+				conn.Close()
+				fmt.Println("Client WebSocket disconnesso")
+			}()
+			
+			for {
+				// Leggi i messaggi dal client (non facciamo nulla con essi per ora)
+				_, _, err := conn.ReadMessage()
+				if err != nil {
+					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+						fmt.Printf("Errore nella lettura del messaggio WebSocket: %v\n", err)
+					}
+					break
+				}
+			}
+		}()
 	})
 	
 	// API per ottenere i messaggi di una chat specifica

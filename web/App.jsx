@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import ChatWindow from './components/ChatWindow';
@@ -22,7 +22,12 @@ import { Button } from '@mui/material';
 import BotSalvatore from './components/BotSalvatore';
 
 const API_BASE_URL = '';
-const POLLING_INTERVAL = 5000; // 5 secondi
+// WebSocket URL basato sull'URL corrente
+const WS_URL = useMemo(() => {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  return `${protocol}//${host}/ws`;
+}, []);
 
 // Funzione per codificare in modo sicuro i percorsi delle immagini
 const safeImagePath = (path) => {
@@ -199,17 +204,131 @@ function App() {
     loadChatSynonyms();
   }, []);
 
+  // Riferimento al WebSocket
+  const wsRef = useRef(null);
+  
+  // Gestione della connessione WebSocket
   useEffect(() => {
+    // Funzione per stabilire la connessione WebSocket
+    const connectWebSocket = () => {
+      const ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connesso');
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          switch (data.type) {
+            case 'new_message':
+              // Aggiorna la chat con il nuovo messaggio
+              handleNewMessage(data.payload);
+              break;
+            case 'chat_updated':
+              // Aggiorna la chat modificata
+              handleChatUpdate(data.payload);
+              break;
+            default:
+              console.log('Messaggio WebSocket non riconosciuto:', data);
+          }
+        } catch (error) {
+          console.error('Errore nel parsing del messaggio WebSocket:', error);
+        }
+      };
+      
+      ws.onclose = (event) => {
+        console.log('WebSocket disconnesso:', event.reason);
+        // Riconnetti dopo un breve ritardo
+        setTimeout(connectWebSocket, 3000);
+      };
+      
+      ws.onerror = (error) => {
+        console.error('Errore WebSocket:', error);
+        ws.close();
+      };
+      
+      wsRef.current = ws;
+    };
+    
+    // Stabilisci la connessione iniziale
+    connectWebSocket();
+    
+    // Carica le chat iniziali
     fetchChats();
-
-    const intervalId = setInterval(() => {
-      if (!isUserScrolling) {
-        fetchChats();
+    
+    // Cleanup alla disconnessione
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
       }
-    }, POLLING_INTERVAL);
-
-    return () => clearInterval(intervalId);
-  }, [clientJID, isUserScrolling]);
+    };
+  }, [WS_URL]);
+  
+  // Funzione per gestire i nuovi messaggi
+  const handleNewMessage = useCallback((payload) => {
+    const { chatId, message } = payload;
+    
+    setChats(prevChats => {
+      // Crea una copia profonda dell'array delle chat
+      const updatedChats = [...prevChats];
+      
+      // Trova la chat a cui appartiene il messaggio
+      const chatIndex = updatedChats.findIndex(chat => chat.id === chatId);
+      
+      if (chatIndex !== -1) {
+        // Aggiorna la chat esistente
+        const updatedChat = { ...updatedChats[chatIndex] };
+        
+        // Aggiungi il nuovo messaggio alla lista dei messaggi
+        updatedChat.messages = [...updatedChat.messages, message];
+        
+        // Aggiorna l'ultimo messaggio
+        updatedChat.lastMessage = message;
+        
+        // Sostituisci la chat nell'array
+        updatedChats[chatIndex] = updatedChat;
+        
+        // Se l'utente sta scorrendo, aggiorna i messaggi non letti
+        if (isUserScrolling) {
+          setUnreadMessages(prev => ({
+            ...prev,
+            [chatId]: (prev[chatId] || 0) + 1
+          }));
+        }
+      }
+      
+      return updatedChats;
+    });
+  }, [isUserScrolling]);
+  
+  // Funzione per gestire gli aggiornamenti delle chat
+  const handleChatUpdate = useCallback((updatedChat) => {
+    setChats(prevChats => {
+      // Crea una copia profonda dell'array delle chat
+      const updatedChats = [...prevChats];
+      
+      // Trova la chat da aggiornare
+      const chatIndex = updatedChats.findIndex(chat => chat.id === updatedChat.id);
+      
+      if (chatIndex !== -1) {
+        // Aggiorna la chat esistente
+        updatedChats[chatIndex] = {
+          ...updatedChats[chatIndex],
+          ...updatedChat
+        };
+      } else {
+        // Aggiungi la nuova chat all'inizio dell'array
+        updatedChats.unshift(updatedChat);
+        
+        // Aggiorna l'ordine delle chat
+        setChatOrder(prev => [updatedChat.id, ...prev]);
+      }
+      
+      return updatedChats;
+    });
+  }, []);
 
   const handleScroll = (e) => {
     const element = e.target;
