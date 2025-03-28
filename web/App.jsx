@@ -199,36 +199,6 @@ function App() {
       setIsLoading(false);
     }
   };
-
-  // Carica i sinonimi dal database
-  const loadChatSynonyms = async () => {
-    try {
-      const synonymsMap = {};
-      const response = await fetch(`${API_BASE_URL}/api/chats`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const chatsData = await response.json();
-      
-      // Per ogni chat, carica il sinonimo
-      for (const chat of chatsData) {
-        try {
-          const synonymResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/synonym`);
-          if (synonymResponse.ok) {
-            const data = await synonymResponse.json();
-            if (data.synonym) {
-              synonymsMap[chat.id] = data.synonym;
-            }
-          }
-        } catch (error) {
-          console.warn(`Errore nel caricamento del sinonimo per la chat ${chat.id}:`, error);
-        }
-      }
-      setChatSynonyms(synonymsMap);
-    } catch (error) {
-      console.error("Errore nel caricamento dei sinonimi:", error);
-    }
-  };
   
   // Funzione per gestire i nuovi messaggi
   const handleNewMessage = useCallback((payload) => {
