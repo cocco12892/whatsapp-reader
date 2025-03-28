@@ -342,6 +342,10 @@ const AlertTable = () => {
   };
 
   useEffect(() => {
+    // Sempre in pausa all'avvio, indipendentemente dal valore salvato
+    setIsPaused(true);
+    localStorage.setItem('alertTablePaused', 'true');
+    
     fetchAlerts();
     
     // Set up auto-refresh every 5 seconds, but only if not paused
