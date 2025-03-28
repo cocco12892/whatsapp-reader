@@ -42,7 +42,7 @@ const AlertTable = () => {
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [matrixData, setMatrixData] = useState(null);
   const [matrixLoading, setMatrixLoading] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
   const [latestCursor, setLatestCursor] = useState(() => {
     // Initialize latestCursor from localStorage if available
@@ -362,12 +362,10 @@ const AlertTable = () => {
     };
   }, [latestCursor, isPaused]);
 
-  // Load expanded state from localStorage on component mount
+  // Sempre collassato all'avvio, indipendentemente dal valore salvato
   useEffect(() => {
-    const savedExpandedState = localStorage.getItem('alertTableExpanded');
-    if (savedExpandedState !== null) {
-      setIsExpanded(savedExpandedState === 'true');
-    }
+    setIsExpanded(false);
+    localStorage.setItem('alertTableExpanded', 'false');
   }, []);
   
   // Save expanded state to localStorage when it changes

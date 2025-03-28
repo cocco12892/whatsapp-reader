@@ -36,7 +36,7 @@ const DirettaGames = () => {
   const [games, setGames] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
   const [activeTab, setActiveTab] = useState('current'); // 'current', 'past' o 'future'
   const [gameDetails, setGameDetails] = useState({});
@@ -273,11 +273,9 @@ const DirettaGames = () => {
   useEffect(() => {
     fetchGames();
     
-    // Carica lo stato di espansione dal localStorage se disponibile
-    const savedExpandedState = localStorage.getItem('direttaGamesExpanded');
-    if (savedExpandedState !== null) {
-      setIsExpanded(savedExpandedState === 'true');
-    }
+    // Sempre collassato all'avvio, indipendentemente dal valore salvato
+    setIsExpanded(false);
+    localStorage.setItem('direttaGamesExpanded', 'false');
     
     // Sempre in pausa all'avvio, indipendentemente dal valore salvato
     setIsPaused(true);

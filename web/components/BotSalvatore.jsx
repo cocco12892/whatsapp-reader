@@ -25,7 +25,7 @@ const BotSalvatore = () => {
   const [bettingData, setBettingData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
 
   const LOGIN_URL = "https://tennisbestingbet.info:48634/LOGIN";
@@ -196,11 +196,9 @@ const BotSalvatore = () => {
       fetchBettingHistory(savedToken);
     }
     
-    // Load expanded state from localStorage if available
-    const savedExpandedState = localStorage.getItem('botSalvatoreExpanded');
-    if (savedExpandedState !== null) {
-      setIsExpanded(savedExpandedState === 'true');
-    }
+    // Sempre collassato all'avvio, indipendentemente dal valore salvato
+    setIsExpanded(false);
+    localStorage.setItem('botSalvatoreExpanded', 'false');
     
     // Sempre in pausa all'avvio, indipendentemente dal valore salvato
     setIsPaused(true);
