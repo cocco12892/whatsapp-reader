@@ -200,59 +200,33 @@ function App() {
 
   // Carica i sinonimi dal database
   const loadChatSynonyms = async () => {
+    try {
+      const synonymsMap = {};
+      const response = await fetch(`${API_BASE_URL}/api/chats`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const chatsData = await response.json();
       
-      ws.onopen = () => {
-        console.log('WebSocket connesso');
-      };
-      
-      ws.onmessage = (event) => {
+      // Per ogni chat, carica il sinonimo
+      for (const chat of chatsData) {
         try {
-          const data = JSON.parse(event.data);
-          
-          switch (data.type) {
-            case 'new_message':
-              // Aggiorna la chat con il nuovo messaggio
-              handleNewMessage(data.payload);
-              break;
-            case 'chat_updated':
-              // Aggiorna la chat modificata
-              handleChatUpdate(data.payload);
-              break;
-            default:
-              console.log('Messaggio WebSocket non riconosciuto:', data);
+          const synonymResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/synonym`);
+          if (synonymResponse.ok) {
+            const data = await synonymResponse.json();
+            if (data.synonym) {
+              synonymsMap[chat.id] = data.synonym;
+            }
           }
         } catch (error) {
-          console.error('Errore nel parsing del messaggio WebSocket:', error);
+          console.warn(`Errore nel caricamento del sinonimo per la chat ${chat.id}:`, error);
         }
-      };
-      
-      ws.onclose = (event) => {
-        console.log('WebSocket disconnesso:', event.reason);
-        // Riconnetti dopo un breve ritardo
-        setTimeout(connectWebSocket, 3000);
-      };
-      
-      ws.onerror = (error) => {
-        console.error('Errore WebSocket:', error);
-        ws.close();
-      };
-      
-      wsRef.current = ws;
-    };
-    
-    // Stabilisci la connessione iniziale
-    connectWebSocket();
-    
-    // Carica le chat iniziali
-    fetchChats();
-    
-    // Cleanup alla disconnessione
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
       }
-    };
-  }, [WS_URL]);
+      setChatSynonyms(synonymsMap);
+    } catch (error) {
+      console.error("Errore nel caricamento dei sinonimi:", error);
+    }
+  };
   
   // Funzione per gestire i nuovi messaggi
   const handleNewMessage = useCallback((payload) => {
