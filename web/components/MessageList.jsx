@@ -217,10 +217,26 @@ const [recordedMessages, setRecordedMessages] = useState(() => {
 });
 
 // State for noted messages
-const [notedMessages, setNotedMessages] = useState(() => {
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-  return new Set(Object.keys(messageNotes));
-});
+const [notedMessages, setNotedMessages] = useState(new Set());
+const [messageNotes, setMessageNotes] = useState({});
+
+// Carica le note dal server all'avvio
+useEffect(() => {
+  fetch('/api/message-notes')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Errore nel caricamento delle note');
+      }
+      return response.json();
+    })
+    .then(notes => {
+      setMessageNotes(notes);
+      setNotedMessages(new Set(Object.keys(notes)));
+    })
+    .catch(error => {
+      console.error('Errore nel caricamento delle note:', error);
+    });
+}, []);
 
 // State for notes group view
 const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
@@ -565,19 +581,15 @@ const addVisualEffect = (messageId, effectName) => {
   }
 };
 
-// Handle noting a message - versione pragmatica
+// Handle noting a message - versione con database
 const addMessageNote = (messageId) => {
   console.log('Adding note for message:', messageId);
     
   const note = prompt("Inserisci una nota per il messaggio:");
   if (!note) return;
 
-  // Ottieni le note esistenti come oggetto
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-    
-  // Salva direttamente la nota usando l'ID del messaggio come chiave
-  messageNotes[messageId] = {
-    messageId: messageId,
+  // Crea l'oggetto nota
+  const noteData = {
     note: note,
     type: 'nota',
     chatName: getChatName(chat?.id, chat?.name) || 'Chat sconosciuta',
@@ -585,42 +597,66 @@ const addMessageNote = (messageId) => {
     addedAt: new Date().toISOString()
   };
   
-  // Salva nel localStorage
-  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
-  
-  // Debug logging
-  console.log('New note entry:', messageNotes[messageId]);
-  console.log('All message notes:', messageNotes);
-  
-  // Update state
-  setNotedMessages(prev => new Set([...prev, messageId]));
-
-  // Visual effect with requestAnimationFrame for better performance
-  const messageElement = document.getElementById(`message-${messageId}`);
-  if (messageElement) {
-    requestAnimationFrame(() => {
-      messageElement.style.animation = 'notePulse 0.8s';
-      
-      // If the animation style doesn't exist, add it
-      if (!document.getElementById('note-animation')) {
-        const styleTag = document.createElement('style');
-        styleTag.id = 'note-animation';
-        styleTag.innerHTML = `
-          @keyframes notePulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
-            100% { transform: scale(1); }
-          }
-        `;
-        document.head.appendChild(styleTag);
-      }
-      
-      // Remove the animation after it finishes
-      setTimeout(() => {
-        messageElement.style.animation = '';
-      }, 800);
+  // Invia la nota al server
+  fetch(`/api/messages/${messageId}/note`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(noteData),
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Errore nel salvataggio della nota');
+    }
+    return response.json();
+  })
+  .then(data => {
+    console.log('Nota salvata con successo:', data);
+    
+    // Aggiorna lo stato locale
+    setMessageNotes(prev => {
+      const newNotes = {...prev};
+      newNotes[messageId] = {
+        messageId: messageId,
+        ...noteData
+      };
+      return newNotes;
     });
-  }
+    
+    setNotedMessages(prev => new Set([...prev, messageId]));
+    
+    // Visual effect with requestAnimationFrame for better performance
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (messageElement) {
+      requestAnimationFrame(() => {
+        messageElement.style.animation = 'notePulse 0.8s';
+        
+        // If the animation style doesn't exist, add it
+        if (!document.getElementById('note-animation')) {
+          const styleTag = document.createElement('style');
+          styleTag.id = 'note-animation';
+          styleTag.innerHTML = `
+            @keyframes notePulse {
+              0% { transform: scale(1); }
+              50% { transform: scale(1.03); background-color: rgba(76, 175, 80, 0.2); }
+              100% { transform: scale(1); }
+            }
+          `;
+          document.head.appendChild(styleTag);
+        }
+        
+        // Remove the animation after it finishes
+        setTimeout(() => {
+          messageElement.style.animation = '';
+        }, 800);
+      });
+    }
+  })
+  .catch(error => {
+    console.error('Errore nel salvataggio della nota:', error);
+    alert('Errore nel salvataggio della nota');
+  });
 };
 
 // Funzione per gestire l'eliminazione
@@ -660,55 +696,62 @@ const handleDeleteRecord = () => {
 const removeMessageNote = (messageId) => {
   console.log('Removing note for message:', messageId);
   
-  // Ottieni le note esistenti come oggetto
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-  
-  // Rimuovi la nota per questo messaggio specifico
-  if (messageNotes[messageId]) {
-    delete messageNotes[messageId];
-  }
-  
-  // Salva nel localStorage
-  localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
-  
-  // Update state
-  setNotedMessages(prev => {
-    const newSet = new Set([...prev]);
-    newSet.delete(messageId);
-    return newSet;
-  });
-
-  // Visual effect
-  const messageElement = document.getElementById(`message-${messageId}`);
-  if (messageElement) {
-    messageElement.style.animation = 'noteRemovePulse 0.8s';
-    
-    // If the animation style doesn't exist, add it
-    if (!document.getElementById('note-remove-animation')) {
-      const styleTag = document.createElement('style');
-      styleTag.id = 'note-remove-animation';
-      styleTag.innerHTML = `
-        @keyframes noteRemovePulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(0.97); background-color: rgba(244, 67, 54, 0.1); }
-          100% { transform: scale(1); }
-        }
-      `;
-      document.head.appendChild(styleTag);
+  // Rimuovi la nota dal server
+  fetch(`/api/messages/${messageId}/note`, {
+    method: 'DELETE',
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Errore nella rimozione della nota');
     }
     
-    // Remove the animation after it finishes
-    setTimeout(() => {
-      messageElement.style.animation = '';
-    }, 800);
-  }
+    // Aggiorna lo stato locale
+    setMessageNotes(prev => {
+      const newNotes = {...prev};
+      delete newNotes[messageId];
+      return newNotes;
+    });
+    
+    setNotedMessages(prev => {
+      const newSet = new Set([...prev]);
+      newSet.delete(messageId);
+      return newSet;
+    });
+
+    // Visual effect
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (messageElement) {
+      messageElement.style.animation = 'noteRemovePulse 0.8s';
+      
+      // If the animation style doesn't exist, add it
+      if (!document.getElementById('note-remove-animation')) {
+        const styleTag = document.createElement('style');
+        styleTag.id = 'note-remove-animation';
+        styleTag.innerHTML = `
+          @keyframes noteRemovePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.97); background-color: rgba(244, 67, 54, 0.1); }
+            100% { transform: scale(1); }
+          }
+        `;
+        document.head.appendChild(styleTag);
+      }
+      
+      // Remove the animation after it finishes
+      setTimeout(() => {
+        messageElement.style.animation = '';
+      }, 800);
+    }
+  })
+  .catch(error => {
+    console.error('Errore nella rimozione della nota:', error);
+    alert('Errore nella rimozione della nota');
+  });
 };
 
 // Replace handleNote with these two functions
 const handleNote = (messageId) => {
-  const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-  
-  if (messageNotes[messageId]) {
+  if (notedMessages.has(messageId)) {
     removeMessageNote(messageId);
   } else {
     addMessageNote(messageId);
@@ -757,8 +800,7 @@ return (
   <Box onClick={closeContextMenu} className="message-container">
     {filteredMessages.map((message) => {
       const isRecorded = recordedMessages.has(message.id);
-      const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-      const isNoted = messageNotes[message.id] ? true : false;
+      const isNoted = notedMessages.has(message.id);
       const imageContent = extractImageContent(message.content);
       
       return (
@@ -892,10 +934,10 @@ return (
                     fontSize: 10,
                     cursor: 'pointer'
                   }}
-                  title={`Messaggio annotato: ${messageNotes[message.id]?.note}`}
+                  title={`Messaggio annotato: ${messageNotes[message.id]?.note || ''}`}
                 >
                   <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    {messageNotes[message.id]?.note && (
+                    {messageNotes[message.id] && messageNotes[message.id].note && (
                       <Typography 
                         variant="caption" 
                         sx={{ 
@@ -915,7 +957,7 @@ return (
                           zIndex: 10
                         }}
                       >
-                        {messageNotes[message.id]?.note}
+                        {messageNotes[message.id].note}
                       </Typography>
                     )}
                     <NoteIcon sx={{ fontSize: 10 }} />
