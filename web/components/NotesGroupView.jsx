@@ -282,28 +282,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
   
   // Get chat synonym if available
   const getChatName = (chatId, defaultName) => {
-    // Carica il sinonimo dal database
-    const [synonym, setSynonym] = useState(defaultName);
-    
-    useEffect(() => {
-      const fetchSynonym = async () => {
-        try {
-          const response = await fetch(`/api/chats/${chatId}/synonym`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.synonym) {
-              setSynonym(data.synonym);
-            }
-          }
-        } catch (error) {
-          console.warn(`Errore nel caricamento del sinonimo per la chat ${chatId}:`, error);
-        }
-      };
-      
-      fetchSynonym();
-    }, [chatId]);
-    
-    return synonym;
+    return chatSynonyms[chatId] || defaultName;
   };
 
   
