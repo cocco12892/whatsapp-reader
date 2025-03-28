@@ -239,6 +239,16 @@ useEffect(() => {
           // Estrai gli ID dei messaggi registrati
           const messageIds = data.map(item => item.messageId);
           setRecordedMessages(new Set(messageIds));
+          
+          // Carica i valori per ogni messaggio registrato
+          data.forEach(item => {
+            setTimeout(() => {
+              const valueElement = document.getElementById(`recorded-value-${item.messageId}`);
+              if (valueElement && item.data) {
+                valueElement.textContent = item.data;
+              }
+            }, 100); // Piccolo ritardo per assicurarsi che l'elemento esista nel DOM
+          });
         }
       })
       .catch(error => {
@@ -964,30 +974,9 @@ return (
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         maxWidth: 100,
-                        zIndex: 10,
-                        opacity: 0, // Inizialmente nascosto
-                        transition: 'opacity 0.2s ease',
-                        '&:hover': {
-                          opacity: 1 // Mostra al passaggio del mouse
-                        }
+                        zIndex: 10
                       }}
-                      onMouseEnter={(e) => {
-                        // Carica il valore dal database al passaggio del mouse
-                        fetch(`/api/recorded-data/${message.id}`)
-                          .then(response => {
-                            if (!response.ok) return null;
-                            return response.json();
-                          })
-                          .then(data => {
-                            if (data && data.data) {
-                              e.target.textContent = data.data;
-                              e.target.style.opacity = 1;
-                            }
-                          })
-                          .catch(error => {
-                            console.error('Errore nel caricamento del dato:', error);
-                          });
-                      }}
+                      id={`recorded-value-${message.id}`}
                     >
                       Caricamento...
                     </Typography>
