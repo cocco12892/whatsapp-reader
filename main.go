@@ -1453,6 +1453,24 @@ func main() {
 		c.JSON(http.StatusOK, notes)
 	})
 	
+	// API per ottenere tutte le note (alias di message-notes per compatibilità)
+	router.GET("/api/notes", func(c *gin.Context) {
+		// Carica tutte le note dei messaggi
+		notes, err := dbManager.LoadMessageNotes()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento delle note: %v", err)})
+			return
+		}
+		
+		// Converti in array per compatibilità con il frontend
+		notesArray := make([]interface{}, 0, len(notes))
+		for _, note := range notes {
+			notesArray = append(notesArray, note)
+		}
+		
+		c.JSON(http.StatusOK, notesArray)
+	})
+	
 	router.POST("/api/messages/:id/note", func(c *gin.Context) {
 		messageID := c.Param("id")
 		
@@ -1503,6 +1521,30 @@ func main() {
 			return
 		}
 		
+		c.JSON(http.StatusOK, gin.H{"status": "success"})
+	})
+	
+	// API per eliminare una nota (alias per compatibilità)
+	router.DELETE("/api/notes/:id", func(c *gin.Context) {
+		messageID := c.Param("id")
+		
+		// Rimuovi la nota dal database
+		if err := dbManager.DeleteMessageNote(messageID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nella rimozione della nota: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"status": "success"})
+	})
+	
+	// API per i dati registrati (placeholder per compatibilità)
+	router.GET("/api/recorded-data", func(c *gin.Context) {
+		// Per ora restituisce un array vuoto
+		c.JSON(http.StatusOK, []interface{}{})
+	})
+	
+	// API per eliminare un dato registrato (placeholder per compatibilità)
+	router.DELETE("/api/recorded-data/:id", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "success"})
 	})
 
