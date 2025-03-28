@@ -174,19 +174,32 @@ const safeImagePath = (path) => {
     }
   };
 
-  // Carica i sinonimi all'avvio dell'app
-  useEffect(() => {
-    loadChatSynonyms();
+function App() {
+  // WebSocket URL basato sull'URL corrente
+  const WS_URL = useMemo(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    return `${protocol}//${host}/ws`;
   }, []);
 
-  // Riferimento al WebSocket
-  const wsRef = useRef(null);
+  const [chats, setChats] = useState([]);
+  const [chatOrder, setChatOrder] = useState([]);
+  const [clientJID, setClientJID] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState({});
+  const [lastSeenMessages, setLastSeenMessages] = useState({});
+  const [seenMessages, setSeenMessages] = useState(new Set());
+  const [modalImage, setModalImage] = useState(null);
+  const [rotation, setRotation] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
+  const [chatSynonyms, setChatSynonyms] = useState({});
   
-  // Gestione della connessione WebSocket
-  useEffect(() => {
-    // Funzione per stabilire la connessione WebSocket
-    const connectWebSocket = () => {
-      const ws = new WebSocket(WS_URL);
+
+  // Carica i sinonimi dal database
+  const loadChatSynonyms = async () => {
       
       ws.onopen = () => {
         console.log('WebSocket connesso');
