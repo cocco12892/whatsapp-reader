@@ -220,6 +220,7 @@ const [recordedMessages, setRecordedMessages] = useState(() => {
 const [notedMessages, setNotedMessages] = useState(new Set());
 const [messageNotes, setMessageNotes] = useState({});
 
+
 // Carica le note dal server all'avvio
 useEffect(() => {
   loadNotesFromDB();
