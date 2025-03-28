@@ -236,21 +236,26 @@ function App() {
         // Aggiorna la chat esistente
         const updatedChat = { ...updatedChats[chatIndex] };
         
-        // Aggiungi il nuovo messaggio alla lista dei messaggi
-        updatedChat.messages = [...updatedChat.messages, message];
+        // Verifica se il messaggio esiste già per evitare duplicati
+        const messageExists = updatedChat.messages.some(m => m.id === message.id);
         
-        // Aggiorna l'ultimo messaggio
-        updatedChat.lastMessage = message;
-        
-        // Sostituisci la chat nell'array
-        updatedChats[chatIndex] = updatedChat;
-        
-        // Se l'utente sta scorrendo, aggiorna i messaggi non letti
-        if (isUserScrolling) {
-          setUnreadMessages(prev => ({
-            ...prev,
-            [chatId]: (prev[chatId] || 0) + 1
-          }));
+        if (!messageExists) {
+          // Aggiungi il nuovo messaggio alla lista dei messaggi
+          updatedChat.messages = [...updatedChat.messages, message];
+          
+          // Aggiorna l'ultimo messaggio
+          updatedChat.lastMessage = message;
+          
+          // Sostituisci la chat nell'array
+          updatedChats[chatIndex] = updatedChat;
+          
+          // Se l'utente sta scorrendo, aggiorna i messaggi non letti
+          if (isUserScrolling) {
+            setUnreadMessages(prev => ({
+              ...prev,
+              [chatId]: (prev[chatId] || 0) + 1
+            }));
+          }
         }
         
         return updatedChats;
@@ -264,6 +269,15 @@ function App() {
   const handleChatUpdate = useCallback((updatedChat) => {
     console.log("Aggiornamento chat ricevuto via WebSocket:", updatedChat);
     
+    // Verifica se è necessario ricaricare tutte le chat
+    const shouldRefetchAll = !chats.some(chat => chat.id === updatedChat.id);
+    
+    if (shouldRefetchAll) {
+      console.log("Nuova chat rilevata, ricarico tutte le chat...");
+      fetchChats();
+      return;
+    }
+    
     setChats(prevChats => {
       // Crea una copia profonda dell'array delle chat
       const updatedChats = [...prevChats];
@@ -275,45 +289,15 @@ function App() {
         // Aggiorna la chat esistente
         updatedChats[chatIndex] = {
           ...updatedChats[chatIndex],
-          ...updatedChat
+          ...updatedChat,
+          // Mantieni i messaggi esistenti
+          messages: updatedChats[chatIndex].messages || []
         };
-      } else {
-        // Aggiungi la nuova chat all'inizio dell'array
-        updatedChats.unshift(updatedChat);
-        
-        // Aggiorna l'ordine delle chat
-        setChatOrder(prev => [updatedChat.id, ...prev]);
-        
-        // Carica i messaggi per questa nuova chat
-        fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(updatedChat.id)}/messages`)
-          .then(response => {
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-          })
-          .then(messages => {
-            // Aggiorna la chat con i messaggi
-            setChats(currentChats => {
-              return currentChats.map(chat => {
-                if (chat.id === updatedChat.id) {
-                  return {
-                    ...chat,
-                    messages: messages
-                  };
-                }
-                return chat;
-              });
-            });
-          })
-          .catch(error => {
-            console.error('Errore nel caricamento dei messaggi per la nuova chat:', error);
-          });
       }
       
       return updatedChats;
     });
-  }, [API_BASE_URL]);
+  }, [chats, fetchChats]);
 
   // Riferimento al WebSocket
   const wsRef = useRef(null);
@@ -382,9 +366,7 @@ function App() {
               console.log('Chat aggiornata ricevuta:', data.payload);
               // Aggiorna la chat modificata
               handleChatUpdate(data.payload);
-              // Ricarica le chat per assicurarsi che tutte le chat siano aggiornate
-              // Questo è importante quando si ricevono messaggi da nuove chat
-              setTimeout(() => fetchChats(), 500);
+              // Non facciamo più il polling automatico, aspettiamo solo gli eventi WebSocket
               break;
             case 'connection_established':
               console.log('Connessione WebSocket stabilita:', data.payload);
@@ -438,7 +420,7 @@ function App() {
     // Stabilisci la connessione iniziale
     connectWebSocket();
     
-    // Carica le chat iniziali
+    // Carica le chat iniziali solo una volta all'avvio
     fetchChats();
     
     // Cleanup alla disconnessione

@@ -224,6 +224,8 @@ const [recordedMessages, setRecordedMessages] = useState(new Set());
 
 // Carica i messaggi registrati dal database
 useEffect(() => {
+  let isMounted = true;
+  
   if (chat && chat.id) {
     fetch(`/api/recorded-data/chat/${chat.id}`)
       .then(response => {
@@ -236,6 +238,9 @@ useEffect(() => {
         return response.json();
       })
       .then(data => {
+        // Verifica che il componente sia ancora montato prima di aggiornare lo stato
+        if (!isMounted) return;
+        
         if (Array.isArray(data) && data.length > 0) {
           // Estrai gli ID dei messaggi registrati
           const messageIds = data.map(item => item.messageId);
@@ -244,6 +249,7 @@ useEffect(() => {
           // Carica i valori per ogni messaggio registrato
           data.forEach(item => {
             setTimeout(() => {
+              if (!isMounted) return;
               const valueElement = document.getElementById(`recorded-value-${item.messageId}`);
               if (valueElement && item.data) {
                 valueElement.textContent = item.data;
@@ -256,7 +262,12 @@ useEffect(() => {
         console.error('Errore nel caricamento dei dati registrati:', error);
       });
   }
-}, [chat]);
+  
+  // Cleanup function per evitare aggiornamenti di stato su componenti smontati
+  return () => {
+    isMounted = false;
+  };
+}, [chat?.id]); // Dipendenza più specifica per evitare chiamate inutili
 
 // State for noted messages
 const [notedMessages, setNotedMessages] = useState(new Set());
