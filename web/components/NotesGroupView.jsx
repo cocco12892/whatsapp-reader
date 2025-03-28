@@ -41,13 +41,50 @@ const NotesGroupView = ({ open, onClose, chats }) => {
 
   useEffect(() => {
     if (open) {
-      // Load notes from localStorage
-      const storedNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-      setNotes(storedNotes);
+      // Carica le note dal database
+      const fetchNotes = async () => {
+        try {
+          const response = await fetch('/api/notes');
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const notesData = await response.json();
+          
+          // Converti l'array di note in un oggetto con messageId come chiave
+          const notesObj = {};
+          notesData.forEach(note => {
+            notesObj[note.messageId] = note;
+          });
+          
+          setNotes(notesObj);
+        } catch (error) {
+          console.error("Errore nel caricamento delle note:", error);
+        }
+      };
       
-      // Load recorded data from localStorage
-      const storedRecorded = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
-      setRecordedData(storedRecorded);
+      // Carica i dati registrati dal database
+      const fetchRecordedData = async () => {
+        try {
+          const response = await fetch('/api/recorded-data');
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const recordedData = await response.json();
+          
+          // Converti l'array in un oggetto con messageId come chiave
+          const recordedObj = {};
+          recordedData.forEach(item => {
+            recordedObj[item.messageId] = item;
+          });
+          
+          setRecordedData(recordedObj);
+        } catch (error) {
+          console.error("Errore nel caricamento dei dati registrati:", error);
+        }
+      };
+      
+      fetchNotes();
+      fetchRecordedData();
       
       // Carica i sinonimi delle chat dal database
       const loadChatSynonyms = async () => {
@@ -196,12 +233,19 @@ const NotesGroupView = ({ open, onClose, chats }) => {
   }, [open]);
 
   // Handle deleting a note
-  const handleDeleteNote = (messageId) => {
-    const updatedNotes = {...notes};
-    delete updatedNotes[messageId];
-    
-    setNotes(updatedNotes);
-    localStorage.setItem('messageNotes', JSON.stringify(updatedNotes));
+  const handleDeleteNote = async (messageId) => {
+    try {
+      const response = await fetch(`/api/notes/${messageId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const updatedNotes = {...notes};
+      delete updatedNotes[messageId];
+      setNotes(updatedNotes);
     
     // Update groups as well
     const newGroupedNotes = {};
@@ -238,12 +282,19 @@ const NotesGroupView = ({ open, onClose, chats }) => {
   };
   
   // Handle deleting recorded data
-  const handleDeleteRecorded = (messageId) => {
-    const updatedRecorded = {...recordedData};
-    delete updatedRecorded[messageId];
-    
-    setRecordedData(updatedRecorded);
-    localStorage.setItem('recordedMessagesData', JSON.stringify(updatedRecorded));
+  const handleDeleteRecorded = async (messageId) => {
+    try {
+      const response = await fetch(`/api/recorded-data/${messageId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const updatedRecorded = {...recordedData};
+      delete updatedRecorded[messageId];
+      setRecordedData(updatedRecorded);
     
     // Update groups as well
     const newGroupedRecorded = {...groupedRecorded};
