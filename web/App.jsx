@@ -21,7 +21,7 @@ import NoteIcon from '@mui/icons-material/Note';
 import { Button } from '@mui/material';
 import BotSalvatore from './components/BotSalvatore';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 const POLLING_INTERVAL = 5000; // 5 secondi
 
 // Funzione per codificare in modo sicuro i percorsi delle immagini
@@ -66,7 +66,7 @@ function App() {
   const loadChatSynonyms = async () => {
     try {
       const synonymsMap = {};
-      const response = await fetch(`${API_BASE_URL}/chats`);
+      const response = await fetch(`${API_BASE_URL}/api/chats`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -75,7 +75,7 @@ function App() {
       // Per ogni chat, carica il sinonimo
       for (const chat of chatsData) {
         try {
-          const synonymResponse = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chat.id)}/synonym`);
+          const synonymResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/synonym`);
           if (synonymResponse.ok) {
             const data = await synonymResponse.json();
             if (data.synonym) {
@@ -95,7 +95,7 @@ function App() {
   // Funzione per impostare un sinonimo per una chat
   const setChatSynonym = async (chatId, synonym) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chatId)}/synonym`, {
+      const response = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chatId)}/synonym`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ function App() {
   // Funzione per rimuovere un sinonimo
   const removeChatSynonym = async (chatId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chatId)}/synonym`, {
+      const response = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chatId)}/synonym`, {
         method: 'DELETE',
       });
       
@@ -142,7 +142,7 @@ function App() {
   const fetchChats = async () => {
     try {
       console.log("Fetching chats...");
-      const response = await fetch(`${API_BASE_URL}/chats`);
+      const response = await fetch(`${API_BASE_URL}/api/chats`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -150,7 +150,7 @@ function App() {
       console.log("Received chats data:", chatsData);
       
       const preparedChats = await Promise.all(chatsData.map(async (chat) => {
-        const messagesResponse = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chat.id)}/messages`);
+        const messagesResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/messages`);
         if (!messagesResponse.ok) {
           throw new Error(`HTTP error! status: ${messagesResponse.status}`);
         }
