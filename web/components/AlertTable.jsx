@@ -865,7 +865,7 @@ const AlertTable = () => {
                         <TableCell>{group.match}</TableCell>
                         <TableCell>{group.league}</TableCell>
                         <TableCell>{group.lineInfo}</TableCell>
-                        <TableCell>{group.eventId}</TableCell>
+                        <TableCell>{latestAlert.id.split('-')[0]}</TableCell>
                         <TableCell>
                           {group.alerts.length} alerts • Latest: {new Date(parseInt(latestAlert.id.split('-')[0])).toLocaleTimeString()}
                           <IconButton size="small" sx={{ ml: 1 }}>

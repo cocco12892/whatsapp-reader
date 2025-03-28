@@ -393,7 +393,7 @@ const DirettaGames = () => {
     try {
       const chatId = "120363020650012487@g.us";
       const messageData = {
-        content: reminder.message || `Reminder: ${reminder.gameTeams}`
+        content: reminder.message || `Reminder automatico: ${reminder.gameTeams}`
       };
       
       const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
