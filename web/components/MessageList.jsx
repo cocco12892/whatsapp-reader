@@ -296,6 +296,8 @@ const loadNotesFromDB = useCallback(() => {
       return response.json();
     })
     .then(notes => {
+      // Salva le note sia nello stato che nella cache globale
+      window.cachedNotes = notes;
       setMessageNotes(notes);
       setNotedMessages(new Set(Object.keys(notes)));
     })
@@ -304,9 +306,17 @@ const loadNotesFromDB = useCallback(() => {
     });
 }, []);
 
-// Carica le note dal server all'avvio
+// Carica le note dal server all'avvio, ma con gestione della cache
 useEffect(() => {
-  loadNotesFromDB();
+  // Controlla se le note sono già state caricate
+  if (!window.notesLoaded) {
+    loadNotesFromDB();
+    window.notesLoaded = true;
+  } else if (window.cachedNotes) {
+    // Usa le note cache
+    setMessageNotes(window.cachedNotes);
+    setNotedMessages(new Set(Object.keys(window.cachedNotes)));
+  }
 }, [loadNotesFromDB]);
 
 const resetDialogState = () => {
@@ -603,17 +613,46 @@ const handleAmountQuotaSubmit = () => {
   .then(data => {
     console.log('Dati salvati con successo:', data);
     
-    // Aggiorna lo stato locale per riflettere il cambiamento
+    // FASE 1: Aggiorna temporaneamente lo stato locale per feedback immediato
     setRecordedMessages(prev => {
       const newSet = new Set([...prev]);
       newSet.add(messageId);
       return newSet;
     });
     
-    resetDialogState();
+    // FASE 2: Ricarica i dati dal server per assicurarsi che lo stato locale sia sincronizzato
+    return fetch(`/api/recorded-data/chat/${chat.id}`);
+  })
+  .then(response => {
+    if (!response.ok) {
+      console.warn('Errore nel refetch dei dati registrati:', response.status);
+      // Anche se il refetch fallisce, i dati locali sono già stati aggiornati temporaneamente
+      return [];
+    }
+    return response.json();
+  })
+  .then(refreshedData => {
+    if (Array.isArray(refreshedData) && refreshedData.length > 0) {
+      // Aggiorna lo stato con i dati freschi dal server
+      const messageIds = refreshedData.map(item => item.messageId);
+      setRecordedMessages(new Set(messageIds));
+      
+      // Aggiorna i valori per ogni messaggio registrato
+      refreshedData.forEach(item => {
+        setTimeout(() => {
+          const valueElement = document.getElementById(`recorded-value-${item.messageId}`);
+          if (valueElement && item.data) {
+            valueElement.textContent = item.data;
+          }
+        }, 100);
+      });
+    }
     
     // Add visual effect
     addVisualEffect(messageId, isEditMode ? 'updatePulse' : 'recordPulse');
+    
+    // Chiudi il dialog e resetta i campi
+    resetDialogState();
   })
   .catch(error => {
     console.error('Errore nel salvataggio dei dati:', error);

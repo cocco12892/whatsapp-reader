@@ -34,12 +34,26 @@ function ChatWindow({
   useEffect(() => {
     let isMounted = true;
     
+    // Inizializza la cache globale dei sinonimi se non esiste
+    if (!window.loadedSynonyms) {
+      window.loadedSynonyms = {};
+    }
+    
+    // Se abbiamo già questo sinonimo in cache, usalo
+    if (window.loadedSynonyms[chat.id]) {
+      setChatSynonym(window.loadedSynonyms[chat.id]);
+      return;
+    }
+    
+    // Altrimenti caricalo dal server
     const fetchSynonym = async () => {
       try {
         const response = await fetch(`/api/chats/${chat.id}/synonym`);
         if (response.ok && isMounted) {
           const data = await response.json();
           if (data.synonym) {
+            // Salva in cache e nello stato
+            window.loadedSynonyms[chat.id] = data.synonym;
             setChatSynonym(data.synonym);
           }
         }

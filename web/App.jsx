@@ -43,6 +43,11 @@ const safeImagePath = (path) => {
 };
 
 function App() {
+  // Track the last fetch time for each chat and a global fetching flag
+  const lastFetchTime = {};
+  const FETCH_THROTTLE_MS = 3000; // 3 seconds minimum between fetches for same chat
+  let isCurrentlyFetching = false;
+
   // WebSocket URL basato sull'URL corrente
   const WS_URL = useMemo(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -156,31 +161,132 @@ function App() {
 
   const fetchChats = useCallback(async () => {
     try {
+      // Verifica se stiamo già facendo un fetch o se è passato troppo poco tempo
+      const now = Date.now();
+      const GLOBAL_THROTTLE_MS = 5000; // 5 secondi di throttle globale
+      
+      if (isCurrentlyFetching) {
+        console.log("Saltando fetchChats - fetch già in corso");
+        return;
+      }
+      
+      if (window.lastGlobalFetch && now - window.lastGlobalFetch < GLOBAL_THROTTLE_MS) {
+        console.log(`Saltando fetchChats - ultimo fetch ${now - window.lastGlobalFetch}ms fa`);
+        return;
+      }
+      
       console.log("Fetching chats...");
+      isCurrentlyFetching = true;
+      window.lastGlobalFetch = now;
+      
+      // Mostra il loader solo al caricamento iniziale
+      if (chats.length === 0) {
+        setIsLoading(true);
+      }
+      
       const response = await fetch(`${API_BASE_URL}/api/chats`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
       const chatsData = await response.json();
       console.log("Received chats data:", chatsData);
       
-      const preparedChats = await Promise.all(chatsData.map(async (chat) => {
-        const messagesResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/messages`);
-        if (!messagesResponse.ok) {
-          throw new Error(`HTTP error! status: ${messagesResponse.status}`);
-        }
-        const messages = await messagesResponse.json();
+      // Confronta con lo stato attuale
+      const currentChatIds = new Set(chats.map(c => c.id));
+      const newChatIds = new Set(chatsData.map(c => c.id));
+      
+      // Verifica se ci sono chat nuove o rimosse
+      const hasNewChats = chatsData.some(c => !currentChatIds.has(c.id));
+      const hasRemovedChats = chats.some(c => !newChatIds.has(c.id));
+      
+      // Se non ci sono cambiamenti, potremmo saltare il caricamento dei messaggi
+      if (!hasNewChats && !hasRemovedChats && chats.length > 0) {
+        // Aggiorna solo i metadati delle chat
+        const updatedChats = chats.map(existingChat => {
+          const updatedChatData = chatsData.find(c => c.id === existingChat.id);
+          if (updatedChatData) {
+            // Mantieni i messaggi esistenti, ma controlla se dobbiamo aggiornare
+            // in base al timestamp dell'ultimo messaggio
+            const shouldUpdateMessages = 
+              updatedChatData.lastMessageTimestamp && 
+              existingChat.lastMessageTimestamp &&
+              new Date(updatedChatData.lastMessageTimestamp) > new Date(existingChat.lastMessageTimestamp);
+            
+            if (!shouldUpdateMessages) {
+              return {
+                ...updatedChatData,
+                messages: existingChat.messages
+              };
+            }
+            // Altrimenti, lasceremo che il codice successivo faccia fetch dei messaggi
+          }
+          return existingChat;
+        });
         
-        return {
-          ...chat,
-          messages: messages
-        };
-      }));
+        if (!updatedChats.some(chat => 
+          chat.lastMessageTimestamp && 
+          chats.find(c => c.id === chat.id)?.lastMessageTimestamp &&
+          new Date(chat.lastMessageTimestamp) > new Date(chats.find(c => c.id === chat.id).lastMessageTimestamp)
+        )) {
+          // Se non ci sono chat con nuovi messaggi, possiamo usare lo stato ottimizzato
+          setChats(updatedChats);
+          console.log("Aggiornati metadati chat senza ricaricare messaggi");
+          return;
+        }
+        // Altrimenti, continuiamo con il fetch dei messaggi solo per le chat che ne hanno bisogno
+      }
+      
+      // Processa le chat in parallelo, ma carica messaggi solo per chat nuove
+      const preparedChats = await Promise.all(
+        chatsData.map(async (chat) => {
+          try {
+            // Controlla se abbiamo già questa chat con messaggi
+            const existingChat = chats.find(c => c.id === chat.id);
+            
+            if (existingChat && existingChat.messages && existingChat.messages.length > 0) {
+              // Se abbiamo già questa chat, aggiorniamo solo i metadati
+              return {
+                ...chat,
+                messages: existingChat.messages
+              };
+            }
+            
+            // Per chat nuove o senza messaggi, facciamo fetch
+            const messagesResponse = await fetch(
+              `${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/messages`
+            );
+            
+            if (!messagesResponse.ok) {
+              console.error(`Errore fetch messaggi per chat ${chat.id}: ${messagesResponse.status}`);
+              return { ...chat, messages: [] }; // Restituisci chat con messaggi vuoti
+            }
+            
+            const messages = await messagesResponse.json();
+            
+            // Aggiorna timestamp dell'ultimo fetch
+            lastFetchTime[chat.id] = now;
+            
+            return { ...chat, messages };
+          } catch (error) {
+            console.error(`Errore processing chat ${chat.id}:`, error);
+            return { ...chat, messages: [] };
+          }
+        })
+      );
+      
+      // Applica l'ordine delle chat
+      const existingOrder = new Set(chatOrder);
+      const newChatsInExistingOrder = preparedChats.filter(c => existingOrder.has(c.id));
+      const newChatsNotInOrder = preparedChats.filter(c => !existingOrder.has(c.id));
       
       const orderedChats = chatOrder.length > 0 
-        ? chatOrder.map(id => preparedChats.find(c => c.id === id)).filter(c => c)
+        ? chatOrder
+            .map(id => preparedChats.find(c => c.id === id))
+            .filter(Boolean) // Filtra valori undefined/null
+            .concat(newChatsNotInOrder)
         : preparedChats;
-
+      
       // Aggiorna i messaggi non letti
       setUnreadMessages(prev => {
         const newUnread = { ...prev };
@@ -196,51 +302,70 @@ function App() {
         return newUnread;
       });
       
-      if (chatOrder.length !== orderedChats.length) {
-        setChatOrder(orderedChats.map(c => c.id));
+      // Aggiorna lo stato
+      setChats(orderedChats);
+      
+      // Se l'ordine chat è cambiato, aggiornalo
+      const newOrder = orderedChats.map(c => c.id);
+      if (JSON.stringify(chatOrder) !== JSON.stringify(newOrder)) {
+        setChatOrder(newOrder);
       }
       
-      setChats(orderedChats);
+      // Resetta gli errori
+      setError(null);
     } catch (error) {
       console.error('Errore nel caricamento delle chat:', error);
       setError(error.message);
     } finally {
       setIsLoading(false);
+      isCurrentlyFetching = false;
     }
-  }, [API_BASE_URL, chatOrder]);
+  }, [API_BASE_URL, chatOrder, chats]);
   
-  // Funzione per gestire i nuovi messaggi
+  // Funzione per gestire i nuovi messaggi con throttling
   const handleNewMessage = useCallback((payload) => {
     const { chatId, message } = payload;
     
     console.log("Nuovo messaggio ricevuto via WebSocket:", message);
     
+    // Se non c'è un chatId valido, non possiamo fare nulla
+    if (!chatId) {
+      console.warn("ChatId mancante nel payload");
+      return;
+    }
+    
+    // Verifica se stiamo già facendo un fetch
+    if (isCurrentlyFetching) {
+      console.log("Saltando aggiornamento: fetch già in corso");
+      return;
+    }
+    
     // Verifica se la chat esiste già nel nostro stato
     const chatExists = chats.some(chat => chat.id === chatId);
     
     if (!chatExists) {
-      console.log("Chat non trovata nello stato, ricarico le chat immediatamente...");
-      // Ricarica tutte le chat immediatamente
-      fetchChats();
+      console.log("Chat non trovata nello stato, ma evito di ricaricare tutto");
+      // Invece di ricaricare tutte le chat, aggiorneremo solo quando necessario
       return;
     }
     
-    setChats(prevChats => {
-      // Crea una copia profonda dell'array delle chat
-      const updatedChats = [...prevChats];
-      
-      // Trova la chat a cui appartiene il messaggio
-      const chatIndex = updatedChats.findIndex(chat => chat.id === chatId);
-      
-      if (chatIndex !== -1) {
-        // Aggiorna la chat esistente
-        const updatedChat = { ...updatedChats[chatIndex] };
+    // Verifica se il messaggio esiste già
+    const messageExists = chats.find(chat => chat.id === chatId)?.messages.some(m => m.id === message?.id);
+
+    // Se il messaggio è valido e non esistente, aggiungiamolo direttamente senza fetch
+    if (message && !messageExists) {
+      setChats(prevChats => {
+        // Trova la chat a cui appartiene il messaggio
+        const chatIndex = prevChats.findIndex(chat => chat.id === chatId);
         
-        // Verifica se il messaggio esiste già per evitare duplicati
-        const messageExists = updatedChat.messages.some(m => m.id === message.id);
-        
-        if (!messageExists) {
-          // Aggiungi il nuovo messaggio alla lista dei messaggi
+        if (chatIndex !== -1) {
+          // Crea una copia dell'array chat
+          const updatedChats = [...prevChats];
+          
+          // Aggiorna la chat esistente
+          const updatedChat = { ...updatedChats[chatIndex] };
+          
+          // Aggiungi il nuovo messaggio
           updatedChat.messages = [...updatedChat.messages, message];
           
           // Aggiorna l'ultimo messaggio
@@ -256,48 +381,131 @@ function App() {
               [chatId]: (prev[chatId] || 0) + 1
             }));
           }
+          
+          return updatedChats;
         }
         
-        return updatedChats;
-      }
+        return prevChats;
+      });
       
-      return prevChats;
-    });
-  }, [isUserScrolling, fetchChats, chats]);
+      return; // Abbiamo aggiornato lo stato, non serve fare fetching
+    }
+    
+    // Verifica se abbiamo fatto fetch recentemente per questa chat
+    const now = Date.now();
+    if (lastFetchTime[chatId] && now - lastFetchTime[chatId] < FETCH_THROTTLE_MS) {
+      console.log(`Saltando fetch per chat ${chatId} - fetched troppo di recente`);
+      return;
+    }
+    
+    // Se necessario, aggiorna la chat con un fetch selettivo
+    lastFetchTime[chatId] = now;
+    isCurrentlyFetching = true;
+    
+    // Funzione per fare fetch di una singola chat
+    const fetchSingleChat = async () => {
+      try {
+        console.log(`Fetching selettivo per chat: ${chatId}`);
+        
+        // Fetch chat details
+        const chatResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chatId)}`);
+        if (!chatResponse.ok) {
+          console.error(`Errore fetch chat ${chatId}: ${chatResponse.status}`);
+          return;
+        }
+        
+        const chatData = await chatResponse.json();
+        
+        // Controlla se abbiamo già questa chat con messaggi sufficienti
+        const existingChat = chats.find(c => c.id === chatId);
+        if (existingChat && existingChat.messages && existingChat.messages.length > 0) {
+          // Verifica se il timestamp dell'ultimo messaggio è più recente
+          const lastMessageTimestamp = new Date(existingChat.lastMessage?.timestamp || 0);
+          const newLastMessageTimestamp = new Date(chatData.lastMessage?.timestamp || 0);
+          
+          if (lastMessageTimestamp >= newLastMessageTimestamp) {
+            console.log(`Chat ${chatId} già aggiornata, salto il fetch messaggi`);
+            return;
+          }
+        }
+        
+        // Fetch messaggi solo se necessario
+        const messagesResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chatId)}/messages`);
+        if (!messagesResponse.ok) {
+          console.error(`Errore fetch messaggi per chat ${chatId}: ${messagesResponse.status}`);
+          return;
+        }
+        
+        const messages = await messagesResponse.json();
+        
+        // Aggiorna lo stato
+        setChats(prevChats => {
+          return prevChats.map(chat => 
+            chat.id === chatId ? {
+              ...chatData,
+              messages: messages
+            } : chat
+          );
+        });
+      } catch (error) {
+        console.error(`Errore in fetchSingleChat per ${chatId}:`, error);
+      } finally {
+        isCurrentlyFetching = false;
+      }
+    };
+    
+    fetchSingleChat();
+  }, [isUserScrolling, chats, API_BASE_URL]);
   
   // Funzione per gestire gli aggiornamenti delle chat
   const handleChatUpdate = useCallback((updatedChat) => {
     console.log("Aggiornamento chat ricevuto via WebSocket:", updatedChat);
     
-    // Verifica se è necessario ricaricare tutte le chat
-    const shouldRefetchAll = !chats.some(chat => chat.id === updatedChat.id);
-    
-    if (shouldRefetchAll) {
-      console.log("Nuova chat rilevata, ricarico tutte le chat...");
-      fetchChats();
+    // Se non c'è un ID chat valido, non possiamo fare nulla
+    if (!updatedChat || !updatedChat.id) {
+      console.warn("ID chat mancante nell'aggiornamento");
       return;
     }
     
+    // Se stiamo già facendo un fetch, saltiamo questo aggiornamento
+    if (isCurrentlyFetching) {
+      console.log("Saltando aggiornamento chat: fetch già in corso");
+      return;
+    }
+    
+    // Verifica se la chat esiste già nel nostro stato
+    const chatExists = chats.some(chat => chat.id === updatedChat.id);
+    
+    if (!chatExists) {
+      console.log("Nuova chat rilevata, ma evito il fetch completo");
+      // Non facciamo fetch di tutte le chat, aggiorniamo lo stato quando necessario
+      return;
+    }
+    
+    // Verifica se abbiamo fatto fetch recentemente per questa chat
+    const now = Date.now();
+    if (lastFetchTime[updatedChat.id] && now - lastFetchTime[updatedChat.id] < FETCH_THROTTLE_MS) {
+      console.log(`Saltando fetch per chat ${updatedChat.id} - fetched troppo di recente`);
+    }
+    
+    // Aggiorna direttamente la chat con i dati ricevuti
     setChats(prevChats => {
-      // Crea una copia profonda dell'array delle chat
-      const updatedChats = [...prevChats];
-      
-      // Trova la chat da aggiornare
-      const chatIndex = updatedChats.findIndex(chat => chat.id === updatedChat.id);
-      
-      if (chatIndex !== -1) {
-        // Aggiorna la chat esistente
-        updatedChats[chatIndex] = {
-          ...updatedChats[chatIndex],
-          ...updatedChat,
-          // Mantieni i messaggi esistenti
-          messages: updatedChats[chatIndex].messages || []
-        };
-      }
-      
-      return updatedChats;
+      return prevChats.map(chat => {
+        if (chat.id === updatedChat.id) {
+          return {
+            ...chat,
+            ...updatedChat,
+            // Mantieni i messaggi esistenti
+            messages: chat.messages || []
+          };
+        }
+        return chat;
+      });
     });
-  }, [chats, fetchChats]);
+    
+    // Aggiorna il timestamp dell'ultimo fetch
+    lastFetchTime[updatedChat.id] = now;
+  }, [chats]);
 
   // Riferimento al WebSocket
   const wsRef = useRef(null);
@@ -307,21 +515,50 @@ function App() {
     loadChatSynonyms();
   }, [loadChatSynonyms]);
 
-  // Gestione della connessione WebSocket
+
   useEffect(() => {
-    // Stato della connessione
+    // Chiudi eventuali connessioni WebSocket esistenti prima di crearne una nuova
+    if (wsRef.current) {
+      console.log('Chiusura della connessione WebSocket precedente');
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close();
+      }
+      if (wsRef.current.pingInterval) {
+        clearInterval(wsRef.current.pingInterval);
+      }
+    }
+
+    // Variabili per gestire la connessione
     let isConnecting = false;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 10;
-    const baseReconnectDelay = 1000; // 1 secondo
+    const baseReconnectDelay = 1000;
+    let reconnectTimeout = null;
     
     // Funzione per stabilire la connessione WebSocket
     const connectWebSocket = () => {
-      if (isConnecting) return;
+      // Pulisci eventuali timeout di riconnessione
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
+      
+      // Verifica che non ci sia già una connessione attiva
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        console.log('WebSocket già connesso, non ne creo uno nuovo');
+        return;
+      }
+      
+      // Verifica che non sia in corso un tentativo di connessione
+      if (isConnecting) {
+        console.log('Connessione WebSocket già in corso, ignoro la richiesta');
+        return;
+      }
       
       isConnecting = true;
       console.log(`Tentativo di connessione WebSocket a ${WS_URL}...`);
       
+      // Crea una nuova connessione WebSocket
       const ws = new WebSocket(WS_URL);
       
       // Timeout per la connessione
@@ -330,25 +567,37 @@ function App() {
           console.warn('Timeout connessione WebSocket');
           ws.close();
         }
-      }, 10000); // 10 secondi di timeout
+      }, 15000); // Aumentiamo il timeout a 15 secondi
       
       ws.onopen = () => {
-        console.log('WebSocket connesso');
+        console.log('WebSocket connesso con successo');
         clearTimeout(connectionTimeout);
         isConnecting = false;
         reconnectAttempts = 0;
         
-        // Invia un ping periodico per mantenere attiva la connessione
+        // Memorizza il WebSocket nel riferimento
+        wsRef.current = ws;
+        
+        // Ping ogni 30 secondi per mantenere attiva la connessione
         const pingInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
+            try {
+              ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
+            } catch (error) {
+              console.error('Errore nell\'invio del ping:', error);
+              clearInterval(pingInterval);
+            }
           } else {
             clearInterval(pingInterval);
           }
-        }, 30000); // Ping ogni 30 secondi
+        }, 30000);
         
-        // Memorizza l'intervallo per pulirlo alla chiusura
         wsRef.current.pingInterval = pingInterval;
+        
+        // Carica le chat dopo la connessione se necessario
+        if (chats.length === 0) {
+          fetchChats();
+        }
       };
       
       ws.onmessage = (event) => {
@@ -359,25 +608,94 @@ function App() {
           switch (data.type) {
             case 'new_message':
               console.log('Nuovo messaggio ricevuto:', data.payload);
-              // Aggiorna la chat con il nuovo messaggio
-              handleNewMessage(data.payload);
+              const { chatId, message } = data.payload;
+              
+              if (!chatId || !message) {
+                console.warn("Dati del messaggio incompleti nel payload");
+                return;
+              }
+              
+              // Se abbiamo il messaggio completo, aggiungilo direttamente
+              setChats(prevChats => {
+                const chatExists = prevChats.some(chat => chat.id === chatId);
+                
+                if (!chatExists) {
+                  // Se la chat non esiste nell'array, dobbiamo fare fetch
+                  // Ma non qui dentro - lo facciamo dopo
+                  return prevChats;
+                }
+                
+                // Verifica se il messaggio esiste già in questa chat
+                const messageExists = prevChats.find(chat => chat.id === chatId)
+                  ?.messages.some(m => m.id === message.id);
+                
+                if (messageExists) {
+                  // Il messaggio già esiste, nessun aggiornamento necessario
+                  return prevChats;
+                }
+                
+                // Aggiorna la chat con il nuovo messaggio
+                return prevChats.map(chat => {
+                  if (chat.id === chatId) {
+                    return {
+                      ...chat,
+                      messages: [...chat.messages, message],
+                      lastMessage: message
+                    };
+                  }
+                  return chat;
+                });
+              });
+              
+              // Se la chat non esiste nello stato, fai fetch per ottenerla
+              if (!chats.some(chat => chat.id === chatId)) {
+                console.log(`Chat ${chatId} non trovata, carico tutte le chat`);
+                fetchChats();
+              }
               break;
+              
             case 'chat_updated':
               console.log('Chat aggiornata ricevuta:', data.payload);
-              // Aggiorna la chat modificata
-              handleChatUpdate(data.payload);
-              // Non facciamo più il polling automatico, aspettiamo solo gli eventi WebSocket
+              if (!data.payload || !data.payload.id) {
+                console.warn("Payload chat_updated non valido");
+                return;
+              }
+              
+              const updatedChatId = data.payload.id;
+              
+              // Aggiorna la chat esistente senza richiedere i messaggi
+              setChats(prevChats => {
+                const chatExists = prevChats.some(chat => chat.id === updatedChatId);
+                
+                if (!chatExists) {
+                  // Se la chat non esiste, fai fetch completo (fuori da questa funzione)
+                  return prevChats;
+                }
+                
+                // Aggiorna solo i metadati della chat, mantenendo i messaggi
+                return prevChats.map(chat => {
+                  if (chat.id === updatedChatId) {
+                    return {
+                      ...chat,
+                      ...data.payload,
+                      // Mantieni i messaggi esistenti
+                      messages: chat.messages
+                    };
+                  }
+                  return chat;
+                });
+              });
+              
+              // Se la chat non esiste nello stato, fai fetch per ottenerla
+              if (!chats.some(chat => chat.id === updatedChatId)) {
+                console.log(`Chat ${updatedChatId} non trovata, carico tutte le chat`);
+                fetchChats();
+              }
               break;
-            case 'connection_established':
-              console.log('Connessione WebSocket stabilita:', data.payload);
-              // Ricarica le chat all'avvio della connessione
-              fetchChats();
-              break;
-            case 'pong':
-              // Risposta al ping, non fare nulla
-              break;
+              
+            // Altri case...
             default:
-              console.log('Messaggio WebSocket ricevuto:', data);
+              console.log('Messaggio WebSocket di tipo sconosciuto:', data);
           }
         } catch (error) {
           console.error('Errore nel parsing del messaggio WebSocket:', error);
@@ -385,15 +703,21 @@ function App() {
       };
       
       ws.onclose = (event) => {
-        console.log('WebSocket disconnesso:', event.reason);
+        console.log(`WebSocket disconnesso: ${event.code} - ${event.reason || "Nessuna ragione"}`);
         clearTimeout(connectionTimeout);
         
-        // Pulisci l'intervallo di ping
+        // Pulisci la connessione
         if (wsRef.current && wsRef.current.pingInterval) {
           clearInterval(wsRef.current.pingInterval);
         }
         
         isConnecting = false;
+        
+        // Non riconnetterti se la chiusura è stata intenzionale (1000 è "normal closure")
+        if (event.code === 1000) {
+          console.log('Chiusura normale del WebSocket, non tento la riconnessione');
+          return;
+        }
         
         // Riconnetti con backoff esponenziale
         if (reconnectAttempts < maxReconnectAttempts) {
@@ -401,10 +725,10 @@ function App() {
           const delay = Math.min(baseReconnectDelay * Math.pow(1.5, reconnectAttempts), 30000);
           console.log(`Riconnessione tra ${delay/1000} secondi (tentativo ${reconnectAttempts}/${maxReconnectAttempts})...`);
           
-          setTimeout(connectWebSocket, delay);
+          // Memorizza il timeout per poterlo pulire se necessario
+          reconnectTimeout = setTimeout(connectWebSocket, delay);
         } else {
           console.error('Numero massimo di tentativi di riconnessione raggiunto');
-          // Mostra un messaggio all'utente
           alert('Impossibile connettersi al server. Ricarica la pagina per riprovare.');
         }
       };
@@ -413,26 +737,33 @@ function App() {
         console.error('Errore WebSocket:', error);
         // Non chiudiamo la connessione qui, lasciamo che onclose gestisca la riconnessione
       };
-      
-      wsRef.current = ws;
     };
     
     // Stabilisci la connessione iniziale
     connectWebSocket();
     
-    // Carica le chat iniziali solo una volta all'avvio
-    fetchChats();
+    // Carica le chat iniziali se non ne abbiamo già
+    if (chats.length === 0) {
+      fetchChats();
+    }
     
     // Cleanup alla disconnessione
     return () => {
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      
       if (wsRef.current) {
+        console.log('Chiusura della connessione WebSocket durante il cleanup');
         if (wsRef.current.pingInterval) {
           clearInterval(wsRef.current.pingInterval);
         }
-        wsRef.current.close();
+        // Chiusura intenzionale con codice 1000 (normal closure)
+        wsRef.current.close(1000, "Chiusura normale");
+        wsRef.current = null;
       }
     };
-  }, [WS_URL, handleNewMessage, handleChatUpdate, fetchChats]);
+  }, [WS_URL, fetchChats, chats.length]);
 
   const handleScroll = (e) => {
     const element = e.target;
