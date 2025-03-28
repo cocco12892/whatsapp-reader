@@ -172,6 +172,9 @@ function App() {
       setIsLoading(false);
     }
   };
+
+  // Carica i sinonimi dal database
+  const loadChatSynonyms = async () => {
     try {
       const synonymsMap = {};
       const response = await fetch(`${API_BASE_URL}/api/chats`);
