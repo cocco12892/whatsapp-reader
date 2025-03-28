@@ -26,8 +26,8 @@ import (
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/go-sql-driver/mysql"
-	"./db"
-	"./utils"
+	"whatsapp-reader/db"
+	"whatsapp-reader/utils"
 )
 
 // Struttura per memorizzare i messaggi
@@ -69,6 +69,10 @@ type Chat struct {
 var (
 	dbManager *db.MySQLManager
 	mutex     sync.RWMutex
+	
+	// Manteniamo queste variabili per compatibilità con il codice esistente
+	messages []Message
+	chats    map[string]*Chat
 	
 	// Cache per i nomi
 	groupNameCache   sync.Map
@@ -241,6 +245,9 @@ func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup boo
 }
 
 func main() {
+	// Inizializza la mappa delle chat
+	chats = make(map[string]*Chat)
+	
 	// Carica la configurazione
 	config, err := utils.LoadConfig("config.json")
 	if err != nil {
