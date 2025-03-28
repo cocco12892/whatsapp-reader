@@ -69,6 +69,33 @@ function App() {
   
   // Carica i sinonimi dal database
   const loadChatSynonyms = async () => {
+    try {
+      const synonymsMap = {};
+      const response = await fetch(`${API_BASE_URL}/api/chats`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const chatsData = await response.json();
+      
+      // Per ogni chat, carica il sinonimo
+      for (const chat of chatsData) {
+        try {
+          const synonymResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/synonym`);
+          if (synonymResponse.ok) {
+            const data = await synonymResponse.json();
+            if (data.synonym) {
+              synonymsMap[chat.id] = data.synonym;
+            }
+          }
+        } catch (error) {
+          console.warn(`Errore nel caricamento del sinonimo per la chat ${chat.id}:`, error);
+        }
+      }
+      setChatSynonyms(synonymsMap);
+    } catch (error) {
+      console.error("Errore nel caricamento dei sinonimi:", error);
+    }
+  };
 
   // Funzione per impostare un sinonimo per una chat
   const setChatSynonym = async (chatId, synonym) => {
@@ -266,6 +293,131 @@ function App() {
       return updatedChats;
     });
   }, []);
+
+  // Riferimento al WebSocket
+  const wsRef = useRef(null);
+  
+  // Gestione della connessione WebSocket
+  useEffect(() => {
+    // Stato della connessione
+    let isConnecting = false;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    const baseReconnectDelay = 1000; // 1 secondo
+    
+    // Funzione per stabilire la connessione WebSocket
+    const connectWebSocket = () => {
+      if (isConnecting) return;
+      
+      isConnecting = true;
+      console.log(`Tentativo di connessione WebSocket a ${WS_URL}...`);
+      
+      const ws = new WebSocket(WS_URL);
+      
+      // Timeout per la connessione
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.warn('Timeout connessione WebSocket');
+          ws.close();
+        }
+      }, 10000); // 10 secondi di timeout
+      
+      ws.onopen = () => {
+        console.log('WebSocket connesso');
+        clearTimeout(connectionTimeout);
+        isConnecting = false;
+        reconnectAttempts = 0;
+        
+        // Invia un ping periodico per mantenere attiva la connessione
+        const pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
+          } else {
+            clearInterval(pingInterval);
+          }
+        }, 30000); // Ping ogni 30 secondi
+        
+        // Memorizza l'intervallo per pulirlo alla chiusura
+        wsRef.current.pingInterval = pingInterval;
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          switch (data.type) {
+            case 'new_message':
+              // Aggiorna la chat con il nuovo messaggio
+              handleNewMessage(data.payload);
+              break;
+            case 'chat_updated':
+              // Aggiorna la chat modificata
+              handleChatUpdate(data.payload);
+              break;
+            case 'connection_established':
+              console.log('Connessione WebSocket stabilita:', data.payload);
+              // Aggiorna lo stato dell'applicazione se necessario
+              break;
+            case 'pong':
+              // Risposta al ping, non fare nulla
+              break;
+            default:
+              console.log('Messaggio WebSocket ricevuto:', data);
+          }
+        } catch (error) {
+          console.error('Errore nel parsing del messaggio WebSocket:', error);
+        }
+      };
+      
+      ws.onclose = (event) => {
+        console.log('WebSocket disconnesso:', event.reason);
+        clearTimeout(connectionTimeout);
+        
+        // Pulisci l'intervallo di ping
+        if (wsRef.current && wsRef.current.pingInterval) {
+          clearInterval(wsRef.current.pingInterval);
+        }
+        
+        isConnecting = false;
+        
+        // Riconnetti con backoff esponenziale
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          const delay = Math.min(baseReconnectDelay * Math.pow(1.5, reconnectAttempts), 30000);
+          console.log(`Riconnessione tra ${delay/1000} secondi (tentativo ${reconnectAttempts}/${maxReconnectAttempts})...`);
+          
+          setTimeout(connectWebSocket, delay);
+        } else {
+          console.error('Numero massimo di tentativi di riconnessione raggiunto');
+          // Mostra un messaggio all'utente
+          alert('Impossibile connettersi al server. Ricarica la pagina per riprovare.');
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('Errore WebSocket:', error);
+        // Non chiudiamo la connessione qui, lasciamo che onclose gestisca la riconnessione
+      };
+      
+      wsRef.current = ws;
+    };
+    
+    // Stabilisci la connessione iniziale
+    connectWebSocket();
+    
+    // Carica le chat iniziali
+    fetchChats();
+    
+    // Cleanup alla disconnessione
+    return () => {
+      if (wsRef.current) {
+        if (wsRef.current.pingInterval) {
+          clearInterval(wsRef.current.pingInterval);
+        }
+        wsRef.current.close();
+      }
+    };
+  }, [WS_URL, handleNewMessage, handleChatUpdate, fetchChats]);
 
   const handleScroll = (e) => {
     const element = e.target;
@@ -729,6 +881,8 @@ function App() {
 
     </ThemeProvider>
   );
+}
+
 }
 
 export default App;
