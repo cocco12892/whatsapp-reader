@@ -801,17 +801,22 @@ func main() {
 				ImageHash:           message.ImageHash,
 			}
 
-			// Salva il messaggio nel database
-			if err := dbManager.SaveMessage(&dbMessage); err != nil {
-				fmt.Printf("Errore nel salvataggio del messaggio: %v\n", err)
-			}
-
-			// Crea o aggiorna la chat
+			// Salva la chat nel database prima del messaggio per rispettare il vincolo di chiave esterna
 			chat := &db.Chat{
 				ID:           chatJID,
 				Name:         chatName,
 				LastMessage:  dbMessage,
 				ProfileImage: "",
+			}
+			
+			// Salva la chat nel database
+			if err := dbManager.SaveChat(chat); err != nil {
+				fmt.Printf("Errore nel salvataggio della chat: %v\n", err)
+			}
+			
+			// Salva il messaggio nel database dopo aver salvato la chat
+			if err := dbManager.SaveMessage(&dbMessage); err != nil {
+				fmt.Printf("Errore nel salvataggio del messaggio: %v\n", err)
 			}
 			
 			// Notifica i client WebSocket del nuovo messaggio
@@ -825,11 +830,11 @@ func main() {
 			profilePath, err := downloadProfilePicture(client, v.Info.Chat, isGroup)
 			if err == nil {
 				chat.ProfileImage = profilePath
-			}
-			
-			// Salva la chat nel database
-			if err := dbManager.SaveChat(chat); err != nil {
-				fmt.Printf("Errore nel salvataggio della chat: %v\n", err)
+				
+				// Aggiorna la chat nel database con l'immagine del profilo
+				if err := dbManager.SaveChat(chat); err != nil {
+					fmt.Printf("Errore nell'aggiornamento della chat con l'immagine del profilo: %v\n", err)
+				}
 			}
 			
 			// Notifica i client WebSocket dell'aggiornamento della chat

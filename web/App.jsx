@@ -204,6 +204,8 @@ function App() {
   const handleNewMessage = useCallback((payload) => {
     const { chatId, message } = payload;
     
+    console.log("Nuovo messaggio ricevuto via WebSocket:", message);
+    
     setChats(prevChats => {
       // Crea una copia profonda dell'array delle chat
       const updatedChats = [...prevChats];
@@ -231,14 +233,21 @@ function App() {
             [chatId]: (prev[chatId] || 0) + 1
           }));
         }
+      } else {
+        // La chat non esiste ancora nel nostro stato, dobbiamo caricarla
+        console.log("Chat non trovata nello stato, ricarico le chat...");
+        // Ricarica tutte le chat
+        fetchChats();
       }
       
       return updatedChats;
     });
-  }, [isUserScrolling]);
+  }, [isUserScrolling, fetchChats]);
   
   // Funzione per gestire gli aggiornamenti delle chat
   const handleChatUpdate = useCallback((updatedChat) => {
+    console.log("Aggiornamento chat ricevuto via WebSocket:", updatedChat);
+    
     setChats(prevChats => {
       // Crea una copia profonda dell'array delle chat
       const updatedChats = [...prevChats];
@@ -258,11 +267,37 @@ function App() {
         
         // Aggiorna l'ordine delle chat
         setChatOrder(prev => [updatedChat.id, ...prev]);
+        
+        // Carica i messaggi per questa nuova chat
+        fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(updatedChat.id)}/messages`)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then(messages => {
+            // Aggiorna la chat con i messaggi
+            setChats(currentChats => {
+              return currentChats.map(chat => {
+                if (chat.id === updatedChat.id) {
+                  return {
+                    ...chat,
+                    messages: messages
+                  };
+                }
+                return chat;
+              });
+            });
+          })
+          .catch(error => {
+            console.error('Errore nel caricamento dei messaggi per la nuova chat:', error);
+          });
       }
       
       return updatedChats;
     });
-  }, []);
+  }, [API_BASE_URL]);
 
   // Riferimento al WebSocket
   const wsRef = useRef(null);
@@ -319,19 +354,23 @@ function App() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('WebSocket messaggio ricevuto:', data.type);
           
           switch (data.type) {
             case 'new_message':
+              console.log('Nuovo messaggio ricevuto:', data.payload);
               // Aggiorna la chat con il nuovo messaggio
               handleNewMessage(data.payload);
               break;
             case 'chat_updated':
+              console.log('Chat aggiornata ricevuta:', data.payload);
               // Aggiorna la chat modificata
               handleChatUpdate(data.payload);
               break;
             case 'connection_established':
               console.log('Connessione WebSocket stabilita:', data.payload);
-              // Aggiorna lo stato dell'applicazione se necessario
+              // Ricarica le chat all'avvio della connessione
+              fetchChats();
               break;
             case 'pong':
               // Risposta al ping, non fare nulla
