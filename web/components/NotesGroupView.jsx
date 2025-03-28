@@ -119,7 +119,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
       
       // Group notes by their content
       const groupedNotesObj = {};
-      Object.values(storedNotes).forEach(noteEntry => {
+      Object.values(notes).forEach(noteEntry => {
         if (!noteEntry.note) return; // Skip entries without a note value
         
         if (!groupedNotesObj[noteEntry.note]) {
@@ -142,7 +142,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
       const groupedRecordedObj = {};
       
       // First group the recorded data by note
-      Object.values(storedRecorded).forEach(recordedEntry => {
+      Object.values(recordedData).forEach(recordedEntry => {
         // If the entry already has an associated note, use it directly
         if (recordedEntry.note) {
           const noteText = recordedEntry.note;
@@ -154,7 +154,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
           groupedRecordedObj[noteText].push(recordedEntry);
         } else {
           // Otherwise look for the note associated with this message
-          const associatedNote = Object.values(storedNotes).find(note => 
+          const associatedNote = Object.values(notes).find(note => 
             note.messageId === recordedEntry.messageId
           );
           
@@ -181,7 +181,7 @@ const NotesGroupView = ({ open, onClose, chats }) => {
         
         // Create a set of chatIds that already have recordings for this note
         const recordedChatIds = new Set(
-          Object.values(storedRecorded)
+          Object.values(recordedData)
             .filter(record => record.note === noteText)
             .map(record => record.chatId)
         );
