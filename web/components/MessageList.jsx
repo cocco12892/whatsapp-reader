@@ -222,21 +222,8 @@ const [messageNotes, setMessageNotes] = useState({});
 
 // Carica le note dal server all'avvio
 useEffect(() => {
-  fetch('/api/message-notes')
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Errore nel caricamento delle note');
-      }
-      return response.json();
-    })
-    .then(notes => {
-      setMessageNotes(notes);
-      setNotedMessages(new Set(Object.keys(notes)));
-    })
-    .catch(error => {
-      console.error('Errore nel caricamento delle note:', error);
-    });
-}, []);
+  loadNotesFromDB();
+}, [loadNotesFromDB]);
 
 // State for notes group view
 const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
@@ -356,11 +343,10 @@ const handleRecord = (messageId) => {
     setCurrentMessageId(messageId);
     setAmountQuotaDialogOpen(true);
   } else {
-    // Comportamento esistente per i nuovi record
-    const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
-    const chatNotes = Object.values(messageNotes).filter(note => note.chatId === chat.id);
+    // Verifica se ci sono note nel database per questa chat
+    const chatNotesFromDB = Object.values(messageNotes).filter(note => note.chatId === chat.id);
     
-    if (chatNotes.length === 0) {
+    if (chatNotesFromDB.length === 0) {
       alert("Non ci sono note in questa chat. Aggiungi prima una nota a un messaggio.");
       return;
     }
@@ -380,6 +366,24 @@ const handleNoteSelection = (note) => {
   setNoteSelectionOpen(false);
   setAmountQuotaDialogOpen(true);
 };
+
+// Funzione per caricare le note dal database
+const loadNotesFromDB = useCallback(() => {
+  fetch('/api/message-notes')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Errore nel caricamento delle note');
+      }
+      return response.json();
+    })
+    .then(notes => {
+      setMessageNotes(notes);
+      setNotedMessages(new Set(Object.keys(notes)));
+    })
+    .catch(error => {
+      console.error('Errore nel caricamento delle note:', error);
+    });
+}, []);
 
 // Funzione per gestire il record diretto (senza passare per la selezione della nota)
 const handleDirectRecord = (messageId) => {
@@ -1350,7 +1354,7 @@ return (
     <NoteSelectionDialog
       open={noteSelectionOpen}
       onClose={() => setNoteSelectionOpen(false)}
-      notes={Object.values(JSON.parse(localStorage.getItem('messageNotes') || '{}')).filter(note => note.chatId === chat.id)}
+      notes={Object.values(messageNotes).filter(note => note.chatId === chat.id)}
       onSelectNote={handleNoteSelection}
       chatName={chat.name}
     />
@@ -1586,7 +1590,7 @@ return (
               p: 1,
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
             }}>
-              {Object.values(JSON.parse(localStorage.getItem('messageNotes') || '{}')).filter(note => note.chatId === chat.id).map((note, index) => (
+              {Object.values(messageNotes).filter(note => note.chatId === chat.id).map((note, index) => (
                 <Box 
                   key={index} 
                   sx={{ 
