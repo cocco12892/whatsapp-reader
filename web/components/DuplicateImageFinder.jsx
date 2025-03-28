@@ -29,6 +29,44 @@ const DuplicateImageFinder = ({ chats }) => {
   const [currentGroup, setCurrentGroup] = useState(null);
   const [currentNote, setCurrentNote] = useState('');
   const [syncWithDuplicates, setSyncWithDuplicates] = useState(true);
+  const [messageNotes, setMessageNotes] = useState({});
+
+  // Carica le note dal database
+  useEffect(() => {
+    if (open) {
+      fetch('/api/notes')
+        .then(response => {
+          if (!response.ok) {
+            console.warn(`API notes non disponibile: ${response.status}`);
+            return {};
+          }
+          return response.json();
+        })
+        .then(notes => {
+          setMessageNotes(notes);
+          
+          // Dopo che le note sono caricate, aggiorna i contenitori delle note
+          setTimeout(() => {
+            duplicates.forEach(group => {
+              group.images.forEach(image => {
+                if (image.id && notes[image.id]) {
+                  const noteContainer = document.getElementById(`note-container-${image.id}`);
+                  const noteContent = document.getElementById(`note-content-${image.id}`);
+                  
+                  if (noteContainer && noteContent) {
+                    noteContainer.style.display = 'block';
+                    noteContent.textContent = notes[image.id].note || '';
+                  }
+                }
+              });
+            });
+          }, 100);
+        })
+        .catch(error => {
+          console.error('Errore nel caricamento delle note:', error);
+        });
+    }
+  }, [open, duplicates]);
 
   const handleOpen = () => {
     setOpen(true);
@@ -184,6 +222,35 @@ const DuplicateImageFinder = ({ chats }) => {
               }))
             }))
           );
+          
+          // Aggiorna l'interfaccia utente per mostrare le note
+          group.forEach(image => {
+            if (image.id) {
+              const noteContainer = document.getElementById(`note-container-${image.id}`);
+              const noteContent = document.getElementById(`note-content-${image.id}`);
+              
+              if (noteContainer && noteContent) {
+                noteContainer.style.display = 'block';
+                noteContent.textContent = note;
+              }
+            }
+          });
+          
+          // Aggiorna anche lo stato delle note
+          fetch('/api/notes')
+            .then(response => {
+              if (!response.ok) {
+                console.warn(`API notes non disponibile: ${response.status}`);
+                return {};
+              }
+              return response.json();
+            })
+            .then(notes => {
+              setMessageNotes(notes);
+            })
+            .catch(error => {
+              console.error('Errore nel caricamento delle note:', error);
+            });
         })
         .catch(error => {
           console.error('Errore nel salvataggio delle note di gruppo:', error);
@@ -337,7 +404,6 @@ const DuplicateImageFinder = ({ chats }) => {
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                       {group.map((image, imageIndex) => {
                         // Verifica se c'è una nota per questa immagine
-                        const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
                         const hasNote = messageNotes[image.id] ? true : false;
                         
                         return (
@@ -348,29 +414,36 @@ const DuplicateImageFinder = ({ chats }) => {
                               borderRadius: '4px',
                               overflow: 'hidden',
                               padding: '10px',
-                              border: messageNotes[image.id] ? '3px solid #4caf50' : '1px solid #eee',
+                              border: hasNote ? '3px solid #4caf50' : '1px solid #eee',
                               position: 'relative'
                             }}
                           >
-                            {messageNotes[image.id] && (
-                                <Box sx={{ 
+                            {/* Verifica se c'è una nota per questa immagine */}
+                            {image.id && (
+                              <Box 
+                                id={`note-container-${image.id}`} 
+                                sx={{ 
                                   mb: 1, 
                                   p: 1, 
                                   bgcolor: 'rgba(103, 58, 183, 0.1)', 
                                   borderRadius: '4px', 
                                   borderLeft: '4px solid #673ab7',
-                                  position: 'relative'
-                                }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#4a148c' }}>
-                                    Nota:
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                    {typeof messageNotes[image.id] === 'object' 
-                                      ? messageNotes[image.id].note 
-                                      : messageNotes[image.id]}
-                                  </Typography>
-                                </Box>
-                              )}
+                                  position: 'relative',
+                                  display: 'none' // Inizialmente nascosto, verrà mostrato se c'è una nota
+                                }}
+                              >
+                                <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#4a148c' }}>
+                                  Nota:
+                                </Typography>
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ fontWeight: 'medium' }}
+                                  id={`note-content-${image.id}`}
+                                >
+                                  Caricamento...
+                                </Typography>
+                              </Box>
+                            )}
                             <img 
                               src={`http://localhost:8080${image.mediaPath}`} 
                               alt={`Occorrenza #${imageIndex + 1}`}
