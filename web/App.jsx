@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import ChatWindow from './components/ChatWindow';
@@ -59,7 +59,85 @@ function App() {
   const [rotation, setRotation] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
+  const [chatSynonyms, setChatSynonyms] = useState({});
   
+
+  // Carica i sinonimi dal database
+  const loadChatSynonyms = async () => {
+    try {
+      const synonymsMap = {};
+      const response = await fetch(`${API_BASE_URL}/chats`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const chatsData = await response.json();
+      
+      // Per ogni chat, carica il sinonimo
+      for (const chat of chatsData) {
+        try {
+          const synonymResponse = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chat.id)}/synonym`);
+          if (synonymResponse.ok) {
+            const data = await synonymResponse.json();
+            if (data.synonym) {
+              synonymsMap[chat.id] = data.synonym;
+            }
+          }
+        } catch (error) {
+          console.warn(`Errore nel caricamento del sinonimo per la chat ${chat.id}:`, error);
+        }
+      }
+      setChatSynonyms(synonymsMap);
+    } catch (error) {
+      console.error("Errore nel caricamento dei sinonimi:", error);
+    }
+  };
+
+  // Funzione per impostare un sinonimo per una chat
+  const setChatSynonym = async (chatId, synonym) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chatId)}/synonym`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ synonym }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Aggiorna lo stato locale solo dopo che il salvataggio nel DB è avvenuto con successo
+      setChatSynonyms(prev => ({
+        ...prev,
+        [chatId]: synonym
+      }));
+    } catch (error) {
+      console.error("Errore nel salvataggio del sinonimo:", error);
+    }
+  };
+
+  // Funzione per rimuovere un sinonimo
+  const removeChatSynonym = async (chatId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chats/${encodeURIComponent(chatId)}/synonym`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Aggiorna lo stato locale solo dopo che la rimozione dal DB è avvenuta con successo
+      setChatSynonyms(prev => {
+        const newSynonyms = { ...prev };
+        delete newSynonyms[chatId];
+        return newSynonyms;
+      });
+    } catch (error) {
+      console.error("Errore nella rimozione del sinonimo:", error);
+    }
+  };
 
   const fetchChats = async () => {
     try {
@@ -115,6 +193,11 @@ function App() {
       setIsLoading(false);
     }
   };
+
+  // Carica i sinonimi all'avvio dell'app
+  useEffect(() => {
+    loadChatSynonyms();
+  }, []);
 
   useEffect(() => {
     fetchChats();
@@ -302,6 +385,9 @@ function App() {
                     handleImageClick={handleImageClick}
                     lastSeenMessages={lastSeenMessages}
                     seenMessages={seenMessages}
+                    chatSynonyms={chatSynonyms}
+                    setChatSynonym={setChatSynonym}
+                    removeChatSynonym={removeChatSynonym}
                   />
                 ))}
               </Box>
