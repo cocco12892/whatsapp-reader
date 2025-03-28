@@ -988,45 +988,96 @@ func main() {
 		mutex.RUnlock()
 		
 		if !exists {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata"})
-			return
+			// Prova a caricare la chat dal database
+			dbChats, err := dbManager.LoadChats()
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata"})
+				return
+			}
+			
+			found := false
+			for _, dbChat := range dbChats {
+				if dbChat.ID == chatID {
+					found = true
+					break
+				}
+			}
+			
+			if !found {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata"})
+				return
+			}
+			
+			// Carica i messaggi della chat
+			dbMessages, err := dbManager.LoadChatMessages(chatID)
+			if err != nil || len(dbMessages) == 0 {
+				c.JSON(http.StatusOK, gin.H{
+					"status": "success",
+					"message": "Nessun messaggio da segnare come letto",
+				})
+				return
+			}
+			
+			// Crea una chat temporanea con i messaggi caricati
+			tempChat := &Chat{
+				ID:      chatID,
+				Name:    dbMessages[0].ChatName,
+				Messages: []Message{},
+			}
+			
+			// Converti i messaggi dal formato DB al formato Message
+			for _, dbMsg := range dbMessages {
+				tempChat.Messages = append(tempChat.Messages, Message{
+					ID:        dbMsg.ID,
+					Chat:      dbMsg.Chat,
+					ChatName:  dbMsg.ChatName,
+					Sender:    dbMsg.Sender,
+					SenderName: dbMsg.SenderName,
+					Content:   dbMsg.Content,
+					Timestamp: dbMsg.Timestamp,
+				})
+			}
+			
+			chat = tempChat
 		}
 		
 		// In un gruppo, abbiamo bisogno del mittente specifico
 		var senderJID types.JID
 		isGroup := chatJID.Server == "g.us"
 		
-		if isGroup {
+		if isGroup && len(chat.Messages) > 0 {
 			// Trova il messaggio corrispondente per ottenere il mittente
-			// Nota: questo è necessario perché in un gruppo è necessario specificare
-			// il mittente del messaggio da segnare come letto
 			found := false
-			mutex.RLock()
 			for _, msg := range chat.Messages {
 				if len(requestData.MessageIDs) > 0 && msg.ID == requestData.MessageIDs[0] {
 					senderJID, err = types.ParseJID(msg.Sender)
 					if err != nil {
-						mutex.RUnlock()
-						c.JSON(http.StatusInternalServerError, gin.H{"error": "Impossibile analizzare il JID del mittente"})
-						return
+						// Se non riusciamo a parsare il JID, continuiamo comunque
+						// Potrebbe funzionare anche senza specificare il mittente
+						fmt.Printf("Avviso: impossibile analizzare il JID del mittente: %v\n", err)
+					} else {
+						found = true
 					}
-					found = true
 					break
 				}
 			}
-			mutex.RUnlock()
 			
 			if !found {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Messaggio non trovato nella chat"})
-				return
+				// Se non troviamo il messaggio specifico, proviamo a usare il primo messaggio disponibile
+				if len(chat.Messages) > 0 {
+					senderJID, err = types.ParseJID(chat.Messages[0].Sender)
+					if err != nil {
+						fmt.Printf("Avviso: impossibile analizzare il JID del mittente: %v\n", err)
+					}
+				}
 			}
 		}
 		
 		// Imposta la presenza come disponibile (opzionale, ma consigliato per le ricevute di lettura)
 		err = client.SendPresence(types.PresenceAvailable)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'impostare la presenza: %v", err)})
-			return
+			fmt.Printf("Avviso: errore nell'impostare la presenza: %v\n", err)
+			// Continuiamo comunque, non è un errore critico
 		}
 		
 		// Marca i messaggi come letti
