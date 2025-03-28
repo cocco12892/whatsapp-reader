@@ -116,121 +116,124 @@ const NotesGroupView = ({ open, onClose, chats }) => {
       };
       
       loadChatSynonyms();
+    }
+  }, [open]);
+  
+  // Raggruppa le note e i dati registrati quando cambiano
+  useEffect(() => {
+    // Group notes by their content
+    const groupedNotesObj = {};
+    Object.values(notes).forEach(noteEntry => {
+      if (!noteEntry.note) return; // Skip entries without a note value
       
-      // Group notes by their content
-      const groupedNotesObj = {};
-      Object.values(notes).forEach(noteEntry => {
-        if (!noteEntry.note) return; // Skip entries without a note value
+      if (!groupedNotesObj[noteEntry.note]) {
+        groupedNotesObj[noteEntry.note] = [];
+      }
+      
+      groupedNotesObj[noteEntry.note].push({
+        messageId: noteEntry.messageId,
+        chatId: noteEntry.chatId,
+        chatName: noteEntry.chatName,
+        senderName: noteEntry.senderName,
+        timestamp: noteEntry.timestamp,
+        content: noteEntry.content
+      });
+    });
+    
+    setGroupedNotes(groupedNotesObj);
+    
+    // Group recorded data by note content
+    const groupedRecordedObj = {};
+    
+    // First group the recorded data by note
+    Object.values(recordedData).forEach(recordedEntry => {
+      // If the entry already has an associated note, use it directly
+      if (recordedEntry.note) {
+        const noteText = recordedEntry.note;
         
-        if (!groupedNotesObj[noteEntry.note]) {
-          groupedNotesObj[noteEntry.note] = [];
+        if (!groupedRecordedObj[noteText]) {
+          groupedRecordedObj[noteText] = [];
         }
         
-        groupedNotesObj[noteEntry.note].push({
-          messageId: noteEntry.messageId,
-          chatId: noteEntry.chatId,
-          chatName: noteEntry.chatName,
-          senderName: noteEntry.senderName,
-          timestamp: noteEntry.timestamp,
-          content: noteEntry.content
-        });
-      });
-      
-      setGroupedNotes(groupedNotesObj);
-      
-      // Group recorded data by note content
-      const groupedRecordedObj = {};
-      
-      // First group the recorded data by note
-      Object.values(recordedData).forEach(recordedEntry => {
-        // If the entry already has an associated note, use it directly
-        if (recordedEntry.note) {
-          const noteText = recordedEntry.note;
+        groupedRecordedObj[noteText].push(recordedEntry);
+      } else {
+        // Otherwise look for the note associated with this message
+        const associatedNote = Object.values(notes).find(note => 
+          note.messageId === recordedEntry.messageId
+        );
+        
+        if (associatedNote) {
+          const noteText = associatedNote.note;
           
           if (!groupedRecordedObj[noteText]) {
             groupedRecordedObj[noteText] = [];
           }
           
-          groupedRecordedObj[noteText].push(recordedEntry);
-        } else {
-          // Otherwise look for the note associated with this message
-          const associatedNote = Object.values(notes).find(note => 
-            note.messageId === recordedEntry.messageId
-          );
-          
-          if (associatedNote) {
-            const noteText = associatedNote.note;
-            
-            if (!groupedRecordedObj[noteText]) {
-              groupedRecordedObj[noteText] = [];
-            }
-            
-            groupedRecordedObj[noteText].push({
-              ...recordedEntry,
-              note: noteText
-            });
-          }
+          groupedRecordedObj[noteText].push({
+            ...recordedEntry,
+            note: noteText
+          });
         }
-      });
+      }
+    });
+    
+    // Add all notes, even those without associated recordings
+    Object.entries(groupedNotesObj).forEach(([noteText, noteEntries]) => {
+      if (!groupedRecordedObj[noteText]) {
+        groupedRecordedObj[noteText] = [];
+      }
       
-      // Add all notes, even those without associated recordings
-      Object.entries(groupedNotesObj).forEach(([noteText, noteEntries]) => {
-        if (!groupedRecordedObj[noteText]) {
-          groupedRecordedObj[noteText] = [];
-        }
-        
-        // Create a set of chatIds that already have recordings for this note
-        const recordedChatIds = new Set(
-          Object.values(recordedData)
-            .filter(record => record.note === noteText)
-            .map(record => record.chatId)
-        );
-        
-        // Group notes by chatId
-        const notesByChatId = {};
-        noteEntries.forEach(noteEntry => {
-          if (!noteEntry.chatId) return; // Skip if no chatId
-          
-          if (!notesByChatId[noteEntry.chatId]) {
-            notesByChatId[noteEntry.chatId] = [];
-          }
-          notesByChatId[noteEntry.chatId].push(noteEntry);
-        });
-        
-        // For each chat with notes, add a Skip item if it has no recordings
-        Object.entries(notesByChatId).forEach(([chatId, chatNotes]) => {
-          // If this chat has no recordings for this note
-          if (!recordedChatIds.has(chatId)) {
-            // Take the first note from this chat for this specific note
-            const noteEntry = chatNotes[0];
-            
-            // Add the item with hasNoRecording: true
-            const skipItem = {
-              messageId: noteEntry.messageId,
-              chatId: chatId,
-              chatName: getChatName(chatId, noteEntry.chatName),
-              timestamp: noteEntry.timestamp,
-              note: noteText,
-              hasNoRecording: true, // Flag to identify items without recording
-              type: 'nota' // Add type for identification
-            };
-            
-            groupedRecordedObj[noteText].push(skipItem);
-            console.log('Added Skip item for chat:', skipItem);
-          }
-        });
-      });
-      
-      // Debug log
-      console.log('Items with hasNoRecording:', 
-        Object.entries(groupedRecordedObj).flatMap(([note, items]) => 
-          items.filter(item => item.hasNoRecording)
-        )
+      // Create a set of chatIds that already have recordings for this note
+      const recordedChatIds = new Set(
+        Object.values(recordedData)
+          .filter(record => record.note === noteText)
+          .map(record => record.chatId)
       );
       
-      setGroupedRecorded(groupedRecordedObj);
-    }
-  }, [open]);
+      // Group notes by chatId
+      const notesByChatId = {};
+      noteEntries.forEach(noteEntry => {
+        if (!noteEntry.chatId) return; // Skip if no chatId
+        
+        if (!notesByChatId[noteEntry.chatId]) {
+          notesByChatId[noteEntry.chatId] = [];
+        }
+        notesByChatId[noteEntry.chatId].push(noteEntry);
+      });
+      
+      // For each chat with notes, add a Skip item if it has no recordings
+      Object.entries(notesByChatId).forEach(([chatId, chatNotes]) => {
+        // If this chat has no recordings for this note
+        if (!recordedChatIds.has(chatId)) {
+          // Take the first note from this chat for this specific note
+          const noteEntry = chatNotes[0];
+          
+          // Add the item with hasNoRecording: true
+          const skipItem = {
+            messageId: noteEntry.messageId,
+            chatId: chatId,
+            chatName: getChatName(chatId, noteEntry.chatName),
+            timestamp: noteEntry.timestamp,
+            note: noteText,
+            hasNoRecording: true, // Flag to identify items without recording
+            type: 'nota' // Add type for identification
+          };
+          
+          groupedRecordedObj[noteText].push(skipItem);
+          console.log('Added Skip item for chat:', skipItem);
+        }
+      });
+    });
+    
+    // Debug log
+    console.log('Items with hasNoRecording:', 
+      Object.entries(groupedRecordedObj).flatMap(([note, items]) => 
+        items.filter(item => item.hasNoRecording)
+      )
+    );
+    
+    setGroupedRecorded(groupedRecordedObj);
+  }, [notes, recordedData, chatSynonyms]);
 
   // Handle deleting a note
   const handleDeleteNote = async (messageId) => {
@@ -247,38 +250,41 @@ const NotesGroupView = ({ open, onClose, chats }) => {
       delete updatedNotes[messageId];
       setNotes(updatedNotes);
     
-    // Update groups as well
-    const newGroupedNotes = {};
-    Object.values(updatedNotes).forEach(note => {
-      if (!note.note) return; // Skip entries without a note value
-      
-      if (!newGroupedNotes[note.note]) {
-        newGroupedNotes[note.note] = [];
-      }
-      
-      newGroupedNotes[note.note].push({
-        messageId: note.messageId,
-        chatId: note.chatId,
-        chatName: note.chatName,
-        senderName: note.senderName,
-        timestamp: note.timestamp,
-        content: note.content
+      // Update groups as well
+      const newGroupedNotes = {};
+      Object.values(updatedNotes).forEach(note => {
+        if (!note.note) return; // Skip entries without a note value
+        
+        if (!newGroupedNotes[note.note]) {
+          newGroupedNotes[note.note] = [];
+        }
+        
+        newGroupedNotes[note.note].push({
+          messageId: note.messageId,
+          chatId: note.chatId,
+          chatName: note.chatName,
+          senderName: note.senderName,
+          timestamp: note.timestamp,
+          content: note.content
+        });
       });
-    });
-    setGroupedNotes(newGroupedNotes);
-    
-    // Update grouped recorded data as well
-    const newGroupedRecorded = {...groupedRecorded};
-    Object.keys(newGroupedRecorded).forEach(noteText => {
-      newGroupedRecorded[noteText] = newGroupedRecorded[noteText].filter(
-        item => item.messageId !== messageId
-      );
+      setGroupedNotes(newGroupedNotes);
       
-      if (newGroupedRecorded[noteText].length === 0) {
-        delete newGroupedRecorded[noteText];
-      }
-    });
-    setGroupedRecorded(newGroupedRecorded);
+      // Update grouped recorded data as well
+      const newGroupedRecorded = {...groupedRecorded};
+      Object.keys(newGroupedRecorded).forEach(noteText => {
+        newGroupedRecorded[noteText] = newGroupedRecorded[noteText].filter(
+          item => item.messageId !== messageId
+        );
+        
+        if (newGroupedRecorded[noteText].length === 0) {
+          delete newGroupedRecorded[noteText];
+        }
+      });
+      setGroupedRecorded(newGroupedRecorded);
+    } catch (error) {
+      console.error("Errore durante l'eliminazione della nota:", error);
+    }
   };
   
   // Handle deleting recorded data
@@ -296,18 +302,21 @@ const NotesGroupView = ({ open, onClose, chats }) => {
       delete updatedRecorded[messageId];
       setRecordedData(updatedRecorded);
     
-    // Update groups as well
-    const newGroupedRecorded = {...groupedRecorded};
-    Object.keys(newGroupedRecorded).forEach(noteText => {
-      newGroupedRecorded[noteText] = newGroupedRecorded[noteText].filter(
-        item => item.messageId !== messageId
-      );
-      
-      if (newGroupedRecorded[noteText].length === 0) {
-        delete newGroupedRecorded[noteText];
-      }
-    });
-    setGroupedRecorded(newGroupedRecorded);
+      // Update groups as well
+      const newGroupedRecorded = {...groupedRecorded};
+      Object.keys(newGroupedRecorded).forEach(noteText => {
+        newGroupedRecorded[noteText] = newGroupedRecorded[noteText].filter(
+          item => item.messageId !== messageId
+        );
+        
+        if (newGroupedRecorded[noteText].length === 0) {
+          delete newGroupedRecorded[noteText];
+        }
+      });
+      setGroupedRecorded(newGroupedRecorded);
+    } catch (error) {
+      console.error("Errore durante l'eliminazione del dato registrato:", error);
+    }
   };
 
   // Filter notes based on input
