@@ -84,6 +84,9 @@ var (
 	wsClients    = make(map[*websocket.Conn]bool)
 	wsClientsMux sync.Mutex
 	
+	// Contatore di client connessi
+	wsClientCount int32
+	
 	// WebSocket upgrader
 	wsUpgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -270,6 +273,11 @@ func broadcastToClients(messageType string, payload interface{}) {
 	wsClientsMux.Lock()
 	defer wsClientsMux.Unlock()
 	
+	// Se non ci sono client connessi, non fare nulla
+	if len(wsClients) == 0 {
+		return
+	}
+	
 	message := WSMessage{
 		Type:    messageType,
 		Payload: payload,
@@ -281,13 +289,23 @@ func broadcastToClients(messageType string, payload interface{}) {
 		return
 	}
 	
+	// Crea una lista di client da rimuovere
+	var clientsToRemove []*websocket.Conn
+	
 	for client := range wsClients {
 		err := client.WriteMessage(websocket.TextMessage, messageJSON)
 		if err != nil {
 			fmt.Println("Errore nell'invio del messaggio WebSocket:", err)
-			client.Close()
-			delete(wsClients, client)
+			clientsToRemove = append(clientsToRemove, client)
 		}
+	}
+	
+	// Rimuovi i client disconnessi
+	for _, client := range clientsToRemove {
+		client.Close()
+		delete(wsClients, client)
+		atomic.AddInt32(&wsClientCount, -1)
+		fmt.Printf("Client WebSocket disconnesso (errore). Totale connessi: %d\n", atomic.LoadInt32(&wsClientCount))
 	}
 }
 
@@ -940,28 +958,77 @@ func main() {
 		// Aggiungi il client alla mappa dei client WebSocket
 		wsClientsMux.Lock()
 		wsClients[conn] = true
+		clientCount := atomic.AddInt32(&wsClientCount, 1)
 		wsClientsMux.Unlock()
 		
-		fmt.Println("Nuovo client WebSocket connesso")
+		// Invia un messaggio di benvenuto al client
+		welcomeMsg := WSMessage{
+			Type: "connection_established",
+			Payload: map[string]interface{}{
+				"message": "Connessione WebSocket stabilita",
+				"timestamp": time.Now(),
+				"clientCount": clientCount,
+			},
+		}
+		
+		welcomeMsgJSON, _ := json.Marshal(welcomeMsg)
+		conn.WriteMessage(websocket.TextMessage, welcomeMsgJSON)
+		
+		fmt.Printf("Nuovo client WebSocket connesso. Totale connessi: %d\n", clientCount)
+		
+		// Imposta un ping periodico per mantenere attiva la connessione
+		conn.SetPingHandler(func(appData string) error {
+			// Rispondi con un pong
+			err := conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(time.Second))
+			if err != nil {
+				fmt.Printf("Errore nell'invio del pong: %v\n", err)
+			}
+			return nil
+		})
 		
 		// Gestisci la disconnessione
 		go func() {
 			defer func() {
 				wsClientsMux.Lock()
 				delete(wsClients, conn)
+				currentCount := atomic.AddInt32(&wsClientCount, -1)
 				wsClientsMux.Unlock()
 				conn.Close()
-				fmt.Println("Client WebSocket disconnesso")
+				fmt.Printf("Client WebSocket disconnesso. Totale connessi: %d\n", currentCount)
 			}()
 			
+			// Imposta un timeout di lettura per rilevare connessioni inattive
+			conn.SetReadDeadline(time.Now().Add(time.Minute * 5))
+			conn.SetPongHandler(func(string) error {
+				// Resetta il timeout quando riceviamo un pong
+				conn.SetReadDeadline(time.Now().Add(time.Minute * 5))
+				return nil
+			})
+			
 			for {
-				// Leggi i messaggi dal client (non facciamo nulla con essi per ora)
-				_, _, err := conn.ReadMessage()
+				// Leggi i messaggi dal client
+				messageType, message, err := conn.ReadMessage()
 				if err != nil {
 					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 						fmt.Printf("Errore nella lettura del messaggio WebSocket: %v\n", err)
 					}
 					break
+				}
+				
+				// Se riceviamo un messaggio di ping, rispondiamo con un pong
+				if messageType == websocket.PingMessage {
+					if err := conn.WriteMessage(websocket.PongMessage, nil); err != nil {
+						fmt.Printf("Errore nell'invio del pong: %v\n", err)
+						break
+					}
+					continue
+				}
+				
+				// Se riceviamo un messaggio di testo, lo processiamo
+				if messageType == websocket.TextMessage && len(message) > 0 {
+					// Per ora non facciamo nulla con i messaggi ricevuti
+					// Ma potremmo implementare comandi client-server in futuro
+					fmt.Printf("Messaggio ricevuto dal client: %s\n", string(message))
 				}
 			}
 		}()
