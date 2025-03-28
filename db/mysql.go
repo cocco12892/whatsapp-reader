@@ -45,6 +45,27 @@ func (m *MySQLManager) InitTables() error {
 	if err != nil {
 		return fmt.Errorf("errore nella creazione della tabella chats: %v", err)
 	}
+	
+	// Tabella per i dati registrati (importo e quota)
+	_, err = m.db.Exec(`
+		CREATE TABLE IF NOT EXISTS recorded_data (
+			message_id VARCHAR(255) PRIMARY KEY,
+			data VARCHAR(255) NOT NULL,
+			chat_id VARCHAR(255) NOT NULL,
+			chat_name VARCHAR(255) NOT NULL,
+			sender_name VARCHAR(255) NOT NULL,
+			content TEXT NOT NULL,
+			timestamp TIMESTAMP NOT NULL,
+			recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NULL,
+			note_id VARCHAR(255),
+			note TEXT,
+			INDEX (chat_id)
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("errore nella creazione della tabella recorded_data: %v", err)
+	}
 
 	// Tabella per i messaggi
 	_, err = m.db.Exec(`
@@ -262,6 +283,191 @@ func (m *MySQLManager) DeleteMessageNote(messageID string) error {
 // Soft delete di una nota di un messaggio
 func (m *MySQLManager) SoftDeleteMessageNote(messageID string) error {
 	_, err := m.db.Exec("UPDATE message_notes SET is_deleted = TRUE WHERE message_id = ?", messageID)
+	return err
+}
+
+// SaveRecordedData salva un dato registrato nel database
+func (m *MySQLManager) SaveRecordedData(data *RecordedData) error {
+	// Imposta il timestamp di registrazione se non è già impostato
+	if data.RecordedAt.IsZero() {
+		data.RecordedAt = time.Now()
+	}
+	
+	_, err := m.db.Exec(`
+		INSERT INTO recorded_data (
+			message_id, data, chat_id, chat_name, sender_name, 
+			content, timestamp, recorded_at, note_id, note
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		data.MessageID, data.Data, data.ChatID, data.ChatName, data.SenderName,
+		data.Content, data.Timestamp, data.RecordedAt, data.NoteID, data.Note,
+	)
+	return err
+}
+
+// UpdateRecordedData aggiorna un dato registrato esistente
+func (m *MySQLManager) UpdateRecordedData(data *RecordedData) error {
+	// Imposta il timestamp di aggiornamento
+	data.UpdatedAt = time.Now()
+	
+	_, err := m.db.Exec(`
+		UPDATE recorded_data SET
+			data = ?,
+			chat_id = ?,
+			chat_name = ?,
+			sender_name = ?,
+			content = ?,
+			timestamp = ?,
+			updated_at = ?,
+			note_id = ?,
+			note = ?
+		WHERE message_id = ?
+	`,
+		data.Data, data.ChatID, data.ChatName, data.SenderName,
+		data.Content, data.Timestamp, data.UpdatedAt, data.NoteID, data.Note,
+		data.MessageID,
+	)
+	return err
+}
+
+// LoadRecordedData carica un dato registrato specifico
+func (m *MySQLManager) LoadRecordedData(messageID string) (*RecordedData, error) {
+	var data RecordedData
+	var updatedAt sql.NullTime
+	var noteID sql.NullString
+	var note sql.NullString
+	
+	err := m.db.QueryRow(`
+		SELECT 
+			message_id, data, chat_id, chat_name, sender_name, 
+			content, timestamp, recorded_at, updated_at, note_id, note
+		FROM recorded_data
+		WHERE message_id = ?
+	`, messageID).Scan(
+		&data.MessageID, &data.Data, &data.ChatID, &data.ChatName, &data.SenderName,
+		&data.Content, &data.Timestamp, &data.RecordedAt, &updatedAt, &noteID, &note,
+	)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("dato registrato non trovato")
+		}
+		return nil, err
+	}
+	
+	if updatedAt.Valid {
+		data.UpdatedAt = updatedAt.Time
+	}
+	
+	if noteID.Valid {
+		data.NoteID = noteID.String
+	}
+	
+	if note.Valid {
+		data.Note = note.String
+	}
+	
+	return &data, nil
+}
+
+// LoadChatRecordedData carica tutti i dati registrati per una chat specifica
+func (m *MySQLManager) LoadChatRecordedData(chatID string) ([]*RecordedData, error) {
+	rows, err := m.db.Query(`
+		SELECT 
+			message_id, data, chat_id, chat_name, sender_name, 
+			content, timestamp, recorded_at, updated_at, note_id, note
+		FROM recorded_data
+		WHERE chat_id = ?
+		ORDER BY timestamp ASC
+	`, chatID)
+	
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var recordedData []*RecordedData
+	for rows.Next() {
+		var data RecordedData
+		var updatedAt sql.NullTime
+		var noteID sql.NullString
+		var note sql.NullString
+		
+		if err := rows.Scan(
+			&data.MessageID, &data.Data, &data.ChatID, &data.ChatName, &data.SenderName,
+			&data.Content, &data.Timestamp, &data.RecordedAt, &updatedAt, &noteID, &note,
+		); err != nil {
+			return nil, err
+		}
+		
+		if updatedAt.Valid {
+			data.UpdatedAt = updatedAt.Time
+		}
+		
+		if noteID.Valid {
+			data.NoteID = noteID.String
+		}
+		
+		if note.Valid {
+			data.Note = note.String
+		}
+		
+		recordedData = append(recordedData, &data)
+	}
+	
+	return recordedData, nil
+}
+
+// LoadAllRecordedData carica tutti i dati registrati
+func (m *MySQLManager) LoadAllRecordedData() ([]*RecordedData, error) {
+	rows, err := m.db.Query(`
+		SELECT 
+			message_id, data, chat_id, chat_name, sender_name, 
+			content, timestamp, recorded_at, updated_at, note_id, note
+		FROM recorded_data
+		ORDER BY timestamp DESC
+	`)
+	
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var recordedData []*RecordedData
+	for rows.Next() {
+		var data RecordedData
+		var updatedAt sql.NullTime
+		var noteID sql.NullString
+		var note sql.NullString
+		
+		if err := rows.Scan(
+			&data.MessageID, &data.Data, &data.ChatID, &data.ChatName, &data.SenderName,
+			&data.Content, &data.Timestamp, &data.RecordedAt, &updatedAt, &noteID, &note,
+		); err != nil {
+			return nil, err
+		}
+		
+		if updatedAt.Valid {
+			data.UpdatedAt = updatedAt.Time
+		}
+		
+		if noteID.Valid {
+			data.NoteID = noteID.String
+		}
+		
+		if note.Valid {
+			data.Note = note.String
+		}
+		
+		recordedData = append(recordedData, &data)
+	}
+	
+	return recordedData, nil
+}
+
+// DeleteRecordedData elimina un dato registrato
+func (m *MySQLManager) DeleteRecordedData(messageID string) error {
+	_, err := m.db.Exec("DELETE FROM recorded_data WHERE message_id = ?", messageID)
 	return err
 }
 

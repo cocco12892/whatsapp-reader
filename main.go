@@ -1537,14 +1537,99 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "success"})
 	})
 	
-	// API per i dati registrati (placeholder per compatibilità)
+	// API per i dati registrati
 	router.GET("/api/recorded-data", func(c *gin.Context) {
-		// Per ora restituisce un array vuoto
-		c.JSON(http.StatusOK, []interface{}{})
+		// Carica tutti i dati registrati dal database
+		recordedData, err := dbManager.LoadAllRecordedData()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento dei dati registrati: %v", err)})
+			return
+		}
+		c.JSON(http.StatusOK, recordedData)
 	})
 	
-	// API per eliminare un dato registrato (placeholder per compatibilità)
+	// API per ottenere un dato registrato specifico
+	router.GET("/api/recorded-data/:id", func(c *gin.Context) {
+		messageID := c.Param("id")
+		
+		// Carica il dato registrato dal database
+		recordedData, err := dbManager.LoadRecordedData(messageID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Dato registrato non trovato: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, recordedData)
+	})
+	
+	// API per ottenere tutti i dati registrati di una chat
+	router.GET("/api/recorded-data/chat/:id", func(c *gin.Context) {
+		chatID := c.Param("id")
+		
+		// Carica i dati registrati per la chat dal database
+		recordedData, err := dbManager.LoadChatRecordedData(chatID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento dei dati registrati: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, recordedData)
+	})
+	
+	// API per salvare un dato registrato
+	router.POST("/api/recorded-data/:id", func(c *gin.Context) {
+		messageID := c.Param("id")
+		
+		var requestData db.RecordedData
+		if err := c.BindJSON(&requestData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
+			return
+		}
+		
+		// Assicurati che l'ID del messaggio sia corretto
+		requestData.MessageID = messageID
+		
+		// Salva il dato registrato nel database
+		if err := dbManager.SaveRecordedData(&requestData); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel salvataggio del dato registrato: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"status": "success", "data": requestData})
+	})
+	
+	// API per aggiornare un dato registrato
+	router.PUT("/api/recorded-data/:id", func(c *gin.Context) {
+		messageID := c.Param("id")
+		
+		var requestData db.RecordedData
+		if err := c.BindJSON(&requestData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
+			return
+		}
+		
+		// Assicurati che l'ID del messaggio sia corretto
+		requestData.MessageID = messageID
+		
+		// Aggiorna il dato registrato nel database
+		if err := dbManager.UpdateRecordedData(&requestData); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'aggiornamento del dato registrato: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"status": "success", "data": requestData})
+	})
+	
+	// API per eliminare un dato registrato
 	router.DELETE("/api/recorded-data/:id", func(c *gin.Context) {
+		messageID := c.Param("id")
+		
+		// Elimina il dato registrato dal database
+		if err := dbManager.DeleteRecordedData(messageID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'eliminazione del dato registrato: %v", err)})
+			return
+		}
+		
 		c.JSON(http.StatusOK, gin.H{"status": "success"})
 	})
 
