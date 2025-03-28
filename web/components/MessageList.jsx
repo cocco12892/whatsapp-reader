@@ -219,10 +219,33 @@ const [lastSeenMessages, setLastSeenMessages] = useState(() => {
 });
 
 // State for recorded messages
-const [recordedMessages, setRecordedMessages] = useState(() => {
-  const stored = localStorage.getItem(`recordedMessages_${chat.id}`);
-  return new Set(stored ? JSON.parse(stored) : []);
-});
+const [recordedMessages, setRecordedMessages] = useState(new Set());
+
+// Carica i messaggi registrati dal database
+useEffect(() => {
+  if (chat && chat.id) {
+    fetch(`/api/recorded-data/chat/${chat.id}`)
+      .then(response => {
+        if (!response.ok) {
+          if (response.status !== 404) { // 404 è ok, significa solo che non ci sono dati
+            console.warn('API recorded-data non disponibile:', response.status);
+          }
+          return [];
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          // Estrai gli ID dei messaggi registrati
+          const messageIds = data.map(item => item.messageId);
+          setRecordedMessages(new Set(messageIds));
+        }
+      })
+      .catch(error => {
+        console.error('Errore nel caricamento dei dati registrati:', error);
+      });
+  }
+}, [chat]);
 
 // State for noted messages
 const [notedMessages, setNotedMessages] = useState(new Set());
@@ -335,54 +358,59 @@ const handleKeyDown = (e, messageId) => {
 const handleRecord = (messageId) => {
   console.log('Recording message:', messageId);
   
-  // Check if the message is already recorded
-  const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
-  
-  if (recordedData[messageId]) {
-    // Se già registrato, ora apriamo il dialog per l'editing invece di rimuoverlo
-    const existingData = recordedData[messageId];
-    
-    // Prepopoliamo solo i campi separati (opzione 2)
-    if (existingData.data && existingData.data.includes('@')) {
-      // Non popoliamo il campo unico in modalità modifica
-      // setAmountQuotaInput(existingData.data);
-      
-      // Prepopola solo i campi separati
-      const parts = existingData.data.split('@');
-      if (parts.length === 2) {
-        setSeparateImporto(parts[0]);
-        setSeparateQuota(parts[1]);
+  // Verifica se il messaggio è già registrato nel database
+  fetch(`/api/recorded-data/${messageId}`)
+    .then(response => {
+      if (response.status === 404) {
+        // Messaggio non registrato, procedi con la registrazione
+        // Verifica se ci sono note nel database per questa chat
+        const chatNotesFromDB = Object.values(messageNotes).filter(note => note.chatId === chat.id);
+        
+        if (chatNotesFromDB.length === 0) {
+          alert("Non ci sono note in questa chat. Aggiungi prima una nota a un messaggio.");
+          return;
+        }
+        
+        // Reset modalità di modifica
+        setIsEditMode(false);
+        
+        // Apri direttamente il dialog contestuale
+        setCurrentMessageId(messageId);
+        setAmountQuotaDialogOpen(true);
+      } else if (response.ok) {
+        // Messaggio già registrato, carica i dati per la modifica
+        return response.json().then(existingData => {
+          // Prepopola i campi separati se i dati esistono
+          if (existingData.data && existingData.data.includes('@')) {
+            const parts = existingData.data.split('@');
+            if (parts.length === 2) {
+              setSeparateImporto(parts[0]);
+              setSeparateQuota(parts[1]);
+            }
+          }
+          
+          // Recupera la nota associata
+          setSelectedNote(existingData.noteId ? {
+            messageId: existingData.noteId,
+            note: existingData.note
+          } : null);
+          
+          // Imposta la modalità di modifica
+          setIsEditMode(true);
+          
+          // Apri il dialog
+          setCurrentMessageId(messageId);
+          setAmountQuotaDialogOpen(true);
+        });
+      } else {
+        console.error('Errore nel recupero dei dati registrati:', response.status);
+        alert('Errore nel recupero dei dati registrati');
       }
-    }
-    
-    // Recupera la nota associata
-    setSelectedNote(existingData.noteId ? {
-      messageId: existingData.noteId,
-      note: existingData.note
-    } : null);
-    
-    // Imposta la modalità di modifica
-    setIsEditMode(true);
-    
-    // Apri il dialog
-    setCurrentMessageId(messageId);
-    setAmountQuotaDialogOpen(true);
-  } else {
-    // Verifica se ci sono note nel database per questa chat
-    const chatNotesFromDB = Object.values(messageNotes).filter(note => note.chatId === chat.id);
-    
-    if (chatNotesFromDB.length === 0) {
-      alert("Non ci sono note in questa chat. Aggiungi prima una nota a un messaggio.");
-      return;
-    }
-    
-    // Reset modalità di modifica
-    setIsEditMode(false);
-    
-    // Apri direttamente il dialog contestuale
-    setCurrentMessageId(messageId);
-    setAmountQuotaDialogOpen(true);
-  }
+    })
+    .catch(error => {
+      console.error('Errore di rete:', error);
+      alert('Errore di rete nel recupero dei dati');
+    });
 };
 
 // Funzione per gestire la selezione di una nota
@@ -511,18 +539,16 @@ const handleAmountQuotaSubmit = () => {
   }
   
   const messageId = currentMessageId;
-  const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
     
   // Find the message in the chat
-  const message = chat.messages.find(m => m.id === messageId);
+  const message = messages.find(m => m.id === messageId);
   if (!message) {
     console.error('Messaggio non trovato:', messageId);
     return;
   }
     
-  // Save the recorded data
-  const newRecordedData = { ...recordedData };
-  newRecordedData[messageId] = {
+  // Prepara i dati da salvare nel database
+  const recordedData = {
     messageId: messageId,
     data: formattedInput,
     chatId: chat.id,
@@ -530,27 +556,47 @@ const handleAmountQuotaSubmit = () => {
     senderName: message.senderName,
     content: message.content,
     timestamp: message.timestamp,
-    recordedAt: isEditMode ? recordedData[messageId].recordedAt : new Date().toISOString(), // Mantieni il timestamp originale
-    updatedAt: isEditMode ? new Date().toISOString() : null, // Aggiungi timestamp di aggiornamento
     noteId: selectedNote.messageId,
     note: selectedNote.note
   };
 
+  // Determina se è un'aggiunta o un aggiornamento
+  const method = isEditMode ? 'PUT' : 'POST';
+  const url = `/api/recorded-data/${messageId}`;
   
-  localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
-  
-  // Add to the set of recorded messages
-  setRecordedMessages(prev => {
-    const newSet = new Set([...prev]);
-    newSet.add(messageId);
-    localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
-    return newSet;
+  // Salva i dati nel database
+  fetch(url, {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(recordedData),
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`Errore HTTP: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    console.log('Dati salvati con successo:', data);
+    
+    // Aggiorna lo stato locale per riflettere il cambiamento
+    setRecordedMessages(prev => {
+      const newSet = new Set([...prev]);
+      newSet.add(messageId);
+      return newSet;
+    });
+    
+    resetDialogState();
+    
+    // Add visual effect
+    addVisualEffect(messageId, isEditMode ? 'updatePulse' : 'recordPulse');
+  })
+  .catch(error => {
+    console.error('Errore nel salvataggio dei dati:', error);
+    alert('Errore nel salvataggio dei dati');
   });
-  
-  resetDialogState();
-  
-  // Add visual effect
-  addVisualEffect(messageId, isEditMode ? 'updatePulse' : 'recordPulse');
 };
 
 // Funzione per aggiungere effetti visivi
@@ -681,20 +727,19 @@ const handleDeleteRecord = () => {
     return;
   }
   
-  // Ottieni i dati salvati
-  const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
-  
-  // Elimina il record specifico
-  if (recordedData[currentMessageId]) {
-    const newRecordedData = { ...recordedData };
-    delete newRecordedData[currentMessageId];
-    localStorage.setItem('recordedMessagesData', JSON.stringify(newRecordedData));
+  // Elimina il record dal database
+  fetch(`/api/recorded-data/${currentMessageId}`, {
+    method: 'DELETE',
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`Errore HTTP: ${response.status}`);
+    }
     
     // Rimuovi dalla lista dei messaggi registrati
     setRecordedMessages(prev => {
       const newSet = new Set([...prev]);
       newSet.delete(currentMessageId);
-      localStorage.setItem(`recordedMessages_${chat.id}`, JSON.stringify([...newSet]));
       return newSet;
     });
     
@@ -703,7 +748,11 @@ const handleDeleteRecord = () => {
     
     // Chiudi il dialog
     resetDialogState();
-  }
+  })
+  .catch(error => {
+    console.error('Errore nell\'eliminazione del record:', error);
+    alert('Errore nell\'eliminazione del record');
+  });
 };
 
 const removeMessageNote = (messageId) => {
@@ -898,36 +947,50 @@ return (
                   }}
                 >
                   <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    {/* Mostra il valore registrato */}
-                    {(() => {
-                      const recordedData = JSON.parse(localStorage.getItem('recordedMessagesData') || '{}');
-                      if (recordedData[message.id]?.data) {
-                        return (
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
-                              position: 'absolute', 
-                              right: '100%', 
-                              mr: 0.5,
-                              bgcolor: 'background.record', 
-                              p: 0.5, 
-                              borderRadius: 1,
-                              boxShadow: 1,
-                              fontSize: 12,
-                              color: 'text.white',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              maxWidth: 100,
-                              zIndex: 10
-                            }}
-                          >
-                            {recordedData[message.id].data}
-                          </Typography>
-                        );
-                      }
-                      return null;
-                    })()}
+                    {/* Mostra il valore registrato - caricato dinamicamente */}
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        position: 'absolute', 
+                        right: '100%', 
+                        mr: 0.5,
+                        bgcolor: 'background.record', 
+                        p: 0.5, 
+                        borderRadius: 1,
+                        boxShadow: 1,
+                        fontSize: 12,
+                        color: 'text.white',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 100,
+                        zIndex: 10,
+                        opacity: 0, // Inizialmente nascosto
+                        transition: 'opacity 0.2s ease',
+                        '&:hover': {
+                          opacity: 1 // Mostra al passaggio del mouse
+                        }
+                      }}
+                      onMouseEnter={(e) => {
+                        // Carica il valore dal database al passaggio del mouse
+                        fetch(`/api/recorded-data/${message.id}`)
+                          .then(response => {
+                            if (!response.ok) return null;
+                            return response.json();
+                          })
+                          .then(data => {
+                            if (data && data.data) {
+                              e.target.textContent = data.data;
+                              e.target.style.opacity = 1;
+                            }
+                          })
+                          .catch(error => {
+                            console.error('Errore nel caricamento del dato:', error);
+                          });
+                      }}
+                    >
+                      Caricamento...
+                    </Typography>
                     <span style={{ fontSize: '10px' }}>💰</span>
                   </Box>
                 </Box>
