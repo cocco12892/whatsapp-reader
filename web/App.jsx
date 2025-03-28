@@ -21,7 +21,7 @@ import NoteIcon from '@mui/icons-material/Note';
 import { Button } from '@mui/material';
 import BotSalvatore from './components/BotSalvatore';
 
-const API_BASE_URL = '';
+// API_BASE_URL è ora definito come variabile di stato nel componente App
 
 // Funzione per codificare in modo sicuro i percorsi delle immagini
 const safeImagePath = (path) => {
@@ -48,8 +48,10 @@ function App() {
   // WebSocket URL basato sull'URL corrente
   const WS_URL = useMemo(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    return `${protocol}//${host}/ws`;
+    // Usa l'host corrente, ma assicurati di usare la porta corretta (8080)
+    const host = window.location.hostname;
+    const port = 8080; // Porta fissa per il backend
+    return `${protocol}//${host}:${port}/ws`;
   }, []);
 
   const [chats, setChats] = useState([]);
@@ -145,6 +147,14 @@ function App() {
     }
   };
 
+  // Definisci l'URL base per le API
+  const API_BASE_URL = useMemo(() => {
+    const protocol = window.location.protocol;
+    const host = window.location.hostname;
+    const port = 8080; // Porta fissa per il backend
+    return `${protocol}//${host}:${port}`;
+  }, []);
+  
   const fetchChats = useCallback(async () => {
     try {
       console.log("Fetching chats...");
