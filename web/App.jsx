@@ -81,7 +81,7 @@ function App() {
       for (const chat of chatsData) {
         try {
           const synonymResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/synonym`);
-          if (synonymResponse.ok)Vedo che ci sono problemi con i blocchi {
+          if (synonymResponse.ok) {
             const data = await synonymResponse.json();
             if (data.synonym) {
               synonymsMap[chat.id] = data.synonym;
