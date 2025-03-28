@@ -67,6 +67,24 @@ const DuplicateImageFinder = ({ chats }) => {
         });
     }
   }, [open, duplicates]);
+  
+  // Funzione per verificare se un gruppo ha note
+  const checkGroupHasNotes = (group) => {
+    if (!group || !Array.isArray(group)) return false;
+    return group.some(image => image.id && messageNotes[image.id]);
+  };
+  
+  // Funzione per ottenere la nota di un gruppo
+  const getGroupNote = (group) => {
+    if (!group || !Array.isArray(group)) return '';
+    
+    // Trova la prima immagine con una nota
+    const imageWithNote = group.find(image => image.id && messageNotes[image.id]);
+    if (imageWithNote && messageNotes[imageWithNote.id]) {
+      return messageNotes[imageWithNote.id].note || '';
+    }
+    return '';
+  };
 
   const handleOpen = () => {
     setOpen(true);
@@ -167,45 +185,91 @@ const DuplicateImageFinder = ({ chats }) => {
 
   // Handle opening the note dialog for a group
   const handleOpenNoteDialog = (group) => {
-    const note = prompt("Inserisci una nota per il gruppo di messaggi:");
+    // Verifica se esiste già una nota per questo gruppo
+    const firstImageWithId = group.find(img => img.id);
+    if (!firstImageWithId) {
+      alert("Nessun messaggio valido trovato nel gruppo");
+      return;
+    }
     
-    if (note && group && Array.isArray(group)) {
-      const groupId = `group_${Date.now()}`;
-      
-      // Crea un array di promesse per salvare ogni nota nel database
-      const savePromises = group.map(image => {
-        if (image.id) {
-          console.log(`ID messaggio: ${image.id}`); // Stampa l'ID del messaggio
-          
-          // Prepara i dati della nota
-          const noteData = {
-            note: note,
-            type: 'nota',
-            chatId: image.chatId || '',
-            chatName: image.chatName || 'Chat sconosciuta',
-            addedAt: new Date().toISOString(),
-            fromDuplicateGroup: true,
-            groupId: groupId,
-            imageHash: image.imageHash
-          };
-          
-          // Invia la nota al server
-          return fetch(`/api/messages/${image.id}/note`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(noteData),
-          })
-          .then(response => {
-            if (!response.ok) {
-              throw new Error(`Errore nel salvataggio della nota per il messaggio ${image.id}`);
+    // Controlla se esiste già una nota per questo messaggio
+    fetch(`/api/messages/${firstImageWithId.id}/note`)
+      .then(response => {
+        // Se la nota esiste, ottieni il suo contenuto
+        if (response.ok) {
+          return response.json().then(noteData => {
+            const existingNote = noteData.note;
+            const updatedNote = prompt("Modifica la nota per il gruppo di messaggi:", existingNote);
+            
+            if (updatedNote !== null) { // L'utente non ha premuto Annulla
+              saveGroupNote(group, updatedNote, true);
             }
-            return response.json();
           });
+        } else if (response.status === 404) {
+          // Se la nota non esiste, chiedi di crearne una nuova
+          const newNote = prompt("Inserisci una nota per il gruppo di messaggi:");
+          if (newNote) {
+            saveGroupNote(group, newNote, false);
+          }
+        } else {
+          console.error("Errore nel controllo della nota:", response.status);
+          // Fallback al comportamento precedente
+          const note = prompt("Inserisci una nota per il gruppo di messaggi:");
+          if (note) {
+            saveGroupNote(group, note, false);
+          }
         }
-        return Promise.resolve(); // Per i messaggi senza ID
+      })
+      .catch(error => {
+        console.error("Errore nella verifica della nota:", error);
+        // Fallback al comportamento precedente
+        const note = prompt("Inserisci una nota per il gruppo di messaggi:");
+        if (note) {
+          saveGroupNote(group, note, false);
+        }
       });
+  };
+  
+  // Funzione per salvare la nota di gruppo
+  const saveGroupNote = (group, note, isUpdate) => {
+    if (!group || !Array.isArray(group) || !note) return;
+    
+    const groupId = `group_${Date.now()}`;
+    
+    // Crea un array di promesse per salvare ogni nota nel database
+    const savePromises = group.map(image => {
+      if (image.id) {
+        console.log(`ID messaggio: ${image.id}`); // Stampa l'ID del messaggio
+        
+        // Prepara i dati della nota
+        const noteData = {
+          note: note,
+          type: 'nota',
+          chatId: image.chatId || '',
+          chatName: image.chatName || 'Chat sconosciuta',
+          addedAt: new Date().toISOString(),
+          fromDuplicateGroup: true,
+          groupId: groupId,
+          imageHash: image.imageHash
+        };
+        
+        // Invia la nota al server
+        return fetch(`/api/messages/${image.id}/note`, {
+          method: isUpdate ? 'PUT' : 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(noteData),
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Errore nel salvataggio della nota per il messaggio ${image.id}`);
+          }
+          return response.json();
+        });
+      }
+      return Promise.resolve(); // Per i messaggi senza ID
+    });
       
       // Esegui tutte le promesse
       Promise.all(savePromises)
@@ -257,7 +321,6 @@ const DuplicateImageFinder = ({ chats }) => {
           alert('Si è verificato un errore nel salvataggio delle note di gruppo');
         });
     }
-  };
 
   // Handle saving the note for the entire group
   const handleSaveNote = () => {
@@ -341,11 +404,11 @@ const DuplicateImageFinder = ({ chats }) => {
                       </Box>
                       <Button
                         variant="outlined"
-                        startIcon={group.some(img => img.note) ? <EditNoteIcon /> : <NoteAddIcon />}
+                        startIcon={checkGroupHasNotes(group) ? <EditNoteIcon /> : <NoteAddIcon />}
                         onClick={() => handleOpenNoteDialog(group)}
                         size="small"
                       >
-                        {group.some(img => img.note) ? 'Modifica nota gruppo' : 'Aggiungi nota gruppo'}
+                        {checkGroupHasNotes(group) ? 'Modifica nota gruppo' : 'Aggiungi nota gruppo'}
                       </Button>
                     </Box>
                     
