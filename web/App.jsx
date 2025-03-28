@@ -44,6 +44,31 @@ const safeImagePath = (path) => {
   return encodedParts.join('/');
 };
 
+function App() {
+  // WebSocket URL basato sull'URL corrente
+  const WS_URL = useMemo(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    return `${protocol}//${host}/ws`;
+  }, []);
+
+  const [chats, setChats] = useState([]);
+  const [chatOrder, setChatOrder] = useState([]);
+  const [clientJID, setClientJID] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState({});
+  const [lastSeenMessages, setLastSeenMessages] = useState({});
+  const [seenMessages, setSeenMessages] = useState(new Set());
+  const [modalImage, setModalImage] = useState(null);
+  const [rotation, setRotation] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
+  const [chatSynonyms, setChatSynonyms] = useState({});
+  
+  // Carica i sinonimi dal database
+  const loadChatSynonyms = async () => {
     try {
       const synonymsMap = {};
       const response = await fetch(`${API_BASE_URL}/api/chats`);
@@ -96,6 +121,7 @@ const safeImagePath = (path) => {
       console.error("Errore nel salvataggio del sinonimo:", error);
     }
   };
+
 
   // Funzione per rimuovere un sinonimo
   const removeChatSynonym = async (chatId) => {
@@ -173,33 +199,6 @@ const safeImagePath = (path) => {
       setIsLoading(false);
     }
   };
-
-function App() {
-  // WebSocket URL basato sull'URL corrente
-  const WS_URL = useMemo(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    return `${protocol}//${host}/ws`;
-  }, []);
-
-  const [chats, setChats] = useState([]);
-  const [chatOrder, setChatOrder] = useState([]);
-  const [clientJID, setClientJID] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [isUserScrolling, setIsUserScrolling] = useState(false);
-  const [unreadMessages, setUnreadMessages] = useState({});
-  const [lastSeenMessages, setLastSeenMessages] = useState({});
-  const [seenMessages, setSeenMessages] = useState(new Set());
-  const [modalImage, setModalImage] = useState(null);
-  const [rotation, setRotation] = useState(0);
-  const [zoom, setZoom] = useState(1);
-  const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
-  const [chatSynonyms, setChatSynonyms] = useState({});
-  
-
-  // Carica i sinonimi dal database
-  const loadChatSynonyms = async () => {
     try {
       const synonymsMap = {};
       const response = await fetch(`${API_BASE_URL}/api/chats`);
