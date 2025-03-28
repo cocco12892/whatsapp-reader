@@ -219,14 +219,6 @@ const [recordedMessages, setRecordedMessages] = useState(() => {
 // State for noted messages
 const [notedMessages, setNotedMessages] = useState(new Set());
 const [messageNotes, setMessageNotes] = useState({});
-
-
-// Carica le note dal server all'avvio
-useEffect(() => {
-  loadNotesFromDB();
-}, [loadNotesFromDB]);
-
-// State for notes group view
 const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
 const [noteSelectionOpen, setNoteSelectionOpen] = useState(false);
 const [currentMessageId, setCurrentMessageId] = useState(null);
@@ -239,6 +231,30 @@ const [selectedText, setSelectedText] = useState('');
 const [separateImporto, setSeparateImporto] = useState('');
 const [separateQuota, setSeparateQuota] = useState('');
 const [isEditMode, setIsEditMode] = useState(false);
+
+
+// Funzione per caricare le note dal database
+const loadNotesFromDB = useCallback(() => {
+  fetch('/api/message-notes')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Errore nel caricamento delle note');
+      }
+      return response.json();
+    })
+    .then(notes => {
+      setMessageNotes(notes);
+      setNotedMessages(new Set(Object.keys(notes)));
+    })
+    .catch(error => {
+      console.error('Errore nel caricamento delle note:', error);
+    });
+}, []);
+
+// Carica le note dal server all'avvio
+useEffect(() => {
+  loadNotesFromDB();
+}, [loadNotesFromDB]);
 
 const resetDialogState = () => {
   setAmountQuotaDialogOpen(false);
@@ -368,23 +384,7 @@ const handleNoteSelection = (note) => {
   setAmountQuotaDialogOpen(true);
 };
 
-// Funzione per caricare le note dal database
-const loadNotesFromDB = useCallback(() => {
-  fetch('/api/message-notes')
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Errore nel caricamento delle note');
-      }
-      return response.json();
-    })
-    .then(notes => {
-      setMessageNotes(notes);
-      setNotedMessages(new Set(Object.keys(notes)));
-    })
-    .catch(error => {
-      console.error('Errore nel caricamento delle note:', error);
-    });
-}, []);
+
 
 // Funzione per gestire il record diretto (senza passare per la selezione della nota)
 const handleDirectRecord = (messageId) => {
