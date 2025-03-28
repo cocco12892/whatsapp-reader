@@ -30,12 +30,23 @@ function ChatWindow({
   const dropAreaRef = useRef(null);
   const textFieldRef = useRef(null);
 
-  // Carica il sinonimo dal localStorage all'avvio
+  // Carica il sinonimo dal database all'avvio
   useEffect(() => {
-    const storedSynonyms = JSON.parse(localStorage.getItem('chatSynonyms') || '{}');
-    if (storedSynonyms[chat.id]) {
-      setChatSynonym(storedSynonyms[chat.id]);
-    }
+    const fetchSynonym = async () => {
+      try {
+        const response = await fetch(`/api/chats/${chat.id}/synonym`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.synonym) {
+            setChatSynonym(data.synonym);
+          }
+        }
+      } catch (error) {
+        console.error("Errore nel caricamento del sinonimo:", error);
+      }
+    };
+    
+    fetchSynonym();
   }, [chat.id]);
 
   // Gestione del drag-and-drop con overlay
@@ -201,12 +212,26 @@ function ChatWindow({
     }
   };
   
-  // Salva il sinonimo nel localStorage
-  const saveSynonym = () => {
-    const storedSynonyms = JSON.parse(localStorage.getItem('chatSynonyms') || '{}');
-    storedSynonyms[chat.id] = chatSynonym;
-    localStorage.setItem('chatSynonyms', JSON.stringify(storedSynonyms));
-    setSynonymDialogOpen(false);
+  // Salva il sinonimo nel database
+  const saveSynonym = async () => {
+    try {
+      const response = await fetch(`/api/chats/${chat.id}/synonym`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ synonym: chatSynonym }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      setSynonymDialogOpen(false);
+    } catch (error) {
+      console.error("Errore nel salvataggio del sinonimo:", error);
+      alert("Errore nel salvataggio del sinonimo");
+    }
   };
 
   const profileImageUrl = chat.profileImage 
@@ -390,12 +415,22 @@ function ChatWindow({
           </Button>
           {chatSynonym && (
             <Button 
-              onClick={() => {
-                setChatSynonym('');
-                const storedSynonyms = JSON.parse(localStorage.getItem('chatSynonyms') || '{}');
-                delete storedSynonyms[chat.id];
-                localStorage.setItem('chatSynonyms', JSON.stringify(storedSynonyms));
-                setSynonymDialogOpen(false);
+              onClick={async () => {
+                try {
+                  const response = await fetch(`/api/chats/${chat.id}/synonym`, {
+                    method: 'DELETE',
+                  });
+                  
+                  if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                  }
+                  
+                  setChatSynonym('');
+                  setSynonymDialogOpen(false);
+                } catch (error) {
+                  console.error("Errore nella rimozione del sinonimo:", error);
+                  alert("Errore nella rimozione del sinonimo");
+                }
               }} 
               color="error"
             >
