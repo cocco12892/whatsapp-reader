@@ -206,6 +206,16 @@ function App() {
     
     console.log("Nuovo messaggio ricevuto via WebSocket:", message);
     
+    // Verifica se la chat esiste già nel nostro stato
+    const chatExists = chats.some(chat => chat.id === chatId);
+    
+    if (!chatExists) {
+      console.log("Chat non trovata nello stato, ricarico le chat immediatamente...");
+      // Ricarica tutte le chat immediatamente
+      fetchChats();
+      return;
+    }
+    
     setChats(prevChats => {
       // Crea una copia profonda dell'array delle chat
       const updatedChats = [...prevChats];
@@ -233,16 +243,13 @@ function App() {
             [chatId]: (prev[chatId] || 0) + 1
           }));
         }
-      } else {
-        // La chat non esiste ancora nel nostro stato, dobbiamo caricarla
-        console.log("Chat non trovata nello stato, ricarico le chat...");
-        // Ricarica tutte le chat
-        fetchChats();
+        
+        return updatedChats;
       }
       
-      return updatedChats;
+      return prevChats;
     });
-  }, [isUserScrolling, fetchChats]);
+  }, [isUserScrolling, fetchChats, chats]);
   
   // Funzione per gestire gli aggiornamenti delle chat
   const handleChatUpdate = useCallback((updatedChat) => {
@@ -366,6 +373,9 @@ function App() {
               console.log('Chat aggiornata ricevuta:', data.payload);
               // Aggiorna la chat modificata
               handleChatUpdate(data.payload);
+              // Ricarica le chat per assicurarsi che tutte le chat siano aggiornate
+              // Questo è importante quando si ricevono messaggi da nuove chat
+              setTimeout(() => fetchChats(), 500);
               break;
             case 'connection_established':
               console.log('Connessione WebSocket stabilita:', data.payload);

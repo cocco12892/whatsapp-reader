@@ -812,14 +812,18 @@ func main() {
 			// Salva la chat nel database
 			if err := dbManager.SaveChat(chat); err != nil {
 				fmt.Printf("Errore nel salvataggio della chat: %v\n", err)
+				// Anche in caso di errore, notifica i client WebSocket della nuova chat
+				broadcastToClients("chat_updated", chat)
 			}
 			
 			// Salva il messaggio nel database dopo aver salvato la chat
 			if err := dbManager.SaveMessage(&dbMessage); err != nil {
 				fmt.Printf("Errore nel salvataggio del messaggio: %v\n", err)
+				// Anche in caso di errore, notifica i client WebSocket del nuovo messaggio
 			}
 			
 			// Notifica i client WebSocket del nuovo messaggio
+			// Invia sempre la notifica, anche se ci sono stati errori nel salvataggio
 			broadcastToClients("new_message", map[string]interface{}{
 				"chatId":   chatJID,
 				"message":  dbMessage,
@@ -838,6 +842,7 @@ func main() {
 			}
 			
 			// Notifica i client WebSocket dell'aggiornamento della chat
+			// Invia sempre la notifica, anche se ci sono stati errori nel salvataggio
 			broadcastToClients("chat_updated", chat)
 			
 			fmt.Printf("Nuovo messaggio da %s in %s: %s\n", senderName, chatName, content)
