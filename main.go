@@ -713,16 +713,38 @@ func main() {
 				ImageHash:           imageHashString,
 			}
 			
+			// Converti il messaggio nel tipo db.Message
+			dbMessage := db.Message{
+				ID:                  message.ID,
+				Chat:                message.Chat,
+				ChatName:            message.ChatName,
+				Sender:              message.Sender,
+				SenderName:          message.SenderName,
+				Content:             message.Content,
+				Timestamp:           message.Timestamp,
+				IsMedia:             message.IsMedia,
+				MediaPath:           message.MediaPath,
+				IsEdited:            message.IsEdited,
+				IsDeleted:           message.IsDeleted,
+				IsReply:             message.IsReply,
+				ReplyToMessageID:    message.ReplyToMessageID,
+				ReplyToSender:       message.ReplyToSender,
+				ReplyToContent:      message.ReplyToContent,
+				ProtocolMessageType: message.ProtocolMessageType,
+				ProtocolMessageName: message.ProtocolMessageName,
+				ImageHash:           message.ImageHash,
+			}
+
 			// Salva il messaggio nel database
-			if err := dbManager.SaveMessage(&message); err != nil {
+			if err := dbManager.SaveMessage(&dbMessage); err != nil {
 				fmt.Printf("Errore nel salvataggio del messaggio: %v\n", err)
 			}
-			
+
 			// Crea o aggiorna la chat
 			chat := &db.Chat{
 				ID:           chatJID,
 				Name:         chatName,
-				LastMessage:  message,
+				LastMessage:  dbMessage,
 				ProfileImage: "",
 			}
 			
@@ -818,19 +840,19 @@ func main() {
 		
 		// Per ogni chat, carica l'ultimo messaggio
 		for _, chat := range chatList {
-			messages, err := dbManager.LoadChatMessages(chat.ID)
+			dbMessages, err := dbManager.LoadChatMessages(chat.ID)
 			if err != nil {
 				continue
 			}
 			
-			if len(messages) > 0 {
+			if len(dbMessages) > 0 {
 				// Ordina i messaggi per timestamp (più recente prima)
-				sort.Slice(messages, func(i, j int) bool {
-					return messages[i].Timestamp.After(messages[j].Timestamp)
+				sort.Slice(dbMessages, func(i, j int) bool {
+					return dbMessages[i].Timestamp.After(dbMessages[j].Timestamp)
 				})
 				
-				chat.LastMessage = messages[0]
-				chat.Messages = messages
+				chat.LastMessage = dbMessages[0]
+				chat.Messages = dbMessages
 			}
 		}
 		
@@ -864,18 +886,18 @@ func main() {
 		chatID := c.Param("id")
 		
 		// Carica i messaggi dal database
-		messages, err := dbManager.LoadChatMessages(chatID)
+		dbMessages, err := dbManager.LoadChatMessages(chatID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento dei messaggi: %v", err)})
 			return
 		}
 		
-		if len(messages) == 0 {
+		if len(dbMessages) == 0 {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata o nessun messaggio"})
 			return
 		}
 		
-		c.JSON(http.StatusOK, messages)
+		c.JSON(http.StatusOK, dbMessages)
 	})
 
 	router.GET("/api/chats/:id/profile-image", func(c *gin.Context) {
