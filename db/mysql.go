@@ -303,9 +303,20 @@ func (m *MySQLManager) LoadMessageNotes() (map[string]*MessageNote, error) {
 	for rows.Next() {
 		var messageID string
 		var note MessageNote
-		if err := rows.Scan(&messageID, &note.Note, &note.Type, &note.ChatID, &note.ChatName, &note.AddedAt, &note.IsDeleted); err != nil {
+		var addedAtStr string
+		if err := rows.Scan(&messageID, &note.Note, &note.Type, &note.ChatID, &note.ChatName, &addedAtStr, &note.IsDeleted); err != nil {
 			return nil, err
 		}
+		
+		// Converti la stringa della data in time.Time
+		addedAt, err := time.Parse("2006-01-02 15:04:05", addedAtStr)
+		if err != nil {
+			// Se c'è un errore nella conversione, usa il timestamp corrente
+			note.AddedAt = time.Now()
+		} else {
+			note.AddedAt = addedAt
+		}
+		
 		note.MessageID = messageID
 		notes[messageID] = &note
 	}
