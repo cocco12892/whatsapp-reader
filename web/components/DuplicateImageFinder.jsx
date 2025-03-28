@@ -31,42 +31,148 @@ const DuplicateImageFinder = ({ chats }) => {
   const [syncWithDuplicates, setSyncWithDuplicates] = useState(true);
   const [messageNotes, setMessageNotes] = useState({});
 
+  const checkIndividualImageNotes = (imageId) => {
+    if (!imageId) return;
+    
+    fetch(`/api/messages/${imageId}/note`)
+      .then(response => {
+        if (response.ok) {
+          // La nota esiste
+          return response.json().then(noteData => {
+            // Aggiorna UI per mostrare la nota
+            const noteContainer = document.getElementById(`note-container-${imageId}`);
+            const noteContent = document.getElementById(`note-content-${imageId}`);
+            
+            if (noteContainer && noteContent) {
+              noteContainer.style.display = 'block';
+              noteContent.textContent = noteData.note || '';
+              
+              // Aggiorna anche lo stato locale
+              setMessageNotes(prev => ({
+                ...prev,
+                [imageId]: noteData
+              }));
+            }
+          });
+        } else if (response.status === 404) {
+          // La nota non esiste
+          const noteContainer = document.getElementById(`note-container-${imageId}`);
+          if (noteContainer) {
+            noteContainer.style.display = 'none';
+          }
+        }
+      })
+      .catch(error => {
+        console.error(`Errore nella verifica della nota per l'immagine ${imageId}:`, error);
+      });
+  };
+
+  
   // Carica le note dal database
   useEffect(() => {
     if (open) {
-      fetch('/api/notes')
-        .then(response => {
-          if (!response.ok) {
-            console.warn(`API notes non disponibile: ${response.status}`);
-            return {};
+      // Invece di fare una singola chiamata per tutte le note,
+      // verifichiamo ogni immagine individualmente
+      duplicates.forEach(group => {
+        group.images.forEach(image => {
+          if (image.id) {
+            checkIndividualImageNotes(image.id);
           }
-          return response.json();
-        })
-        .then(notes => {
-          setMessageNotes(notes);
-          
-          // Dopo che le note sono caricate, aggiorna i contenitori delle note
-          setTimeout(() => {
-            duplicates.forEach(group => {
-              group.images.forEach(image => {
-                if (image.id && notes[image.id]) {
-                  const noteContainer = document.getElementById(`note-container-${image.id}`);
-                  const noteContent = document.getElementById(`note-content-${image.id}`);
-                  
-                  if (noteContainer && noteContent) {
-                    noteContainer.style.display = 'block';
-                    noteContent.textContent = notes[image.id].note || '';
-                  }
-                }
-              });
-            });
-          }, 100);
-        })
-        .catch(error => {
-          console.error('Errore nel caricamento delle note:', error);
         });
+      });
     }
   }, [open, duplicates]);
+
+  // Aggiungi questa funzione per gestire l'aggiunta/modifica di note per singola immagine
+  const handleSingleImageNote = (image) => {
+    if (!image || !image.id) return;
+    
+    fetch(`/api/messages/${image.id}/note`)
+      .then(response => {
+        if (response.ok) {
+          // La nota esiste
+          return response.json().then(noteData => {
+            const existingNote = noteData.note || '';
+            const updatedNote = prompt("Modifica nota per questa immagine:", existingNote);
+            
+            if (updatedNote !== null) { // L'utente non ha premuto Annulla
+              saveSingleImageNote(image, updatedNote, true);
+            }
+          });
+        } else if (response.status === 404) {
+          // La nota non esiste
+          const newNote = prompt("Inserisci una nota per questa immagine:");
+          if (newNote) {
+            saveSingleImageNote(image, newNote, false);
+          }
+        } else {
+          console.error("Errore nel controllo della nota:", response.status);
+          // Fallback
+          const note = prompt("Inserisci una nota per questa immagine:");
+          if (note) {
+            saveSingleImageNote(image, note, false);
+          }
+        }
+      })
+      .catch(error => {
+        console.error("Errore nella verifica della nota:", error);
+        // Fallback
+        const note = prompt("Inserisci una nota per questa immagine:");
+        if (note) {
+          saveSingleImageNote(image, note, false);
+        }
+      });
+  };
+
+  // Funzione per salvare la nota di una singola immagine
+  const saveSingleImageNote = (image, note, isUpdate) => {
+    if (!image || !image.id || !note) return;
+    
+    // Prepara i dati della nota
+    const noteData = {
+      note: note,
+      type: 'nota',
+      chatId: image.chatId || '',
+      chatName: image.chatName || 'Chat sconosciuta',
+      addedAt: new Date().toISOString(),
+      fromDuplicateGroup: false,
+      imageHash: image.imageHash
+    };
+    
+    // Invia la nota al server
+    fetch(`/api/messages/${image.id}/note`, {
+      method: isUpdate ? 'PUT' : 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(noteData),
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Errore nel salvataggio della nota per il messaggio ${image.id}`);
+      }
+      return response.json();
+    })
+    .then(() => {
+      console.log('Nota salvata con successo');
+      
+      // Aggiorna l'interfaccia utente
+      const noteContainer = document.getElementById(`note-container-${image.id}`);
+      const noteContent = document.getElementById(`note-content-${image.id}`);
+      
+      if (noteContainer && noteContent) {
+        noteContainer.style.display = 'block';
+        noteContent.textContent = note;
+      }
+      
+      // Aggiorna lo stato delle note
+      checkIndividualImageNotes(image.id);
+    })
+    .catch(error => {
+      console.error('Errore nel salvataggio della nota:', error);
+      alert('Si è verificato un errore nel salvataggio della nota');
+    });
+  };
   
   // Funzione per verificare se un gruppo ha note
   const checkGroupHasNotes = (group) => {
@@ -519,6 +625,17 @@ const DuplicateImageFinder = ({ chats }) => {
                               <Typography variant="caption" display="block">
                                 Inviato da: {image.senderName}
                               </Typography>
+                              
+                              {/* Pulsante per aggiungere/modificare nota individuale */}
+                              <Button
+                                variant="text"
+                                size="small"
+                                startIcon={hasNote ? <EditNoteIcon /> : <NoteAddIcon />}
+                                onClick={() => handleSingleImageNote(image)}
+                                sx={{ mt: 1, fontSize: '0.75rem' }}
+                              >
+                                {hasNote ? 'Modifica nota' : 'Aggiungi nota'}
+                              </Button>
                             </Box>
                           </Box>
                         );

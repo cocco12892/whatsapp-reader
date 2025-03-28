@@ -252,6 +252,45 @@ func (m *MySQLManager) SaveMessageNote(messageID string, noteData *MessageNote) 
 	return err
 }
 
+// LoadMessageNote carica la nota per un messaggio specifico
+func (m *MySQLManager) LoadMessageNote(messageID string) (*MessageNote, error) {
+	query := `
+		SELECT message_id, note, type, chat_id, chat_name, added_at 
+		FROM message_notes 
+		WHERE message_id = ? AND deleted_at IS NULL
+	`
+	
+	var note MessageNote
+	var addedAtStr string
+	
+	err := m.db.QueryRow(query, messageID).Scan(
+		&note.MessageID,
+		&note.Note,
+		&note.Type,
+		&note.ChatID,
+		&note.ChatName,
+		&addedAtStr,
+	)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("nessuna nota trovata per il messaggio %s", messageID)
+		}
+		return nil, err
+	}
+	
+	// Converti la stringa della data in time.Time
+	addedAt, err := time.Parse("2006-01-02 15:04:05", addedAtStr)
+	if err != nil {
+		// Se c'è un errore nella conversione, usa il timestamp corrente
+		note.AddedAt = time.Now()
+	} else {
+		note.AddedAt = addedAt
+	}
+	
+	return &note, nil
+}
+
 // Carica tutte le note dei messaggi
 func (m *MySQLManager) LoadMessageNotes() (map[string]*MessageNote, error) {
 	rows, err := m.db.Query("SELECT message_id, note, type, chat_id, chat_name, added_at, is_deleted FROM message_notes WHERE is_deleted = FALSE")

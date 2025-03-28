@@ -1440,6 +1440,19 @@ func main() {
 		
 		c.JSON(http.StatusOK, gin.H{"status": "success"})
 	})
+
+	router.GET("/api/messages/:id/note", func(c *gin.Context) {
+		messageID := c.Param("id")
+		
+		// Carica la nota dal database
+		note, err := dbManager.LoadMessageNote(messageID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Nota non trovata: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, note)
+	})
 	
 	// API per gestire le note dei messaggi
 	router.GET("/api/message-notes", func(c *gin.Context) {
