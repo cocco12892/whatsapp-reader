@@ -21,8 +21,6 @@ import NoteIcon from '@mui/icons-material/Note';
 import { Button } from '@mui/material';
 import BotSalvatore from './components/BotSalvatore';
 
-// API_BASE_URL è ora definito come variabile di stato nel componente App
-
 // Funzione per codificare in modo sicuro i percorsi delle immagini
 const safeImagePath = (path) => {
   if (!path) return '';
@@ -69,35 +67,6 @@ function App() {
   const [notesGroupViewOpen, setNotesGroupViewOpen] = useState(false);
   const [chatSynonyms, setChatSynonyms] = useState({});
   
-  // Carica i sinonimi dal database
-  const loadChatSynonyms = useCallback(async () => {
-    try {
-      const synonymsMap = {};
-      const response = await fetch(`${API_BASE_URL}/api/chats`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const chatsData = await response.json();
-      
-      // Per ogni chat, carica il sinonimo
-      for (const chat of chatsData) {
-        try {
-          const synonymResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/synonym`);
-          if (synonymResponse.ok) {
-            const data = await synonymResponse.json();
-            if (data.synonym) {
-              synonymsMap[chat.id] = data.synonym;
-            }
-          }
-        } catch (error) {
-          console.warn(`Errore nel caricamento del sinonimo per la chat ${chat.id}:`, error);
-        }
-      }
-      setChatSynonyms(synonymsMap);
-    } catch (error) {
-      console.error("Errore nel caricamento dei sinonimi:", error);
-    }
-  }, [API_BASE_URL]);
 
   // Funzione per impostare un sinonimo per una chat
   const setChatSynonym = async (chatId, synonym) => {
@@ -155,6 +124,36 @@ function App() {
     return `${protocol}//${host}:${port}`;
   }, []);
   
+  // Carica i sinonimi dal database
+  const loadChatSynonyms = useCallback(async () => {
+    try {
+      const synonymsMap = {};
+      const response = await fetch(`${API_BASE_URL}/api/chats`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const chatsData = await response.json();
+      
+      // Per ogni chat, carica il sinonimo
+      for (const chat of chatsData) {
+        try {
+          const synonymResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/synonym`);
+          if (synonymResponse.ok) {
+            const data = await synonymResponse.json();
+            if (data.synonym) {
+              synonymsMap[chat.id] = data.synonym;
+            }
+          }
+        } catch (error) {
+          console.warn(`Errore nel caricamento del sinonimo per la chat ${chat.id}:`, error);
+        }
+      }
+      setChatSynonyms(synonymsMap);
+    } catch (error) {
+      console.error("Errore nel caricamento dei sinonimi:", error);
+    }
+  }, [API_BASE_URL]);
+
   const fetchChats = useCallback(async () => {
     try {
       console.log("Fetching chats...");
