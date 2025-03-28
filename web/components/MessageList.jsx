@@ -959,7 +959,7 @@ return (
                         borderRadius: 1,
                         boxShadow: 1,
                         fontSize: 12,
-                        color: 'text.white',
+                        color: 'white',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
