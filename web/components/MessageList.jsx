@@ -101,6 +101,10 @@ const SPECIAL_SENDERS = {
 const markMessagesAsRead = (chatId, messageIds) => {
   if (messageIds.length === 0) return;
   
+  // Verifica se l'API è disponibile prima di fare la richiesta
+  // Utilizziamo un flag per evitare di mostrare errori ripetuti
+  if (window.markReadApiUnavailable) return;
+  
   fetch(`/api/chats/${chatId}/mark-read`, {
     method: 'POST',
     headers: {
@@ -112,11 +116,15 @@ const markMessagesAsRead = (chatId, messageIds) => {
   })
   .then(response => {
     if (!response.ok) {
-      console.error('Errore nel segnare i messaggi come letti:', response.statusText);
+      console.warn('API mark-read non disponibile:', response.status, response.statusText);
+      // Imposta un flag per evitare di fare ulteriori richieste inutili
+      window.markReadApiUnavailable = true;
     }
   })
   .catch(error => {
-    console.error('Errore di rete nel segnare i messaggi come letti:', error);
+    console.warn('Errore di rete nel segnare i messaggi come letti:', error);
+    // Imposta un flag per evitare di fare ulteriori richieste inutili
+    window.markReadApiUnavailable = true;
   });
 };
 
