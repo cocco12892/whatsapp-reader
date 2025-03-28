@@ -132,44 +132,63 @@ const DuplicateImageFinder = ({ chats }) => {
     const note = prompt("Inserisci una nota per il gruppo di messaggi:");
     
     if (note && group && Array.isArray(group)) {
-      const messageNotes = JSON.parse(localStorage.getItem('messageNotes') || '{}');
       const groupId = `group_${Date.now()}`;
       
-      // Applica la stessa nota a tutti i messaggi del gruppo
-      group.forEach(image => {
+      // Crea un array di promesse per salvare ogni nota nel database
+      const savePromises = group.map(image => {
         if (image.id) {
           console.log(`ID messaggio: ${image.id}`); // Stampa l'ID del messaggio
           
-          // Salva la nota completa con tutti i metadati necessari
-          messageNotes[image.id] = {
-            messageId: image.id,
+          // Prepara i dati della nota
+          const noteData = {
             note: note,
             type: 'nota',
+            chatId: image.chatId || '',
             chatName: image.chatName || 'Chat sconosciuta',
-            chatId: image.chatId,
-            senderName: image.senderName,
-            timestamp: image.timestamp,
-            content: image.content || '',
             addedAt: new Date().toISOString(),
             fromDuplicateGroup: true,
             groupId: groupId,
             imageHash: image.imageHash
           };
+          
+          // Invia la nota al server
+          return fetch(`/api/messages/${image.id}/note`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(noteData),
+          })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Errore nel salvataggio della nota per il messaggio ${image.id}`);
+            }
+            return response.json();
+          });
         }
+        return Promise.resolve(); // Per i messaggi senza ID
       });
       
-      localStorage.setItem('messageNotes', JSON.stringify(messageNotes));
-      
-      // Aggiorna lo stato UI
-      setDuplicates(prev =>
-        prev.map(g => ({
-          ...g,
-          images: g.images.map(img => ({
-            ...img,
-            note: group.some(gImg => gImg.id === img.id) ? note : img.note
-          }))
-        }))
-      );
+      // Esegui tutte le promesse
+      Promise.all(savePromises)
+        .then(() => {
+          console.log('Tutte le note del gruppo salvate con successo');
+          
+          // Aggiorna lo stato UI
+          setDuplicates(prev =>
+            prev.map(g => ({
+              ...g,
+              images: g.images.map(img => ({
+                ...img,
+                note: group.some(gImg => gImg.id === img.id) ? note : img.note
+              }))
+            }))
+          );
+        })
+        .catch(error => {
+          console.error('Errore nel salvataggio delle note di gruppo:', error);
+          alert('Si è verificato un errore nel salvataggio delle note di gruppo');
+        });
     }
   };
 
