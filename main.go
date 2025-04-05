@@ -1477,6 +1477,8 @@ func main() {
 				IsMedia:   true,
 				MediaPath: mediaPath,
 				ImageHash: imageHashString,
+				ProtocolMessageType: 0,
+				ProtocolMessageName: "",
 			}
 			
 			// Converti il messaggio nel tipo db.Message per salvarlo nel database
@@ -1649,6 +1651,9 @@ func main() {
 			ReplyToMessageID:    newMessage.ReplyToMessageID,
 			ReplyToSender:       newMessage.ReplyToSender,
 			ReplyToContent:      newMessage.ReplyToContent,
+			ProtocolMessageType: newMessage.ProtocolMessageType,
+			ProtocolMessageName: newMessage.ProtocolMessageName,
+			ImageHash:           newMessage.ImageHash,
 		}
 		
 		// Salva la chat nel database prima del messaggio per rispettare il vincolo di chiave esterna
