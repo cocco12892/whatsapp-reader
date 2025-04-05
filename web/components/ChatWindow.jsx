@@ -7,14 +7,16 @@ import CloseIcon from '@mui/icons-material/Close';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ImageIcon from '@mui/icons-material/Image';
 
-function ChatWindow({ 
+// Utilizziamo React.memo per evitare re-render inutili
+const ChatWindow = React.memo(function ChatWindow({ 
   chat, 
   chats,
   unreadMessages, 
   handleScroll, 
   handleImageClick, 
   lastSeenMessages,
-  seenMessages
+  seenMessages,
+  isLoadingMessages
 }) {
   const [chatSynonym, setChatSynonym] = useState('');
   const [synonymDialogOpen, setSynonymDialogOpen] = useState(false);
@@ -400,6 +402,7 @@ function ChatWindow({
           chat={chat}
           chats={chats} // Passiamo chats al componente
           onReplyToMessage={(message) => setReplyingTo(message)}
+          isLoadingMessages={isLoadingMessages}
         />
       </Box>
       
@@ -648,5 +651,7 @@ function ChatWindow({
     </Paper>
   );
 }
+
+});
 
 export default ChatWindow;

@@ -79,7 +79,8 @@ function debounce(func, wait) {
   };
 }
 
-function MessageList({ 
+// Utilizziamo React.memo per evitare re-render inutili
+const MessageList = React.memo(function MessageList({ 
 messages, 
 handleImageClick, 
 lastSeenMessages: initialLastSeen,
@@ -1842,5 +1843,7 @@ return (
   </Box>
 );
 }
+
+});
 
 export default MessageList;
