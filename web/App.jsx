@@ -46,7 +46,7 @@ function App() {
   // Track the last fetch time for each chat and a global fetching flag
   const lastFetchTime = {};
   const FETCH_THROTTLE_MS = 3000; // 3 seconds minimum between fetches for same chat
-  let isCurrentlyFetching = false;
+  const isCurrentlyFetchingRef = useRef(false);
 
   // WebSocket URL basato sull'URL corrente
   const WS_URL = useMemo(() => {
@@ -159,13 +159,25 @@ function App() {
     }
   }, [API_BASE_URL]);
 
+  const sortChatsByLatestMessage = (chatsArray) => {
+    return [...chatsArray].sort((a, b) => {
+      // Get timestamp of last message for each chat
+      const timestampA = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp) : new Date(0);
+      const timestampB = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp) : new Date(0);
+      
+      // Sort by most recent first
+      return timestampB - timestampA;
+    });
+  };
+
+  // Fetch all chats from the server
   const fetchChats = useCallback(async () => {
     try {
       // Verifica se stiamo già facendo un fetch o se è passato troppo poco tempo
       const now = Date.now();
       const GLOBAL_THROTTLE_MS = 5000; // 5 secondi di throttle globale
       
-      if (isCurrentlyFetching) {
+      if (isCurrentlyFetchingRef.current) {
         console.log("Saltando fetchChats - fetch già in corso");
         return;
       }
@@ -176,7 +188,7 @@ function App() {
       }
       
       console.log("Fetching chats...");
-      isCurrentlyFetching = true;
+      isCurrentlyFetchingRef.current = true;
       window.lastGlobalFetch = now;
       
       // Mostra il loader solo al caricamento iniziale
@@ -230,7 +242,8 @@ function App() {
           new Date(chat.lastMessageTimestamp) > new Date(chats.find(c => c.id === chat.id).lastMessageTimestamp)
         )) {
           // Se non ci sono chat con nuovi messaggi, possiamo usare lo stato ottimizzato
-          setChats(updatedChats);
+          // e riordinare in base al timestamp dell'ultimo messaggio
+          setChats(sortChatsByLatestMessage(updatedChats));
           console.log("Aggiornati metadati chat senza ricaricare messaggi");
           return;
         }
@@ -265,7 +278,7 @@ function App() {
             const messages = await messagesResponse.json();
             
             // Aggiorna timestamp dell'ultimo fetch
-            lastFetchTime[chat.id] = now;
+            lastFetchTime.current[chat.id] = now;
             
             return { ...chat, messages };
           } catch (error) {
@@ -275,22 +288,13 @@ function App() {
         })
       );
       
-      // Applica l'ordine delle chat
-      const existingOrder = new Set(chatOrder);
-      const newChatsInExistingOrder = preparedChats.filter(c => existingOrder.has(c.id));
-      const newChatsNotInOrder = preparedChats.filter(c => !existingOrder.has(c.id));
-      
-      const orderedChats = chatOrder.length > 0 
-        ? chatOrder
-            .map(id => preparedChats.find(c => c.id === id))
-            .filter(Boolean) // Filtra valori undefined/null
-            .concat(newChatsNotInOrder)
-        : preparedChats;
+      // Ordina le chat per timestamp dell'ultimo messaggio
+      const sortedChats = sortChatsByLatestMessage(preparedChats);
       
       // Aggiorna i messaggi non letti
       setUnreadMessages(prev => {
         const newUnread = { ...prev };
-        orderedChats.forEach(chat => {
+        sortedChats.forEach(chat => {
           const chatElement = document.querySelector(`[data-chat-id="${chat.id}"]`);
           if (chatElement) {
             const isAtBottom = Math.abs(chatElement.scrollHeight - chatElement.scrollTop - chatElement.clientHeight) < 50;
@@ -302,14 +306,8 @@ function App() {
         return newUnread;
       });
       
-      // Aggiorna lo stato
-      setChats(orderedChats);
-      
-      // Se l'ordine chat è cambiato, aggiornalo
-      const newOrder = orderedChats.map(c => c.id);
-      if (JSON.stringify(chatOrder) !== JSON.stringify(newOrder)) {
-        setChatOrder(newOrder);
-      }
+      // Aggiorna lo stato con le chat ordinate
+      setChats(sortedChats);
       
       // Resetta gli errori
       setError(null);
@@ -318,11 +316,10 @@ function App() {
       setError(error.message);
     } finally {
       setIsLoading(false);
-      isCurrentlyFetching = false;
+      isCurrentlyFetchingRef.current = false;
     }
-  }, [API_BASE_URL, chatOrder, chats]);
-  
-  // Funzione per gestire i nuovi messaggi con throttling
+  }, [API_BASE_URL, chats]);
+
   const handleNewMessage = useCallback((payload) => {
     const { chatId, message } = payload;
     
@@ -335,7 +332,7 @@ function App() {
     }
     
     // Verifica se stiamo già facendo un fetch
-    if (isCurrentlyFetching.current) {
+    if (isCurrentlyFetchingRef.current) {
       console.log("Saltando aggiornamento: fetch già in corso");
       return;
     }
@@ -382,7 +379,8 @@ function App() {
             }));
           }
           
-          return updatedChats;
+          // Riordina le chat in base al timestamp dell'ultimo messaggio
+          return sortChatsByLatestMessage(updatedChats);
         }
         
         return prevChats;
@@ -400,7 +398,7 @@ function App() {
     
     // Se necessario, aggiorna la chat con un fetch selettivo
     lastFetchTime.current[chatId] = now;
-    isCurrentlyFetching.current = true;
+    isCurrentlyFetchingRef.current = true;
     
     // Funzione per fare fetch di una singola chat
     const fetchSingleChat = async () => {
@@ -440,17 +438,20 @@ function App() {
         
         // Aggiorna lo stato
         setChats(prevChats => {
-          return prevChats.map(chat => 
+          const updatedChats = prevChats.map(chat => 
             chat.id === chatId ? {
               ...chatData,
               messages: messages
             } : chat
           );
+          
+          // Riordina le chat in base al timestamp dell'ultimo messaggio
+          return sortChatsByLatestMessage(updatedChats);
         });
       } catch (error) {
         console.error(`Errore in fetchSingleChat per ${chatId}:`, error);
       } finally {
-        isCurrentlyFetching.current = false;
+        isCurrentlyFetchingRef.current = false;
       }
     };
     
@@ -468,7 +469,7 @@ function App() {
     }
     
     // Se stiamo già facendo un fetch, saltiamo questo aggiornamento
-    if (isCurrentlyFetching.current) {
+    if (isCurrentlyFetchingRef.current) {
       console.log("Saltando aggiornamento chat: fetch già in corso");
       return;
     }
@@ -616,7 +617,7 @@ function App() {
               }
               
               // Verifica se stiamo già facendo un fetch
-              if (isCurrentlyFetching.current) {
+              if (isCurrentlyFetchingRef.current) {
                 console.log("Saltando aggiornamento: fetch già in corso");
                 return;
               }
@@ -681,7 +682,7 @@ function App() {
             const updatedChatId = data.payload.id;
             
             // Se stiamo già facendo un fetch, saltiamo questo aggiornamento
-            if (isCurrentlyFetching.current) {
+            if (isCurrentlyFetchingRef.current) {
               console.log("Saltando aggiornamento chat: fetch già in corso");
               return;
             }

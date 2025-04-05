@@ -912,7 +912,6 @@ func main() {
 	// API per ottenere le ultime chat
 	router.GET("/api/chats", func(c *gin.Context) {
 		fmt.Println("Richiesta API /api/chats ricevuta")
-		fmt.Println("Headers:", c.Request.Header)
 		
 		// Carica le chat dal database
 		chatList, err := dbManager.LoadChats()
@@ -920,8 +919,6 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento delle chat: %v", err)})
 			return
 		}
-		
-		fmt.Println("Numero di chat trovate:", len(chatList))
 		
 		// Per ogni chat, carica l'ultimo messaggio
 		for _, chat := range chatList {
@@ -943,19 +940,17 @@ func main() {
 		
 		// Ordina le chat per timestamp dell'ultimo messaggio (più recente prima)
 		sort.Slice(chatList, func(i, j int) bool {
-			if len(chatList[i].Messages) == 0 || len(chatList[j].Messages) == 0 {
-				return false
+			// Verifica che entrambe le chat abbiano un ultimo messaggio
+			if chatList[i].LastMessage.Timestamp.IsZero() {
+				return false // Chat senza ultimi messaggi vanno in fondo
+			}
+			if chatList[j].LastMessage.Timestamp.IsZero() {
+				return true // Se l'altra chat non ha ultimi messaggi, questa viene prima
 			}
 			return chatList[i].LastMessage.Timestamp.After(chatList[j].LastMessage.Timestamp)
 		})
 		
-		// Prendi solo le ultime 20 (o meno se ce ne sono meno di 20)
-		limit := 20
-		if len(chatList) < limit {
-			limit = len(chatList)
-		}
-		
-		c.JSON(http.StatusOK, chatList[:limit])
+		c.JSON(http.StatusOK, chatList)
 	})
 	
 	// Endpoint WebSocket per le notifiche in tempo reale
