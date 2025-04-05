@@ -1699,15 +1699,17 @@ func main() {
 			INSERT INTO messages (
 				id, chat_id, chat_name, sender, sender_name, content, timestamp, 
 				is_media, media_path, is_edited, is_deleted, is_reply, 
-				reply_to_message_id, reply_to_sender, reply_to_content
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				reply_to_message_id, reply_to_sender, reply_to_content,
+				protocol_message_type, protocol_message_name, image_hash
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON DUPLICATE KEY UPDATE 
 				content = ?, sender_name = ?, chat_name = ?
 		`,
 			dbMessage.ID, dbMessage.Chat, dbMessage.ChatName, dbMessage.Sender, dbMessage.SenderName,
 			dbMessage.Content, dbMessage.Timestamp, dbMessage.IsMedia, dbMessage.MediaPath,
 			dbMessage.IsEdited, dbMessage.IsDeleted, dbMessage.IsReply, dbMessage.ReplyToMessageID,
-			dbMessage.ReplyToSender, dbMessage.ReplyToContent,
+			dbMessage.ReplyToSender, dbMessage.ReplyToContent, dbMessage.ProtocolMessageType,
+			dbMessage.ProtocolMessageName, dbMessage.ImageHash,
 			// Valori per l'UPDATE
 			dbMessage.Content, dbMessage.SenderName, dbMessage.ChatName,
 		)
