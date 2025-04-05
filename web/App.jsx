@@ -252,8 +252,8 @@ function App() {
       isCurrentlyFetchingRef.current = true;
       window.lastGlobalFetch = now;
       
-      // Mostra il loader solo al caricamento iniziale
-      if (chats.length === 0) {
+      // Mostra il loader solo al caricamento iniziale e solo se non è già stato mostrato
+      if (chats.length === 0 && !window.initialLoadComplete) {
         setIsLoading(true);
       }
       
@@ -392,6 +392,9 @@ function App() {
       
       // Resetta gli errori
       setError(null);
+      
+      // Segna che il caricamento iniziale è stato completato
+      window.initialLoadComplete = true;
     } catch (error) {
       console.error('Errore nel caricamento delle chat:', error);
       setError(error.message);
@@ -987,6 +990,13 @@ function App() {
   }, [chats]);
 
 
+  // Inizializza la variabile di caricamento iniziale se non esiste
+  useEffect(() => {
+    if (typeof window.initialLoadComplete === 'undefined') {
+      window.initialLoadComplete = false;
+    }
+  }, []);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -998,7 +1008,7 @@ function App() {
         height: '100vh',
         bgcolor: 'background.default'
       }}>
-        {isLoading ? (
+        {isLoading && !window.initialLoadComplete ? (
           <Box sx={{
             display: 'flex',
             flexDirection: 'column',

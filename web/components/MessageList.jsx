@@ -923,7 +923,7 @@ const formatTime = (timestamp) => {
 
 return (
   <Box onClick={closeContextMenu} className="message-container">
-    {isLoadingMessages && messages.length === 0 && (
+    {isLoadingMessages && messages.length === 0 && !window.initialLoadComplete && (
       <Box sx={{ 
         display: 'flex', 
         justifyContent: 'center', 
