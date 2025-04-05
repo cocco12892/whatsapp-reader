@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import ChatWindow from './components/ChatWindow';
@@ -196,7 +196,13 @@ function App() {
       // Ordina l'array in base all'indice di ordinamento
       currentChats.sort((a, b) => a._sortIndex - b._sortIndex);
       
-      return currentChats;
+      // Verifica se l'ordine è effettivamente cambiato
+      const orderChanged = currentChats.some((chat, index) => 
+        chat.id !== prevChats[index]?.id
+      );
+      
+      // Restituisci l'array ordinato solo se l'ordine è cambiato
+      return orderChanged ? currentChats : prevChats;
     });
   }, [isUserScrolling]);
   
@@ -454,7 +460,10 @@ function App() {
             updatedChats.sort((a, b) => a._sortIndex - b._sortIndex);
           }
                     
-          return updatedChats;
+          // Preserva le referenze degli oggetti non modificati per evitare re-render inutili
+          return Object.assign([], prevChats, updatedChats.map((chat, idx) => 
+            chat.id === chatId ? chat : prevChats[idx]
+          ));
         }
                   
         return prevChats;
@@ -1038,9 +1047,14 @@ function App() {
                     flexShrink: 0, 
                     flexGrow: 0 
                   }}>
-                    <BotSalvatore />
-                    <DirettaGames />
-                    <AlertTable />
+                    {/* Utilizziamo React.memo per evitare re-render non necessari */}
+                    {React.useMemo(() => (
+                      <>
+                        <BotSalvatore />
+                        <DirettaGames />
+                        <AlertTable />
+                      </>
+                    ), [])}
                   </Box>
                   
                   {chats.map((chat) => (
