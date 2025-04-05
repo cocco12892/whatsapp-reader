@@ -1632,6 +1632,9 @@ func main() {
 			mutex.RUnlock()
 		}
 		
+		fmt.Printf("DEBUG: Salvataggio messaggio inviato nel database. ID: %s, Chat: %s, Contenuto: %s\n", 
+			msgID, chatID, requestData.Content)
+		
 		// Converti il messaggio nel tipo db.Message per salvarlo nel database
 		dbMessage := db.Message{
 			ID:                  newMessage.ID,
@@ -1652,7 +1655,7 @@ func main() {
 		if err := dbManager.SaveMessage(&dbMessage); err != nil {
 			fmt.Printf("Errore nel salvataggio del messaggio inviato nel database: %v\n", err)
 		} else {
-			fmt.Printf("Messaggio inviato salvato nel database: %s\n", msgID)
+			fmt.Printf("Messaggio inviato salvato nel database con successo: %s\n", msgID)
 		}
 		
 		mutex.Lock()
@@ -1674,11 +1677,26 @@ func main() {
 		}
 		mutex.Unlock()
 		
+		// Aggiorna anche la chat nel database per assicurarsi che l'ultimo messaggio sia aggiornato
+		dbChat := &db.Chat{
+			ID:           chatID,
+			Name:         chatName,
+			LastMessage:  dbMessage,
+			ProfileImage: "",
+		}
+		
+		if err := dbManager.SaveChat(dbChat); err != nil {
+			fmt.Printf("Errore nell'aggiornamento della chat dopo l'invio del messaggio: %v\n", err)
+		}
+		
 		// Notifica i client WebSocket del nuovo messaggio
 		broadcastToClients("new_message", map[string]interface{}{
 			"chatId":   chatID,
 			"message":  dbMessage,
 		})
+		
+		// Notifica anche dell'aggiornamento della chat
+		broadcastToClients("chat_updated", dbChat)
 		
 		c.JSON(http.StatusOK, gin.H{
 			"status": "success",
