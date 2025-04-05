@@ -1,5 +1,5 @@
 import AudioMessageWrapper from './AudioMessageWrapper';
-import { Box, Typography, Badge,IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Radio } from '@mui/material';
+import { Box, Typography, Badge, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Radio, CircularProgress } from '@mui/material';
 import NoteIcon from '@mui/icons-material/Note';
 import NotesGroupView from './NotesGroupView';
 import ReplyContext from './ReplyContext';
@@ -86,7 +86,8 @@ lastSeenMessages: initialLastSeen,
 seenMessages: initialSeen,
 chat,
 chats,
-onReplyToMessage
+onReplyToMessage,
+isLoadingMessages
 }) {
 // Special senders list
 const SPECIAL_SENDERS = {
@@ -921,6 +922,22 @@ const formatTime = (timestamp) => {
 
 return (
   <Box onClick={closeContextMenu} className="message-container">
+    {isLoadingMessages && messages.length === 0 && (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100%',
+        flexDirection: 'column',
+        p: 3
+      }}>
+        <CircularProgress size={40} />
+        <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
+          Caricamento messaggi...
+        </Typography>
+      </Box>
+    )}
+    
     {filteredMessages.map((message) => {
       const isRecorded = recordedMessages.has(message.id);
       const isNoted = notedMessages.has(message.id);

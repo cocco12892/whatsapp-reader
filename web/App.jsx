@@ -250,40 +250,60 @@ function App() {
         // Altrimenti, continuiamo con il fetch dei messaggi solo per le chat che ne hanno bisogno
       }
       
-      // Processa le chat in parallelo, ma carica messaggi solo per chat nuove
+      // Processa le chat in parallelo, ma carica messaggi solo per chat nuove o che necessitano aggiornamento
       const preparedChats = await Promise.all(
         chatsData.map(async (chat) => {
           try {
             // Controlla se abbiamo già questa chat con messaggi
             const existingChat = chats.find(c => c.id === chat.id);
             
-            if (existingChat && existingChat.messages && existingChat.messages.length > 0) {
-              // Se abbiamo già questa chat, aggiorniamo solo i metadati
+            // Verifica se dobbiamo aggiornare i messaggi
+            const needsMessageUpdate = !existingChat || 
+                                      !existingChat.messages || 
+                                      existingChat.messages.length === 0 ||
+                                      (chat.lastMessageTimestamp && 
+                                       existingChat.lastMessageTimestamp &&
+                                       new Date(chat.lastMessageTimestamp) > new Date(existingChat.lastMessageTimestamp));
+            
+            if (existingChat && existingChat.messages && existingChat.messages.length > 0 && !needsMessageUpdate) {
+              // Se abbiamo già questa chat e non necessita aggiornamento, manteniamo i messaggi esistenti
               return {
                 ...chat,
                 messages: existingChat.messages
               };
             }
             
-            // Per chat nuove o senza messaggi, facciamo fetch
+            console.log(`Caricamento messaggi per chat ${chat.id}${needsMessageUpdate ? ' (aggiornamento necessario)' : ' (nuova chat)'}`);
+            
+            // Per chat nuove o che necessitano aggiornamento, facciamo fetch dei messaggi
             const messagesResponse = await fetch(
               `${API_BASE_URL}/api/chats/${encodeURIComponent(chat.id)}/messages`
             );
             
             if (!messagesResponse.ok) {
               console.error(`Errore fetch messaggi per chat ${chat.id}: ${messagesResponse.status}`);
-              return { ...chat, messages: [] }; // Restituisci chat con messaggi vuoti
+              // Se abbiamo messaggi esistenti, li manteniamo invece di restituire un array vuoto
+              return { 
+                ...chat, 
+                messages: existingChat?.messages || [] 
+              };
             }
             
             const messages = await messagesResponse.json();
+            console.log(`Caricati ${messages.length} messaggi per chat ${chat.id}`);
             
             // Aggiorna timestamp dell'ultimo fetch
-            lastFetchTime.current[chat.id] = now;
+            lastFetchTime[chat.id] = now;
             
             return { ...chat, messages };
           } catch (error) {
             console.error(`Errore processing chat ${chat.id}:`, error);
-            return { ...chat, messages: [] };
+            // Se abbiamo messaggi esistenti, li manteniamo invece di restituire un array vuoto
+            const existingChat = chats.find(c => c.id === chat.id);
+            return { 
+              ...chat, 
+              messages: existingChat?.messages || [] 
+            };
           }
         })
       );
@@ -961,6 +981,7 @@ function App() {
                       chatSynonyms={chatSynonyms}
                       setChatSynonym={setChatSynonym}
                       removeChatSynonym={removeChatSynonym}
+                      isLoadingMessages={isCurrentlyFetchingRef.current && (!chat.messages || chat.messages.length === 0)}
                     />
                   ))}
                 </Box>
