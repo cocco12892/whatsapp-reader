@@ -1842,8 +1842,6 @@ return (
     </Dialog>
   </Box>
 );
-}
-
 });
 
 export default MessageList;

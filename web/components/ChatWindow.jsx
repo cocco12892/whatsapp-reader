@@ -650,8 +650,6 @@ const ChatWindow = React.memo(function ChatWindow({
       `}</style>
     </Paper>
   );
-}
-
 });
 
 export default ChatWindow;
