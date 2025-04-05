@@ -90,6 +90,8 @@ chats,
 onReplyToMessage,
 isLoadingMessages
 }) {
+// Set per tenere traccia degli ID dei messaggi già filtrati
+const filteredMessageIds = new Set();
 // Special senders list
 const SPECIAL_SENDERS = {
   '393472195905': { color: 'rgb(223, 250, 228)', name: 'Andrea Cocco' },
@@ -169,14 +171,25 @@ const getSpecialSenderStyle = (sender) => {
 };
 
 // Nel componente MessageList.jsx
-const filteredMessages = messages.filter(message => 
+const filteredMessages = messages.filter(message => {
   // Filtra i messaggi di tipo protocollo "edit" (14)
-  !(message.protocolMessageType === 99 || message.protocolMessageType === 14 || message.protocolMessageName === "edit") && 
+  const isNotProtocolMessage = !(message.protocolMessageType === 99 || 
+                                message.protocolMessageType === 14 || 
+                                message.protocolMessageName === "edit");
+  
   // Mantieni gli altri filtri esistenti
-  message.content !== " (tipo: sconosciuto)" && 
-  !message.content.includes("Reazione:") &&
-  !message.content.includes("(tipo: reazione)")
-);
+  const isValidContent = message.content !== " (tipo: sconosciuto)" && 
+                        !message.content.includes("Reazione:") &&
+                        !message.content.includes("(tipo: reazione)");
+  
+  // Rimuovi duplicati basati sull'ID
+  const isDuplicate = message.id && filteredMessageIds.has(message.id);
+  if (message.id && !isDuplicate) {
+    filteredMessageIds.add(message.id);
+  }
+  
+  return isNotProtocolMessage && isValidContent && !isDuplicate;
+});
 
 // Group reactions by message ID
 const reactions = {};

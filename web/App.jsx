@@ -506,37 +506,60 @@ function App() {
     const fetchSingleChat = async () => {
       try {
         console.log(`Fetching selettivo per chat: ${chatId}`);
-        
+      
         // Fetch chat details
         const chatResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chatId)}`);
         if (!chatResponse.ok) {
           console.error(`Errore fetch chat ${chatId}: ${chatResponse.status}`);
           return;
         }
-        
+      
         const chatData = await chatResponse.json();
-        
+      
         // Controlla se abbiamo già questa chat con messaggi sufficienti
         const existingChat = chats.find(c => c.id === chatId);
         if (existingChat && existingChat.messages && existingChat.messages.length > 0) {
           // Verifica se il timestamp dell'ultimo messaggio è più recente
           const lastMessageTimestamp = new Date(existingChat.lastMessage?.timestamp || 0);
           const newLastMessageTimestamp = new Date(chatData.lastMessage?.timestamp || 0);
-          
+        
           if (lastMessageTimestamp >= newLastMessageTimestamp) {
             console.log(`Chat ${chatId} già aggiornata, salto il fetch messaggi`);
             return;
           }
         }
-        
+      
         // Fetch messaggi solo se necessario
         const messagesResponse = await fetch(`${API_BASE_URL}/api/chats/${encodeURIComponent(chatId)}/messages`);
         if (!messagesResponse.ok) {
           console.error(`Errore fetch messaggi per chat ${chatId}: ${messagesResponse.status}`);
           return;
         }
-        
+      
         const messages = await messagesResponse.json();
+      
+        // Aggiungi gli ID dei messaggi alla lista dei messaggi in arrivo
+        if (!window.incomingMessageIds) {
+          window.incomingMessageIds = new Set();
+        }
+      
+        // Aggiungi tutti gli ID dei messaggi alla lista
+        messages.forEach(msg => {
+          if (msg.id) {
+            window.incomingMessageIds.add(msg.id);
+          }
+        });
+      
+        // Imposta un timeout per rimuovere gli ID dalla lista dopo un po'
+        setTimeout(() => {
+          if (window.incomingMessageIds) {
+            messages.forEach(msg => {
+              if (msg.id) {
+                window.incomingMessageIds.delete(msg.id);
+              }
+            });
+          }
+        }, 10000); // 10 secondi dovrebbero essere sufficienti
         
         // Aggiorna lo stato senza riordinare
         setChats(prevChats => {
@@ -751,11 +774,26 @@ function App() {
                 return;
               }
               
-              // Verifica se il messaggio esiste già
+              // Verifica se il messaggio esiste già - controllo più rigoroso
               const messageExists = chats.find(chat => chat.id === chatId)?.messages.some(m => m.id === message?.id);
+              
+              // Verifica anche se il messaggio è in arrivo tramite API
+              const isMessageIncoming = window.incomingMessageIds && window.incomingMessageIds.has(message?.id);
       
-              // Se il messaggio è valido e non esistente, aggiungiamolo direttamente senza fetch
-              if (message && !messageExists) {
+              // Se il messaggio è valido, non esistente e non è già in arrivo tramite API, aggiungiamolo direttamente
+              if (message && !messageExists && !isMessageIncoming) {
+                // Aggiungi l'ID del messaggio alla lista dei messaggi in arrivo
+                if (!window.incomingMessageIds) {
+                  window.incomingMessageIds = new Set();
+                }
+                window.incomingMessageIds.add(message.id);
+                
+                // Imposta un timeout per rimuovere l'ID dalla lista dopo un po'
+                setTimeout(() => {
+                  if (window.incomingMessageIds) {
+                    window.incomingMessageIds.delete(message.id);
+                  }
+                }, 10000); // 10 secondi dovrebbero essere sufficienti
                 setChats(prevChats => {
                   // Trova la chat a cui appartiene il messaggio
                   const chatIndex = prevChats.findIndex(chat => chat.id === chatId);
@@ -990,11 +1028,21 @@ function App() {
   }, [chats]);
 
 
-  // Inizializza la variabile di caricamento iniziale se non esiste
+  // Inizializza le variabili globali necessarie
   useEffect(() => {
     if (typeof window.initialLoadComplete === 'undefined') {
       window.initialLoadComplete = false;
     }
+    
+    // Inizializza la struttura dati per tenere traccia dei messaggi in arrivo
+    if (typeof window.incomingMessageIds === 'undefined') {
+      window.incomingMessageIds = new Set();
+    }
+    
+    // Pulisci la struttura dati quando il componente viene smontato
+    return () => {
+      window.incomingMessageIds = new Set();
+    };
   }, []);
 
   return (
