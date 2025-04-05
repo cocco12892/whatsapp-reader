@@ -384,6 +384,8 @@ func main() {
 
 				revokedMessageID := v.Message.GetProtocolMessage().GetKey().GetId()
 				
+				fmt.Printf("Ricevuta richiesta di eliminazione per messaggio: %s\n", revokedMessageID)
+				
 				mutex.Lock()
 				var chatID string
 				var messageFound bool
@@ -413,7 +415,7 @@ func main() {
 							}
 						}
 						
-						fmt.Printf("Messaggio %s eliminato\n", revokedMessageID)
+						fmt.Printf("Messaggio %s contrassegnato come eliminato in memoria\n", revokedMessageID)
 						break
 					}
 				}
@@ -429,6 +431,8 @@ func main() {
 					}
 					if err := dbManager.SaveMessage(&dbMessage); err != nil {
 						fmt.Printf("Errore nell'aggiornamento del messaggio eliminato nel database: %v\n", err)
+					} else {
+						fmt.Printf("Messaggio %s contrassegnato come eliminato nel database\n", revokedMessageID)
 					}
 					
 					// Notifica i client WebSocket del messaggio eliminato
@@ -436,6 +440,8 @@ func main() {
 						"messageId": revokedMessageID,
 						"chatId":    chatID,
 					})
+					
+					fmt.Printf("Notifica WebSocket inviata per messaggio eliminato: %s\n", revokedMessageID)
 				} else {
 					fmt.Printf("Messaggio da eliminare %s non trovato\n", revokedMessageID)
 				}
@@ -450,11 +456,11 @@ func main() {
 				mutex.Lock()
 				var chatID, chatName, sender, senderName string
 				var messageFound bool
+				var content string
 				
 				for i, msg := range messages {
 					if msg.ID == editedMessageID {
 						// Estrai il contenuto aggiornato dal messaggio modificato
-						var content string
 						
 						// Estrai il contenuto aggiornato
 						if v.Message.GetProtocolMessage().GetEditedMessage().GetConversation() != "" {
@@ -500,7 +506,7 @@ func main() {
 				}
 				mutex.Unlock()
 				
-				if messageFound {
+				if messageFound && content != "" {
 					// Aggiorna il messaggio nel database
 					dbMessage := db.Message{
 						ID:         editedMessageID,
@@ -520,9 +526,11 @@ func main() {
 						"messageId": editedMessageID,
 						"chatId":    chatID,
 						"content":   content,
-					})
+					});
+					
+					fmt.Printf("Notifica WebSocket inviata per messaggio modificato: %s\n", editedMessageID)
 				} else {
-					fmt.Printf("Messaggio da modificare %s non trovato\n", editedMessageID)
+					fmt.Printf("Messaggio da modificare %s non trovato o contenuto vuoto\n", editedMessageID)
 				}
 			}
 			// Ottieni i dati del messaggio
@@ -1471,6 +1479,27 @@ func main() {
 				ImageHash: imageHashString,
 			}
 			
+			// Converti il messaggio nel tipo db.Message per salvarlo nel database
+			dbMessage := db.Message{
+				ID:                  newMessage.ID,
+				Chat:                newMessage.Chat,
+				ChatName:            newMessage.ChatName,
+				Sender:              newMessage.Sender,
+				SenderName:          newMessage.SenderName,
+				Content:             newMessage.Content,
+				Timestamp:           newMessage.Timestamp,
+				IsMedia:             newMessage.IsMedia,
+				MediaPath:           newMessage.MediaPath,
+				ImageHash:           newMessage.ImageHash,
+			}
+			
+			// Salva il messaggio nel database
+			if err := dbManager.SaveMessage(&dbMessage); err != nil {
+				fmt.Printf("Errore nel salvataggio dell'immagine inviata nel database: %v\n", err)
+			} else {
+				fmt.Printf("Immagine inviata salvata nel database: %s\n", msgID)
+			}
+			
 			mutex.Lock()
 			// Aggiungi alla lista generale di messaggi
 			messages = append(messages, newMessage)
@@ -1488,6 +1517,12 @@ func main() {
 				}
 			}
 			mutex.Unlock()
+			
+			// Notifica i client WebSocket del nuovo messaggio
+			broadcastToClients("new_message", map[string]interface{}{
+				"chatId":   chatID,
+				"message":  dbMessage,
+			})
 			
 			c.JSON(http.StatusOK, gin.H{
 				"status": "success",
@@ -1597,6 +1632,29 @@ func main() {
 			mutex.RUnlock()
 		}
 		
+		// Converti il messaggio nel tipo db.Message per salvarlo nel database
+		dbMessage := db.Message{
+			ID:                  newMessage.ID,
+			Chat:                newMessage.Chat,
+			ChatName:            newMessage.ChatName,
+			Sender:              newMessage.Sender,
+			SenderName:          newMessage.SenderName,
+			Content:             newMessage.Content,
+			Timestamp:           newMessage.Timestamp,
+			IsMedia:             newMessage.IsMedia,
+			IsReply:             newMessage.IsReply,
+			ReplyToMessageID:    newMessage.ReplyToMessageID,
+			ReplyToSender:       newMessage.ReplyToSender,
+			ReplyToContent:      newMessage.ReplyToContent,
+		}
+		
+		// Salva il messaggio nel database
+		if err := dbManager.SaveMessage(&dbMessage); err != nil {
+			fmt.Printf("Errore nel salvataggio del messaggio inviato nel database: %v\n", err)
+		} else {
+			fmt.Printf("Messaggio inviato salvato nel database: %s\n", msgID)
+		}
+		
 		mutex.Lock()
 		// Aggiungi alla lista generale di messaggi
 		messages = append(messages, newMessage)
@@ -1615,6 +1673,12 @@ func main() {
 			}
 		}
 		mutex.Unlock()
+		
+		// Notifica i client WebSocket del nuovo messaggio
+		broadcastToClients("new_message", map[string]interface{}{
+			"chatId":   chatID,
+			"message":  dbMessage,
+		})
 		
 		c.JSON(http.StatusOK, gin.H{
 			"status": "success",

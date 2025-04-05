@@ -840,11 +840,16 @@ function App() {
                 return;
               }
               
+              console.log(`Aggiornamento messaggio ${editedMessageId} in chat ${editedChatId} con contenuto: ${editedContent}`);
+              
               // Aggiorna il messaggio modificato nello stato
               setChats(prevChats => {
                 // Trova la chat che contiene il messaggio
                 const chatIndex = prevChats.findIndex(chat => chat.id === editedChatId);
-                if (chatIndex === -1) return prevChats;
+                if (chatIndex === -1) {
+                  console.warn(`Chat ${editedChatId} non trovata per messaggio modificato`);
+                  return prevChats;
+                }
                 
                 // Crea una copia dell'array delle chat
                 const updatedChats = [...prevChats];
@@ -870,6 +875,8 @@ function App() {
                   
                   console.log(`Messaggio ${editedMessageId} aggiornato con successo`);
                   return updatedChats;
+                } else {
+                  console.warn(`Messaggio ${editedMessageId} non trovato nella chat ${editedChatId}`);
                 }
                 
                 return prevChats;
@@ -885,11 +892,16 @@ function App() {
                 return;
               }
               
+              console.log(`Eliminazione messaggio ${deletedMessageId} in chat ${deletedChatId}`);
+              
               // Aggiorna il messaggio eliminato nello stato
               setChats(prevChats => {
                 // Trova la chat che contiene il messaggio
                 const chatIndex = prevChats.findIndex(chat => chat.id === deletedChatId);
-                if (chatIndex === -1) return prevChats;
+                if (chatIndex === -1) {
+                  console.warn(`Chat ${deletedChatId} non trovata per messaggio eliminato`);
+                  return prevChats;
+                }
                 
                 // Crea una copia dell'array delle chat
                 const updatedChats = [...prevChats];
@@ -915,6 +927,8 @@ function App() {
                   
                   console.log(`Messaggio ${deletedMessageId} contrassegnato come eliminato`);
                   return updatedChats;
+                } else {
+                  console.warn(`Messaggio ${deletedMessageId} non trovato nella chat ${deletedChatId}`);
                 }
                 
                 return prevChats;
