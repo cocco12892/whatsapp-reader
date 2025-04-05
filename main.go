@@ -1676,28 +1676,60 @@ func main() {
 			fmt.Printf("Chat salvata nel database con successo prima del messaggio: %s\n", chatID)
 		}
 		
-		// Salva il messaggio nel database
-		if err := dbManager.SaveMessage(&dbMessage); err != nil {
-			fmt.Printf("ERRORE CRITICO nel salvataggio del messaggio inviato nel database: %v\n", err)
+		// Salva il messaggio nel database con più dettagli di debug
+		fmt.Printf("DEBUG: Tentativo di salvare il messaggio nel DB. ID: %s, Chat: %s\n", dbMessage.ID, dbMessage.Chat)
+		
+		// Assicurati che tutti i campi necessari siano impostati
+		if dbMessage.ID == "" || dbMessage.Chat == "" {
+			fmt.Printf("ERRORE: ID messaggio o Chat ID vuoti! ID: '%s', Chat: '%s'\n", dbMessage.ID, dbMessage.Chat)
+		}
+		
+		// Prova a salvare direttamente con SQL
+		_, err = dbManager.GetDB().Exec(`
+			INSERT INTO messages (
+				id, chat_id, chat_name, sender, sender_name, content, timestamp, 
+				is_media, media_path, is_edited, is_deleted, is_reply, 
+				reply_to_message_id, reply_to_sender, reply_to_content
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE 
+				content = ?, sender_name = ?, chat_name = ?
+		`,
+			dbMessage.ID, dbMessage.Chat, dbMessage.ChatName, dbMessage.Sender, dbMessage.SenderName,
+			dbMessage.Content, dbMessage.Timestamp, dbMessage.IsMedia, dbMessage.MediaPath,
+			dbMessage.IsEdited, dbMessage.IsDeleted, dbMessage.IsReply, dbMessage.ReplyToMessageID,
+			dbMessage.ReplyToSender, dbMessage.ReplyToContent,
+			// Valori per l'UPDATE
+			dbMessage.Content, dbMessage.SenderName, dbMessage.ChatName,
+		)
+		
+		if err != nil {
+			fmt.Printf("ERRORE CRITICO nell'inserimento diretto SQL: %v\n", err)
+			
+			// Prova con il metodo standard come fallback
+			if err := dbManager.SaveMessage(&dbMessage); err != nil {
+				fmt.Printf("ERRORE CRITICO anche nel salvataggio standard: %v\n", err)
+			} else {
+				fmt.Printf("Messaggio salvato con metodo standard: %s\n", msgID)
+			}
 		} else {
-			fmt.Printf("Messaggio inviato salvato nel database con successo: %s\n", msgID)
+			fmt.Printf("Messaggio salvato con SQL diretto: %s\n", msgID)
 		}
 		
 		// Verifica che il messaggio sia stato salvato
-		messages, err := dbManager.LoadChatMessages(chatID)
+		dbMessages, err := dbManager.LoadChatMessages(chatID)
 		if err != nil {
 			fmt.Printf("Errore nel verificare il salvataggio del messaggio: %v\n", err)
 		} else {
 			messageFound := false
-			for _, msg := range messages {
+			for _, msg := range dbMessages {
 				if msg.ID == msgID {
 					messageFound = true
-					fmt.Printf("Verifica: messaggio %s trovato nel database\n", msgID)
+					fmt.Printf("SUCCESSO: messaggio %s trovato nel database\n", msgID)
 					break
 				}
 			}
 			if !messageFound {
-				fmt.Printf("ATTENZIONE: messaggio %s NON trovato nel database dopo il salvataggio!\n", msgID)
+				fmt.Printf("ERRORE CRITICO: messaggio %s NON trovato nel database dopo il salvataggio!\n", msgID)
 			}
 		}
 		
@@ -1723,10 +1755,23 @@ func main() {
 		// Aggiorna nuovamente la chat nel database per assicurarsi che l'ultimo messaggio sia aggiornato
 		dbChat.LastMessage = dbMessage
 		
-		if err := dbManager.SaveChat(dbChat); err != nil {
-			fmt.Printf("Errore nell'aggiornamento della chat dopo l'invio del messaggio: %v\n", err)
+		// Prova a salvare direttamente con SQL
+		_, err = dbManager.GetDB().Exec(
+			"INSERT INTO chats (id, name, profile_image) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name = ?, profile_image = ?",
+			dbChat.ID, dbChat.Name, dbChat.ProfileImage, dbChat.Name, dbChat.ProfileImage,
+		)
+		
+		if err != nil {
+			fmt.Printf("ERRORE nell'aggiornamento diretto SQL della chat: %v\n", err)
+			
+			// Prova con il metodo standard come fallback
+			if err := dbManager.SaveChat(dbChat); err != nil {
+				fmt.Printf("ERRORE CRITICO anche nell'aggiornamento standard della chat: %v\n", err)
+			} else {
+				fmt.Printf("Chat aggiornata con metodo standard: %s\n", chatID)
+			}
 		} else {
-			fmt.Printf("Chat aggiornata nel database con successo dopo l'invio del messaggio: %s\n", chatID)
+			fmt.Printf("Chat aggiornata con SQL diretto: %s\n", chatID)
 		}
 		
 		// Notifica i client WebSocket del nuovo messaggio
@@ -1737,6 +1782,8 @@ func main() {
 		
 		// Notifica anche dell'aggiornamento della chat
 		broadcastToClients("chat_updated", dbChat)
+		
+		fmt.Printf("Notifiche WebSocket inviate per nuovo messaggio e aggiornamento chat\n")
 		
 		// Verifica che il messaggio sia stato salvato correttamente
 		_, err = dbManager.LoadChatMessages(chatID)
