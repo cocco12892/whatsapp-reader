@@ -385,11 +385,16 @@ func main() {
 				revokedMessageID := v.Message.GetProtocolMessage().GetKey().GetId()
 				
 				mutex.Lock()
+				var chatID string
+				var messageFound bool
+				
 				for i, msg := range messages {
 					if msg.ID == revokedMessageID {
 						// Contrassegna il messaggio come eliminato
 						messages[i].IsDeleted = true
 						messages[i].Content = "(Questo messaggio è stato eliminato)"
+						chatID = msg.Chat
+						messageFound = true
 						
 						// Aggiorna anche nella chat corrispondente
 						if chat, exists := chats[msg.Chat]; exists {
@@ -408,27 +413,32 @@ func main() {
 							}
 						}
 						
-						// Aggiorna il messaggio nel database
-						dbMessage := db.Message{
-							ID:        revokedMessageID,
-							IsDeleted: true,
-							Content:   "(Questo messaggio è stato eliminato)",
-						}
-						if err := dbManager.SaveMessage(&dbMessage); err != nil {
-							fmt.Printf("Errore nell'aggiornamento del messaggio eliminato nel database: %v\n", err)
-						}
-						
-						// Notifica i client WebSocket del messaggio eliminato
-						broadcastToClients("message_deleted", map[string]interface{}{
-							"messageId": revokedMessageID,
-							"chatId":    msg.Chat,
-						})
-						
 						fmt.Printf("Messaggio %s eliminato\n", revokedMessageID)
 						break
 					}
 				}
 				mutex.Unlock()
+				
+				if messageFound {
+					// Aggiorna il messaggio nel database
+					dbMessage := db.Message{
+						ID:        revokedMessageID,
+						IsDeleted: true,
+						Content:   "(Questo messaggio è stato eliminato)",
+						Chat:      chatID,
+					}
+					if err := dbManager.SaveMessage(&dbMessage); err != nil {
+						fmt.Printf("Errore nell'aggiornamento del messaggio eliminato nel database: %v\n", err)
+					}
+					
+					// Notifica i client WebSocket del messaggio eliminato
+					broadcastToClients("message_deleted", map[string]interface{}{
+						"messageId": revokedMessageID,
+						"chatId":    chatID,
+					})
+				} else {
+					fmt.Printf("Messaggio da eliminare %s non trovato\n", revokedMessageID)
+				}
 			}
 
     		// Controlla se è un messaggio di tipo modifica
@@ -438,6 +448,9 @@ func main() {
 				
 				// Trova il messaggio originale nella lista dei messaggi
 				mutex.Lock()
+				var chatID, chatName, sender, senderName string
+				var messageFound bool
+				
 				for i, msg := range messages {
 					if msg.ID == editedMessageID {
 						// Estrai il contenuto aggiornato dal messaggio modificato
@@ -456,6 +469,13 @@ func main() {
 							// Aggiungi un flag per indicare che è stato modificato
 							messages[i].IsEdited = true
 							
+							// Salva i dati per l'aggiornamento del database
+							chatID = msg.Chat
+							chatName = msg.ChatName
+							sender = msg.Sender
+							senderName = msg.SenderName
+							messageFound = true
+							
 							// Aggiorna anche nella chat corrispondente
 							if chat, exists := chats[msg.Chat]; exists {
 								for j, chatMsg := range chat.Messages {
@@ -473,33 +493,37 @@ func main() {
 								}
 							}
 							
-							// Aggiorna il messaggio nel database
-							dbMessage := db.Message{
-								ID:       editedMessageID,
-								Content:  content,
-								IsEdited: true,
-								Chat:     msg.Chat,
-								ChatName: msg.ChatName,
-								Sender:   msg.Sender,
-								SenderName: msg.SenderName,
-							}
-							if err := dbManager.SaveMessage(&dbMessage); err != nil {
-								fmt.Printf("Errore nell'aggiornamento del messaggio modificato nel database: %v\n", err)
-							}
-							
-							// Notifica i client WebSocket del messaggio modificato
-							broadcastToClients("message_edited", map[string]interface{}{
-								"messageId": editedMessageID,
-								"chatId":    msg.Chat,
-								"content":   content,
-							})
-							
 							fmt.Printf("Messaggio %s modificato: %s\n", editedMessageID, content)
 						}
 						break
 					}
 				}
 				mutex.Unlock()
+				
+				if messageFound {
+					// Aggiorna il messaggio nel database
+					dbMessage := db.Message{
+						ID:         editedMessageID,
+						Content:    content,
+						IsEdited:   true,
+						Chat:       chatID,
+						ChatName:   chatName,
+						Sender:     sender,
+						SenderName: senderName,
+					}
+					if err := dbManager.SaveMessage(&dbMessage); err != nil {
+						fmt.Printf("Errore nell'aggiornamento del messaggio modificato nel database: %v\n", err)
+					}
+					
+					// Notifica i client WebSocket del messaggio modificato
+					broadcastToClients("message_edited", map[string]interface{}{
+						"messageId": editedMessageID,
+						"chatId":    chatID,
+						"content":   content,
+					})
+				} else {
+					fmt.Printf("Messaggio da modificare %s non trovato\n", editedMessageID)
+				}
 			}
 			// Ottieni i dati del messaggio
 			var chatJID string

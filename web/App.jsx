@@ -831,45 +831,136 @@ function App() {
               }
               break;
 
-          case 'chat_updated':
-            console.log('Chat aggiornata ricevuta:', data.payload);
-            if (!data.payload || !data.payload.id) {
-              console.warn("Payload chat_updated non valido");
-              return;
-            }
-            
-            const updatedChatId = data.payload.id;
-            
-            // Se stiamo già facendo un fetch, saltiamo questo aggiornamento
-            if (isCurrentlyFetchingRef.current) {
-              console.log("Saltando aggiornamento chat: fetch già in corso");
-              return;
-            }
-            
-            // Verifica se la chat esiste già nel nostro stato
-            const updatedChatExists = chats.some(chat => chat.id === updatedChatId);
-            
-            if (!updatedChatExists) {
-              console.log(`Chat ${updatedChatId} non trovata, carico tutte le chat`);
-              fetchChats();
-              return;
-            }
-            
-            // Aggiorna direttamente la chat con i dati ricevuti
-            setChats(prevChats => {
-              return prevChats.map(chat => {
-                if (chat.id === updatedChatId) {
-                  return {
-                    ...chat,
-                    ...data.payload,
-                    // Mantieni i messaggi esistenti
-                    messages: chat.messages || []
-                  };
+            case 'message_edited':
+              console.log('Messaggio modificato ricevuto:', data.payload);
+              const { messageId: editedMessageId, chatId: editedChatId, content: editedContent } = data.payload;
+              
+              if (!editedMessageId || !editedChatId || !editedContent) {
+                console.warn("Dati del messaggio modificato incompleti");
+                return;
+              }
+              
+              // Aggiorna il messaggio modificato nello stato
+              setChats(prevChats => {
+                // Trova la chat che contiene il messaggio
+                const chatIndex = prevChats.findIndex(chat => chat.id === editedChatId);
+                if (chatIndex === -1) return prevChats;
+                
+                // Crea una copia dell'array delle chat
+                const updatedChats = [...prevChats];
+                
+                // Crea una copia profonda della chat da aggiornare
+                const updatedChat = JSON.parse(JSON.stringify(updatedChats[chatIndex]));
+                
+                // Trova e aggiorna il messaggio
+                const messageIndex = updatedChat.messages.findIndex(msg => msg.id === editedMessageId);
+                if (messageIndex !== -1) {
+                  // Aggiorna il contenuto e imposta il flag isEdited
+                  updatedChat.messages[messageIndex].content = editedContent;
+                  updatedChat.messages[messageIndex].isEdited = true;
+                  
+                  // Se è l'ultimo messaggio, aggiorna anche quello
+                  if (updatedChat.lastMessage && updatedChat.lastMessage.id === editedMessageId) {
+                    updatedChat.lastMessage.content = editedContent;
+                    updatedChat.lastMessage.isEdited = true;
+                  }
+                  
+                  // Sostituisci la chat nell'array
+                  updatedChats[chatIndex] = updatedChat;
+                  
+                  console.log(`Messaggio ${editedMessageId} aggiornato con successo`);
+                  return updatedChats;
                 }
-                return chat;
+                
+                return prevChats;
               });
-            });
-            break;
+              break;
+              
+            case 'message_deleted':
+              console.log('Messaggio eliminato ricevuto:', data.payload);
+              const { messageId: deletedMessageId, chatId: deletedChatId } = data.payload;
+              
+              if (!deletedMessageId || !deletedChatId) {
+                console.warn("Dati del messaggio eliminato incompleti");
+                return;
+              }
+              
+              // Aggiorna il messaggio eliminato nello stato
+              setChats(prevChats => {
+                // Trova la chat che contiene il messaggio
+                const chatIndex = prevChats.findIndex(chat => chat.id === deletedChatId);
+                if (chatIndex === -1) return prevChats;
+                
+                // Crea una copia dell'array delle chat
+                const updatedChats = [...prevChats];
+                
+                // Crea una copia profonda della chat da aggiornare
+                const updatedChat = JSON.parse(JSON.stringify(updatedChats[chatIndex]));
+                
+                // Trova e aggiorna il messaggio
+                const messageIndex = updatedChat.messages.findIndex(msg => msg.id === deletedMessageId);
+                if (messageIndex !== -1) {
+                  // Imposta il messaggio come eliminato
+                  updatedChat.messages[messageIndex].isDeleted = true;
+                  updatedChat.messages[messageIndex].content = "(Questo messaggio è stato eliminato)";
+                  
+                  // Se è l'ultimo messaggio, aggiorna anche quello
+                  if (updatedChat.lastMessage && updatedChat.lastMessage.id === deletedMessageId) {
+                    updatedChat.lastMessage.isDeleted = true;
+                    updatedChat.lastMessage.content = "(Questo messaggio è stato eliminato)";
+                  }
+                  
+                  // Sostituisci la chat nell'array
+                  updatedChats[chatIndex] = updatedChat;
+                  
+                  console.log(`Messaggio ${deletedMessageId} contrassegnato come eliminato`);
+                  return updatedChats;
+                }
+                
+                return prevChats;
+              });
+              break;
+
+            case 'chat_updated':
+              console.log('Chat aggiornata ricevuta:', data.payload);
+              if (!data.payload || !data.payload.id) {
+                console.warn("Payload chat_updated non valido");
+                return;
+              }
+              
+              const updatedChatId = data.payload.id;
+              
+              // Se stiamo già facendo un fetch, saltiamo questo aggiornamento
+              if (isCurrentlyFetchingRef.current) {
+                console.log("Saltando aggiornamento chat: fetch già in corso");
+                return;
+              }
+              
+              // Verifica se la chat esiste già nel nostro stato
+              const updatedChatExists = chats.some(chat => chat.id === updatedChatId);
+              
+              if (!updatedChatExists) {
+                console.log(`Chat ${updatedChatId} non trovata, carico tutte le chat`);
+                fetchChats();
+                return;
+              }
+              
+              // Aggiorna direttamente la chat con i dati ricevuti
+              setChats(prevChats => {
+                return prevChats.map(chat => {
+                  if (chat.id === updatedChatId) {
+                    return {
+                      ...chat,
+                      ...data.payload,
+                      // Mantieni i messaggi esistenti
+                      messages: chat.messages || []
+                    };
+                  }
+                  return chat;
+                });
+              });
+              break;
+              
             // Altri case...
             default:
               console.log('Messaggio WebSocket di tipo sconosciuto:', data);

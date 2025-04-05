@@ -1123,7 +1123,17 @@ return (
             <Box>
               {message.isDeleted ? (
               // Se il messaggio è stato eliminato, mostra solo il testo standard 
-              <Typography variant="body2">
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  fontStyle: 'italic',
+                  color: 'text.secondary',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <span role="img" aria-label="deleted" style={{ fontSize: '1.1rem' }}>🗑️</span>
                 (Questo messaggio è stato eliminato)
               </Typography>
               ) : (
@@ -1175,9 +1185,13 @@ return (
                           fontSize: '0.75rem', 
                           ml: 1, 
                           color: 'text.secondary',
-                          fontStyle: 'italic' 
+                          fontStyle: 'italic',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 0.5
                         }}
                       >
+                        <span role="img" aria-label="edited" style={{ fontSize: '0.8rem' }}>✏️</span>
                         (modificato)
                       </Typography>
                     )}
