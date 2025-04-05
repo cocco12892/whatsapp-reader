@@ -1651,6 +1651,21 @@ func main() {
 			ReplyToContent:      newMessage.ReplyToContent,
 		}
 		
+		// Salva la chat nel database prima del messaggio per rispettare il vincolo di chiave esterna
+		dbChat := &db.Chat{
+			ID:           chatID,
+			Name:         chatName,
+			LastMessage:  dbMessage,
+			ProfileImage: "",
+		}
+		
+		// Salva la chat nel database
+		if err := dbManager.SaveChat(dbChat); err != nil {
+			fmt.Printf("Errore nel salvataggio della chat prima del messaggio: %v\n", err)
+		} else {
+			fmt.Printf("Chat salvata nel database con successo prima del messaggio: %s\n", chatID)
+		}
+		
 		// Salva il messaggio nel database
 		if err := dbManager.SaveMessage(&dbMessage); err != nil {
 			fmt.Printf("Errore nel salvataggio del messaggio inviato nel database: %v\n", err)
@@ -1677,16 +1692,13 @@ func main() {
 		}
 		mutex.Unlock()
 		
-		// Aggiorna anche la chat nel database per assicurarsi che l'ultimo messaggio sia aggiornato
-		dbChat := &db.Chat{
-			ID:           chatID,
-			Name:         chatName,
-			LastMessage:  dbMessage,
-			ProfileImage: "",
-		}
+		// Aggiorna nuovamente la chat nel database per assicurarsi che l'ultimo messaggio sia aggiornato
+		dbChat.LastMessage = dbMessage
 		
 		if err := dbManager.SaveChat(dbChat); err != nil {
 			fmt.Printf("Errore nell'aggiornamento della chat dopo l'invio del messaggio: %v\n", err)
+		} else {
+			fmt.Printf("Chat aggiornata nel database con successo dopo l'invio del messaggio: %s\n", chatID)
 		}
 		
 		// Notifica i client WebSocket del nuovo messaggio
@@ -1697,6 +1709,14 @@ func main() {
 		
 		// Notifica anche dell'aggiornamento della chat
 		broadcastToClients("chat_updated", dbChat)
+		
+		// Verifica che il messaggio sia stato salvato correttamente
+		_, err = dbManager.LoadChatMessages(chatID)
+		if err != nil {
+			fmt.Printf("Avviso: impossibile verificare il salvataggio del messaggio: %v\n", err)
+		} else {
+			fmt.Printf("Verifica completata: i messaggi della chat %s sono stati caricati con successo\n", chatID)
+		}
 		
 		c.JSON(http.StatusOK, gin.H{
 			"status": "success",
