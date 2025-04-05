@@ -1662,15 +1662,43 @@ func main() {
 		// Salva la chat nel database
 		if err := dbManager.SaveChat(dbChat); err != nil {
 			fmt.Printf("Errore nel salvataggio della chat prima del messaggio: %v\n", err)
+			// Prova a forzare l'inserimento della chat
+			_, err = dbManager.GetDB().Exec(
+				"INSERT IGNORE INTO chats (id, name) VALUES (?, ?)",
+				chatID, chatName,
+			)
+			if err != nil {
+				fmt.Printf("Errore anche nel tentativo di forzare l'inserimento della chat: %v\n", err)
+			} else {
+				fmt.Printf("Chat inserita con metodo alternativo: %s\n", chatID)
+			}
 		} else {
 			fmt.Printf("Chat salvata nel database con successo prima del messaggio: %s\n", chatID)
 		}
 		
 		// Salva il messaggio nel database
 		if err := dbManager.SaveMessage(&dbMessage); err != nil {
-			fmt.Printf("Errore nel salvataggio del messaggio inviato nel database: %v\n", err)
+			fmt.Printf("ERRORE CRITICO nel salvataggio del messaggio inviato nel database: %v\n", err)
 		} else {
 			fmt.Printf("Messaggio inviato salvato nel database con successo: %s\n", msgID)
+		}
+		
+		// Verifica che il messaggio sia stato salvato
+		messages, err := dbManager.LoadChatMessages(chatID)
+		if err != nil {
+			fmt.Printf("Errore nel verificare il salvataggio del messaggio: %v\n", err)
+		} else {
+			messageFound := false
+			for _, msg := range messages {
+				if msg.ID == msgID {
+					messageFound = true
+					fmt.Printf("Verifica: messaggio %s trovato nel database\n", msgID)
+					break
+				}
+			}
+			if !messageFound {
+				fmt.Printf("ATTENZIONE: messaggio %s NON trovato nel database dopo il salvataggio!\n", msgID)
+			}
 		}
 		
 		mutex.Lock()

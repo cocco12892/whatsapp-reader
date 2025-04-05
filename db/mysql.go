@@ -158,7 +158,18 @@ func (m *MySQLManager) LoadChats() ([]*Chat, error) {
 
 // Salva un messaggio nel database
 func (m *MySQLManager) SaveMessage(message *Message) error {
-	_, err := m.db.Exec(`
+	// Prima verifica se la chat esiste, se non esiste la crea
+	_, err := m.db.Exec(
+		"INSERT IGNORE INTO chats (id, name) VALUES (?, ?)",
+		message.Chat, message.ChatName,
+	)
+	if err != nil {
+		fmt.Printf("Errore nel verificare/creare la chat: %v\n", err)
+		// Continua comunque, potrebbe essere un errore di chiave duplicata
+	}
+
+	// Ora salva il messaggio
+	_, err = m.db.Exec(`
 		INSERT INTO messages (
 			id, chat_id, chat_name, sender, sender_name, content, timestamp, 
 			is_media, media_path, is_edited, is_deleted, is_reply, 
@@ -166,16 +177,28 @@ func (m *MySQLManager) SaveMessage(message *Message) error {
 			protocol_message_type, protocol_message_name, image_hash
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE 
-			content = ?, is_edited = ?, is_deleted = ?
+			chat_id = ?, chat_name = ?, sender = ?, sender_name = ?,
+			content = ?, timestamp = ?, is_media = ?, media_path = ?,
+			is_edited = ?, is_deleted = ?, is_reply = ?, 
+			reply_to_message_id = ?, reply_to_sender = ?, reply_to_content = ?,
+			protocol_message_type = ?, protocol_message_name = ?, image_hash = ?
 	`,
 		message.ID, message.Chat, message.ChatName, message.Sender, message.SenderName,
 		message.Content, message.Timestamp, message.IsMedia, message.MediaPath,
 		message.IsEdited, message.IsDeleted, message.IsReply, message.ReplyToMessageID,
 		message.ReplyToSender, message.ReplyToContent, message.ProtocolMessageType,
 		message.ProtocolMessageName, message.ImageHash,
-		// Valori per l'UPDATE
-		message.Content, message.IsEdited, message.IsDeleted,
+		// Valori per l'UPDATE (tutti i campi)
+		message.Chat, message.ChatName, message.Sender, message.SenderName,
+		message.Content, message.Timestamp, message.IsMedia, message.MediaPath,
+		message.IsEdited, message.IsDeleted, message.IsReply, message.ReplyToMessageID,
+		message.ReplyToSender, message.ReplyToContent, message.ProtocolMessageType,
+		message.ProtocolMessageName, message.ImageHash,
 	)
+	
+	if err != nil {
+		fmt.Printf("Errore SQL nel salvataggio del messaggio: %v\n", err)
+	}
 	return err
 }
 
@@ -519,6 +542,11 @@ func (m *MySQLManager) LoadAllRecordedData() ([]*RecordedData, error) {
 func (m *MySQLManager) DeleteRecordedData(messageID string) error {
 	_, err := m.db.Exec("DELETE FROM recorded_data WHERE message_id = ?", messageID)
 	return err
+}
+
+// GetDB restituisce l'oggetto database per operazioni di emergenza
+func (m *MySQLManager) GetDB() *sql.DB {
+	return m.db
 }
 
 // Chiude la connessione al database
