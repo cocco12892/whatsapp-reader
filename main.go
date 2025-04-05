@@ -1619,6 +1619,11 @@ func main() {
 			// Aggiungi informazioni sulla risposta se applicabile
 			IsReply:         requestData.IsReply,
 			ReplyToMessageID: requestData.ReplyToMessageID,
+			
+			// Inizializza i campi che causano problemi
+			ProtocolMessageType: 0,
+			ProtocolMessageName: "",
+			ImageHash:           "",
 		}
 		
 		// Se è una risposta, aggiungi i dati del messaggio originale
