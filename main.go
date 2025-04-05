@@ -269,6 +269,14 @@ type WSMessage struct {
 	Payload interface{} `json:"payload"`
 }
 
+// Tipi di messaggi WebSocket
+const (
+	WSTypeNewMessage     = "new_message"
+	WSTypeChatUpdated    = "chat_updated"
+	WSTypeMessageEdited  = "message_edited"
+	WSTypeMessageDeleted = "message_deleted"
+)
+
 // Funzione per inviare un messaggio a tutti i client WebSocket
 func broadcastToClients(messageType string, payload interface{}) {
 	wsClientsMux.Lock()
@@ -400,6 +408,22 @@ func main() {
 							}
 						}
 						
+						// Aggiorna il messaggio nel database
+						dbMessage := db.Message{
+							ID:        revokedMessageID,
+							IsDeleted: true,
+							Content:   "(Questo messaggio è stato eliminato)",
+						}
+						if err := dbManager.SaveMessage(&dbMessage); err != nil {
+							fmt.Printf("Errore nell'aggiornamento del messaggio eliminato nel database: %v\n", err)
+						}
+						
+						// Notifica i client WebSocket del messaggio eliminato
+						broadcastToClients("message_deleted", map[string]interface{}{
+							"messageId": revokedMessageID,
+							"chatId":    msg.Chat,
+						})
+						
 						fmt.Printf("Messaggio %s eliminato\n", revokedMessageID)
 						break
 					}
@@ -430,7 +454,7 @@ func main() {
 						if content != "" {
 							messages[i].Content = content
 							// Aggiungi un flag per indicare che è stato modificato
-							messages[i].IsEdited = true  // Dovrai aggiungere questo campo alla struct Message
+							messages[i].IsEdited = true
 							
 							// Aggiorna anche nella chat corrispondente
 							if chat, exists := chats[msg.Chat]; exists {
@@ -448,6 +472,27 @@ func main() {
 									chat.LastMessage.IsEdited = true
 								}
 							}
+							
+							// Aggiorna il messaggio nel database
+							dbMessage := db.Message{
+								ID:       editedMessageID,
+								Content:  content,
+								IsEdited: true,
+								Chat:     msg.Chat,
+								ChatName: msg.ChatName,
+								Sender:   msg.Sender,
+								SenderName: msg.SenderName,
+							}
+							if err := dbManager.SaveMessage(&dbMessage); err != nil {
+								fmt.Printf("Errore nell'aggiornamento del messaggio modificato nel database: %v\n", err)
+							}
+							
+							// Notifica i client WebSocket del messaggio modificato
+							broadcastToClients("message_edited", map[string]interface{}{
+								"messageId": editedMessageID,
+								"chatId":    msg.Chat,
+								"content":   content,
+							})
 							
 							fmt.Printf("Messaggio %s modificato: %s\n", editedMessageID, content)
 						}
