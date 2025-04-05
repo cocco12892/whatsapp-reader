@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo, createElement } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import ChatWindow from './components/ChatWindow';
@@ -41,6 +41,17 @@ const safeImagePath = (path) => {
   // Join the path back together
   return encodedParts.join('/');
 };
+
+// Componenti memorizzati per evitare re-render non necessari
+const MemoizedSideComponents = memo(() => {
+  return (
+    <>
+      <BotSalvatore />
+      <DirettaGames />
+      <AlertTable />
+    </>
+  );
+});
 
 function App() {
   // Track the last fetch time for each chat and a global fetching flag
@@ -1047,14 +1058,7 @@ function App() {
                     flexShrink: 0, 
                     flexGrow: 0 
                   }}>
-                    {/* Utilizziamo React.memo per evitare re-render non necessari */}
-                    {React.useMemo(() => (
-                      <>
-                        <BotSalvatore />
-                        <DirettaGames />
-                        <AlertTable />
-                      </>
-                    ), [])}
+                    <MemoizedSideComponents />
                   </Box>
                   
                   {chats.map((chat) => (
