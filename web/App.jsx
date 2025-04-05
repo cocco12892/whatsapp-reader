@@ -170,6 +170,26 @@ function App() {
     });
   };
 
+  // Funzione per riordinare le chat in modo sicuro
+  const safeReorderChats = useCallback(() => {
+    // Verifica se l'utente sta interagendo con la pagina
+    if (isUserScrolling) {
+      console.log("Saltando riordinamento chat - utente sta interagendo");
+      return;
+    }
+    
+    setChats(prevChats => sortChatsByLatestMessage(prevChats));
+  }, [isUserScrolling]);
+  
+  // Imposta un timer per riordinare le chat periodicamente
+  useEffect(() => {
+    const reorderInterval = setInterval(() => {
+      safeReorderChats();
+    }, 30000); // Riordina ogni 30 secondi se l'utente non sta interagendo
+    
+    return () => clearInterval(reorderInterval);
+  }, [safeReorderChats]);
+  
   // Fetch all chats from the server
   const fetchChats = useCallback(async () => {
     try {
@@ -374,23 +394,23 @@ function App() {
       setChats(prevChats => {
         // Trova la chat a cui appartiene il messaggio
         const chatIndex = prevChats.findIndex(chat => chat.id === chatId);
-        
+                  
         if (chatIndex !== -1) {
           // Crea una copia dell'array chat
           const updatedChats = [...prevChats];
-          
+                    
           // Aggiorna la chat esistente
           const updatedChat = { ...updatedChats[chatIndex] };
-          
+                    
           // Aggiungi il nuovo messaggio
           updatedChat.messages = [...updatedChat.messages, message];
-          
+                    
           // Aggiorna l'ultimo messaggio
           updatedChat.lastMessage = message;
-          
+                    
           // Sostituisci la chat nell'array
           updatedChats[chatIndex] = updatedChat;
-          
+                    
           // Se l'utente sta scorrendo, aggiorna i messaggi non letti
           if (isUserScrolling) {
             setUnreadMessages(prev => ({
@@ -398,11 +418,11 @@ function App() {
               [chatId]: (prev[chatId] || 0) + 1
             }));
           }
-          
-          // Riordina le chat in base al timestamp dell'ultimo messaggio
-          return sortChatsByLatestMessage(updatedChats);
+                    
+          // Non riordiniamo le chat qui per evitare di perdere la posizione di visualizzazione
+          return updatedChats;
         }
-        
+                  
         return prevChats;
       });
       
@@ -456,7 +476,7 @@ function App() {
         
         const messages = await messagesResponse.json();
         
-        // Aggiorna lo stato
+        // Aggiorna lo stato senza riordinare
         setChats(prevChats => {
           const updatedChats = prevChats.map(chat => 
             chat.id === chatId ? {
@@ -464,9 +484,9 @@ function App() {
               messages: messages
             } : chat
           );
-          
-          // Riordina le chat in base al timestamp dell'ultimo messaggio
-          return sortChatsByLatestMessage(updatedChats);
+        
+          // Non riordiniamo qui per evitare di perdere la posizione di visualizzazione
+          return updatedChats;
         });
       } catch (error) {
         console.error(`Errore in fetchSingleChat per ${chatId}:`, error);
@@ -509,19 +529,25 @@ function App() {
       console.log(`Saltando fetch per chat ${updatedChat.id} - fetched troppo di recente`);
     }
     
-    // Aggiorna direttamente la chat con i dati ricevuti
+    // Aggiorna direttamente la chat con i dati ricevuti senza riordinare
     setChats(prevChats => {
-      return prevChats.map(chat => {
-        if (chat.id === updatedChat.id) {
-          return {
-            ...chat,
-            ...updatedChat,
-            // Mantieni i messaggi esistenti
-            messages: chat.messages || []
-          };
-        }
-        return chat;
-      });
+      // Trova l'indice della chat da aggiornare
+      const chatIndex = prevChats.findIndex(chat => chat.id === updatedChat.id);
+      
+      if (chatIndex === -1) return prevChats;
+      
+      // Crea una copia dell'array delle chat
+      const updatedChats = [...prevChats];
+      
+      // Aggiorna la chat mantenendo i messaggi esistenti
+      updatedChats[chatIndex] = {
+        ...updatedChats[chatIndex],
+        ...updatedChat,
+        messages: updatedChats[chatIndex].messages || []
+      };
+      
+      // Restituisci l'array aggiornato senza riordinare
+      return updatedChats;
     });
     
     // Aggiorna il timestamp dell'ultimo fetch
