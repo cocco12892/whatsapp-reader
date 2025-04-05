@@ -160,6 +160,7 @@ function App() {
   }, [API_BASE_URL]);
 
   const sortChatsByLatestMessage = (chatsArray) => {
+    // Crea una copia dell'array per non modificare l'originale
     return [...chatsArray].sort((a, b) => {
       // Get timestamp of last message for each chat
       const timestampA = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp) : new Date(0);
@@ -170,7 +171,7 @@ function App() {
     });
   };
 
-  // Funzione per riordinare le chat in modo sicuro
+  // Funzione per riordinare le chat in modo sicuro e istantaneo
   const safeReorderChats = useCallback(() => {
     // Verifica se l'utente sta interagendo con la pagina
     if (isUserScrolling) {
@@ -178,14 +179,32 @@ function App() {
       return;
     }
     
-    setChats(prevChats => sortChatsByLatestMessage(prevChats));
+    // Usa una tecnica di riordinamento che preserva la posizione DOM
+    setChats(prevChats => {
+      // Crea una copia dell'array corrente
+      const currentChats = [...prevChats];
+      
+      // Calcola l'ordine corretto
+      const sortedOrder = sortChatsByLatestMessage([...currentChats])
+        .map(chat => chat.id);
+      
+      // Assegna un indice di ordinamento a ciascuna chat basato sull'ordine calcolato
+      currentChats.forEach(chat => {
+        chat._sortIndex = sortedOrder.indexOf(chat.id);
+      });
+      
+      // Ordina l'array in base all'indice di ordinamento
+      currentChats.sort((a, b) => a._sortIndex - b._sortIndex);
+      
+      return currentChats;
+    });
   }, [isUserScrolling]);
   
   // Imposta un timer per riordinare le chat periodicamente
   useEffect(() => {
     const reorderInterval = setInterval(() => {
       safeReorderChats();
-    }, 30000); // Riordina ogni 30 secondi se l'utente non sta interagendo
+    }, 10000); // Riordina ogni 10 secondi se l'utente non sta interagendo
     
     return () => clearInterval(reorderInterval);
   }, [safeReorderChats]);
@@ -419,7 +438,22 @@ function App() {
             }));
           }
                     
-          // Non riordiniamo le chat qui per evitare di perdere la posizione di visualizzazione
+          // Riordina le chat in modo istantaneo senza causare refresh
+          // Manteniamo la stessa struttura DOM ma aggiorniamo l'ordine
+          if (!isUserScrolling) {
+            // Calcola il nuovo ordine
+            const sortedOrder = sortChatsByLatestMessage([...updatedChats])
+              .map(chat => chat.id);
+                      
+            // Assegna un indice di ordinamento a ciascuna chat
+            updatedChats.forEach(chat => {
+              chat._sortIndex = sortedOrder.indexOf(chat.id);
+            });
+                      
+            // Ordina l'array in base all'indice di ordinamento
+            updatedChats.sort((a, b) => a._sortIndex - b._sortIndex);
+          }
+                    
           return updatedChats;
         }
                   
@@ -708,6 +742,21 @@ function App() {
                         ...prev,
                         [chatId]: (prev[chatId] || 0) + 1
                       }));
+                    }
+                    
+                    // Riordina le chat in modo istantaneo senza causare refresh
+                    if (!isUserScrolling) {
+                      // Calcola il nuovo ordine
+                      const sortedOrder = sortChatsByLatestMessage([...updatedChats])
+                        .map(chat => chat.id);
+                      
+                      // Assegna un indice di ordinamento a ciascuna chat
+                      updatedChats.forEach(chat => {
+                        chat._sortIndex = sortedOrder.indexOf(chat.id);
+                      });
+                      
+                      // Ordina l'array in base all'indice di ordinamento
+                      updatedChats.sort((a, b) => a._sortIndex - b._sortIndex);
                     }
                     
                     return updatedChats;
