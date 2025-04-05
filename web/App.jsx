@@ -335,7 +335,7 @@ function App() {
     }
     
     // Verifica se stiamo già facendo un fetch
-    if (isCurrentlyFetching) {
+    if (isCurrentlyFetching.current) {
       console.log("Saltando aggiornamento: fetch già in corso");
       return;
     }
@@ -351,7 +351,7 @@ function App() {
     
     // Verifica se il messaggio esiste già
     const messageExists = chats.find(chat => chat.id === chatId)?.messages.some(m => m.id === message?.id);
-
+  
     // Se il messaggio è valido e non esistente, aggiungiamolo direttamente senza fetch
     if (message && !messageExists) {
       setChats(prevChats => {
@@ -393,14 +393,14 @@ function App() {
     
     // Verifica se abbiamo fatto fetch recentemente per questa chat
     const now = Date.now();
-    if (lastFetchTime[chatId] && now - lastFetchTime[chatId] < FETCH_THROTTLE_MS) {
+    if (lastFetchTime.current[chatId] && now - lastFetchTime.current[chatId] < FETCH_THROTTLE_MS) {
       console.log(`Saltando fetch per chat ${chatId} - fetched troppo di recente`);
       return;
     }
     
     // Se necessario, aggiorna la chat con un fetch selettivo
-    lastFetchTime[chatId] = now;
-    isCurrentlyFetching = true;
+    lastFetchTime.current[chatId] = now;
+    isCurrentlyFetching.current = true;
     
     // Funzione per fare fetch di una singola chat
     const fetchSingleChat = async () => {
@@ -450,13 +450,13 @@ function App() {
       } catch (error) {
         console.error(`Errore in fetchSingleChat per ${chatId}:`, error);
       } finally {
-        isCurrentlyFetching = false;
+        isCurrentlyFetching.current = false;
       }
     };
     
     fetchSingleChat();
   }, [isUserScrolling, chats, API_BASE_URL]);
-  
+
   // Funzione per gestire gli aggiornamenti delle chat
   const handleChatUpdate = useCallback((updatedChat) => {
     console.log("Aggiornamento chat ricevuto via WebSocket:", updatedChat);
@@ -468,7 +468,7 @@ function App() {
     }
     
     // Se stiamo già facendo un fetch, saltiamo questo aggiornamento
-    if (isCurrentlyFetching) {
+    if (isCurrentlyFetching.current) {
       console.log("Saltando aggiornamento chat: fetch già in corso");
       return;
     }
@@ -484,7 +484,7 @@ function App() {
     
     // Verifica se abbiamo fatto fetch recentemente per questa chat
     const now = Date.now();
-    if (lastFetchTime[updatedChat.id] && now - lastFetchTime[updatedChat.id] < FETCH_THROTTLE_MS) {
+    if (lastFetchTime.current[updatedChat.id] && now - lastFetchTime.current[updatedChat.id] < FETCH_THROTTLE_MS) {
       console.log(`Saltando fetch per chat ${updatedChat.id} - fetched troppo di recente`);
     }
     
@@ -504,7 +504,7 @@ function App() {
     });
     
     // Aggiorna il timestamp dell'ultimo fetch
-    lastFetchTime[updatedChat.id] = now;
+    lastFetchTime.current[updatedChat.id] = now;
   }, [chats]);
 
   // Riferimento al WebSocket
@@ -615,84 +615,101 @@ function App() {
                 return;
               }
               
-              // Se abbiamo il messaggio completo, aggiungilo direttamente
-              setChats(prevChats => {
-                const chatExists = prevChats.some(chat => chat.id === chatId);
-                
-                if (!chatExists) {
-                  // Se la chat non esiste nell'array, dobbiamo fare fetch
-                  // Ma non qui dentro - lo facciamo dopo
-                  return prevChats;
-                }
-                
-                // Verifica se il messaggio esiste già in questa chat
-                const messageExists = prevChats.find(chat => chat.id === chatId)
-                  ?.messages.some(m => m.id === message.id);
-                
-                if (messageExists) {
-                  // Il messaggio già esiste, nessun aggiornamento necessario
-                  return prevChats;
-                }
-                
-                // Aggiorna la chat con il nuovo messaggio
-                return prevChats.map(chat => {
-                  if (chat.id === chatId) {
-                    return {
-                      ...chat,
-                      messages: [...chat.messages, message],
-                      lastMessage: message
-                    };
-                  }
-                  return chat;
-                });
-              });
-              
-              // Se la chat non esiste nello stato, fai fetch per ottenerla
-              if (!chats.some(chat => chat.id === chatId)) {
-                console.log(`Chat ${chatId} non trovata, carico tutte le chat`);
-                fetchChats();
-              }
-              break;
-              
-            case 'chat_updated':
-              console.log('Chat aggiornata ricevuta:', data.payload);
-              if (!data.payload || !data.payload.id) {
-                console.warn("Payload chat_updated non valido");
+              // Verifica se stiamo già facendo un fetch
+              if (isCurrentlyFetching.current) {
+                console.log("Saltando aggiornamento: fetch già in corso");
                 return;
               }
               
-              const updatedChatId = data.payload.id;
+              // Verifica se la chat esiste già nel nostro stato
+              const chatExists = chats.some(chat => chat.id === chatId);
               
-              // Aggiorna la chat esistente senza richiedere i messaggi
-              setChats(prevChats => {
-                const chatExists = prevChats.some(chat => chat.id === updatedChatId);
-                
-                if (!chatExists) {
-                  // Se la chat non esiste, fai fetch completo (fuori da questa funzione)
-                  return prevChats;
-                }
-                
-                // Aggiorna solo i metadati della chat, mantenendo i messaggi
-                return prevChats.map(chat => {
-                  if (chat.id === updatedChatId) {
-                    return {
-                      ...chat,
-                      ...data.payload,
-                      // Mantieni i messaggi esistenti
-                      messages: chat.messages
-                    };
-                  }
-                  return chat;
-                });
-              });
-              
-              // Se la chat non esiste nello stato, fai fetch per ottenerla
-              if (!chats.some(chat => chat.id === updatedChatId)) {
-                console.log(`Chat ${updatedChatId} non trovata, carico tutte le chat`);
+              if (!chatExists) {
+                console.log(`Chat ${chatId} non trovata, carico tutte le chat`);
                 fetchChats();
+                return;
+              }
+              
+              // Verifica se il messaggio esiste già
+              const messageExists = chats.find(chat => chat.id === chatId)?.messages.some(m => m.id === message?.id);
+      
+              // Se il messaggio è valido e non esistente, aggiungiamolo direttamente senza fetch
+              if (message && !messageExists) {
+                setChats(prevChats => {
+                  // Trova la chat a cui appartiene il messaggio
+                  const chatIndex = prevChats.findIndex(chat => chat.id === chatId);
+                  
+                  if (chatIndex !== -1) {
+                    // Crea una copia dell'array chat
+                    const updatedChats = [...prevChats];
+                    
+                    // Aggiorna la chat esistente
+                    const updatedChat = { ...updatedChats[chatIndex] };
+                    
+                    // Aggiungi il nuovo messaggio
+                    updatedChat.messages = [...updatedChat.messages, message];
+                    
+                    // Aggiorna l'ultimo messaggio
+                    updatedChat.lastMessage = message;
+                    
+                    // Sostituisci la chat nell'array
+                    updatedChats[chatIndex] = updatedChat;
+                    
+                    // Se l'utente sta scorrendo, aggiorna i messaggi non letti
+                    if (isUserScrolling) {
+                      setUnreadMessages(prev => ({
+                        ...prev,
+                        [chatId]: (prev[chatId] || 0) + 1
+                      }));
+                    }
+                    
+                    return updatedChats;
+                  }
+                  
+                  return prevChats;
+                });
               }
               break;
-              
+
+          case 'chat_updated':
+            console.log('Chat aggiornata ricevuta:', data.payload);
+            if (!data.payload || !data.payload.id) {
+              console.warn("Payload chat_updated non valido");
+              return;
+            }
+            
+            const updatedChatId = data.payload.id;
+            
+            // Se stiamo già facendo un fetch, saltiamo questo aggiornamento
+            if (isCurrentlyFetching.current) {
+              console.log("Saltando aggiornamento chat: fetch già in corso");
+              return;
+            }
+            
+            // Verifica se la chat esiste già nel nostro stato
+            const updatedChatExists = chats.some(chat => chat.id === updatedChatId);
+            
+            if (!updatedChatExists) {
+              console.log(`Chat ${updatedChatId} non trovata, carico tutte le chat`);
+              fetchChats();
+              return;
+            }
+            
+            // Aggiorna direttamente la chat con i dati ricevuti
+            setChats(prevChats => {
+              return prevChats.map(chat => {
+                if (chat.id === updatedChatId) {
+                  return {
+                    ...chat,
+                    ...data.payload,
+                    // Mantieni i messaggi esistenti
+                    messages: chat.messages || []
+                  };
+                }
+                return chat;
+              });
+            });
+            break;
             // Altri case...
             default:
               console.log('Messaggio WebSocket di tipo sconosciuto:', data);
@@ -898,53 +915,55 @@ function App() {
               </ErrorBoundary>
             )}
             {chats.length > 0 ? (
-              <Box sx={{
-                display: 'flex',
-                gap: 3,
-                overflowX: 'auto',
-                pb: 4,  // Aumentato padding bottom
-                alignItems: 'stretch',  // Ensure all children have same height
-                mt: 2,  // Aggiunto margin top
-                '&::-webkit-scrollbar': {
-                  height: '8px',  // Larghezza scrollbar orizzontale
-                },
-                '&::-webkit-scrollbar-track': {
-                  backgroundColor: 'rgba(0,0,0,0.05)',  // Colore traccia scrollbar
-                  borderRadius: '10px',  // Bordi arrotondati
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  backgroundColor: 'rgba(0,0,0,0.2)',  // Colore thumb scrollbar
-                  borderRadius: '10px',  // Bordi arrotondati
-                }
-              }}>
-                {/* Wrapper per BotSalvatore, DirettaGames e AlertTable con larghezza controllata */}
-                <Box sx={{ 
+              <ErrorBoundary>
+                <Box sx={{
                   display: 'flex',
-                  gap: 2,
-                  flexShrink: 0, 
-                  flexGrow: 0 
+                  gap: 3,
+                  overflowX: 'auto',
+                  pb: 4,  // Aumentato padding bottom
+                  alignItems: 'stretch',  // Ensure all children have same height
+                  mt: 2,  // Aggiunto margin top
+                  '&::-webkit-scrollbar': {
+                    height: '8px',  // Larghezza scrollbar orizzontale
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    backgroundColor: 'rgba(0,0,0,0.05)',  // Colore traccia scrollbar
+                    borderRadius: '10px',  // Bordi arrotondati
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: 'rgba(0,0,0,0.2)',  // Colore thumb scrollbar
+                    borderRadius: '10px',  // Bordi arrotondati
+                  }
                 }}>
-                  <BotSalvatore />
-                  <DirettaGames />
-                  <AlertTable />
+                  {/* Wrapper per BotSalvatore, DirettaGames e AlertTable con larghezza controllata */}
+                  <Box sx={{ 
+                    display: 'flex',
+                    gap: 2,
+                    flexShrink: 0, 
+                    flexGrow: 0 
+                  }}>
+                    <BotSalvatore />
+                    <DirettaGames />
+                    <AlertTable />
+                  </Box>
+                  
+                  {chats.map((chat) => (
+                    <ChatWindow
+                      key={chat.id}
+                      chat={chat}
+                      chats={chats}
+                      unreadMessages={unreadMessages}
+                      handleScroll={handleScroll}
+                      handleImageClick={handleImageClick}
+                      lastSeenMessages={lastSeenMessages}
+                      seenMessages={seenMessages}
+                      chatSynonyms={chatSynonyms}
+                      setChatSynonym={setChatSynonym}
+                      removeChatSynonym={removeChatSynonym}
+                    />
+                  ))}
                 </Box>
-                
-                {chats.map((chat) => (
-                  <ChatWindow
-                    key={chat.id}
-                    chat={chat}
-                    chats={chats}
-                    unreadMessages={unreadMessages}
-                    handleScroll={handleScroll}
-                    handleImageClick={handleImageClick}
-                    lastSeenMessages={lastSeenMessages}
-                    seenMessages={seenMessages}
-                    chatSynonyms={chatSynonyms}
-                    setChatSynonym={setChatSynonym}
-                    removeChatSynonym={removeChatSynonym}
-                  />
-                ))}
-              </Box>
+              </ErrorBoundary>
             ) : (
               <Typography variant="body1">Nessuna chat trovata</Typography>
             )}
