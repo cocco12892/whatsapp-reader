@@ -651,11 +651,8 @@ const AlertTable = () => {
   const BettingMatrix = ({ data, onClose }) => {
     if (!data) return <Box p={2}>No data available</Box>;
 
-    // Stato per gestire la visualizzazione del periodo (match intero o primo tempo)
-    const [activePeriod, setActivePeriod] = useState('num_0');
-    
-    // Extract the latest data for the selected period
-    const periodData = data.periods?.[activePeriod];
+    // Extract the latest data for match intero (period 0)
+    const periodData = data.periods?.num_0;
     const spreads = periodData?.spreads || {};
     const totals = periodData?.totals || {};
     const moneyline = periodData?.money_line || {};
@@ -767,22 +764,11 @@ const AlertTable = () => {
             </Typography>
           </Box>
           
-          {/* Selettore del periodo */}
+          {/* Titolo della sezione */}
           <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
-            <Button 
-              variant={activePeriod === 'num_0' ? 'contained' : 'outlined'}
-              onClick={() => setActivePeriod('num_0')}
-              sx={{ mr: 1 }}
-            >
-              Match Intero
-            </Button>
-            <Button 
-              variant={activePeriod === 'num_1' ? 'contained' : 'outlined'}
-              onClick={() => setActivePeriod('num_1')}
-              disabled={!data.periods?.num_1}
-            >
-              Primo Tempo
-            </Button>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+              Dati di Scommessa
+            </Typography>
           </Box>
           
           {/* Mostra il valore NVP specifico per la linea selezionata */}
@@ -796,7 +782,6 @@ const AlertTable = () => {
             }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
                 Selected Line: {data.selectedLine.lineType} {data.selectedLine.outcome} {data.selectedLine.points}
-                {activePeriod === 'num_1' ? ' (Primo Tempo)' : ' (Match Intero)'}
               </Typography>
               <Box sx={{ display: 'flex', gap: 4 }}>
                 <Box>
@@ -825,11 +810,18 @@ const AlertTable = () => {
             </Box>
           )}
           
-          {moneylineNVP && (
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                Money Line {activePeriod === 'num_1' ? '(Primo Tempo)' : '(Match Intero)'} (Margin: {moneylineNVP.margin}%)
-              </Typography>
+          {/* MATCH INTERO */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, bgcolor: 'primary.main', color: 'primary.contrastText', p: 1, borderRadius: 1 }}>
+              Match Intero
+            </Typography>
+            
+            {/* Money Line Match Intero */}
+            {moneylineNVP && (
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                  Money Line (Margin: {moneylineNVP.margin}%)
+                </Typography>
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
@@ -883,10 +875,10 @@ const AlertTable = () => {
             </Box>
           )}
           
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-              Spreads {activePeriod === 'num_1' ? '(Primo Tempo)' : '(Match Intero)'}
-            </Typography>
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                Spreads
+              </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
@@ -938,10 +930,10 @@ const AlertTable = () => {
             </TableContainer>
           </Box>
           
-          <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-              Totals {activePeriod === 'num_1' ? '(Primo Tempo)' : '(Match Intero)'}
-            </Typography>
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                Totals
+              </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
@@ -992,6 +984,208 @@ const AlertTable = () => {
               </Table>
             </TableContainer>
           </Box>
+          
+          {/* PRIMO TEMPO */}
+          {data.periods?.num_1 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, bgcolor: 'secondary.main', color: 'secondary.contrastText', p: 1, borderRadius: 1 }}>
+                Primo Tempo
+              </Typography>
+              
+              {/* Money Line Primo Tempo */}
+              {data.periods.num_1.money_line && (
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Money Line
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'background.default' }}>
+                          <TableCell>Outcome</TableCell>
+                          <TableCell>Current</TableCell>
+                          <TableCell>NVP</TableCell>
+                          <TableCell>Diff</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {data.periods.num_1.money_line.home && data.periods.num_1.money_line.draw && data.periods.num_1.money_line.away && (() => {
+                          const ml = data.periods.num_1.money_line;
+                          const nvp = calculateThreeWayNVP(ml.home, ml.draw, ml.away);
+                          return (
+                            <>
+                              <TableRow sx={{ 
+                                bgcolor: parseFloat(nvp.homeNVP) > parseFloat(ml.home) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
+                              }}>
+                                <TableCell sx={{ fontWeight: 'medium' }}>{data.home}</TableCell>
+                                <TableCell>{ml.home}</TableCell>
+                                <TableCell>{nvp.homeNVP}</TableCell>
+                                <TableCell sx={{ color: 'success.main' }}>
+                                  {parseFloat(nvp.homeNVP) > parseFloat(ml.home) ? 
+                                    `+${(parseFloat(nvp.homeNVP) - parseFloat(ml.home)).toFixed(3)}` : 
+                                    (parseFloat(nvp.homeNVP) - parseFloat(ml.home)).toFixed(3)}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow sx={{ 
+                                bgcolor: parseFloat(nvp.drawNVP) > parseFloat(ml.draw) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
+                              }}>
+                                <TableCell sx={{ fontWeight: 'medium' }}>Draw</TableCell>
+                                <TableCell>{ml.draw}</TableCell>
+                                <TableCell>{nvp.drawNVP}</TableCell>
+                                <TableCell sx={{ color: 'success.main' }}>
+                                  {parseFloat(nvp.drawNVP) > parseFloat(ml.draw) ? 
+                                    `+${(parseFloat(nvp.drawNVP) - parseFloat(ml.draw)).toFixed(3)}` : 
+                                    (parseFloat(nvp.drawNVP) - parseFloat(ml.draw)).toFixed(3)}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow sx={{ 
+                                bgcolor: parseFloat(nvp.awayNVP) > parseFloat(ml.away) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
+                              }}>
+                                <TableCell sx={{ fontWeight: 'medium' }}>{data.away}</TableCell>
+                                <TableCell>{ml.away}</TableCell>
+                                <TableCell>{nvp.awayNVP}</TableCell>
+                                <TableCell sx={{ color: 'success.main' }}>
+                                  {parseFloat(nvp.awayNVP) > parseFloat(ml.away) ? 
+                                    `+${(parseFloat(nvp.awayNVP) - parseFloat(ml.away)).toFixed(3)}` : 
+                                    (parseFloat(nvp.awayNVP) - parseFloat(ml.away)).toFixed(3)}
+                                </TableCell>
+                              </TableRow>
+                            </>
+                          );
+                        })()}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+              
+              {/* Spreads Primo Tempo */}
+              {data.periods.num_1.spreads && Object.keys(data.periods.num_1.spreads).length > 0 && (
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Spreads
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'background.default' }}>
+                          <TableCell>Line</TableCell>
+                          <TableCell>Outcome</TableCell>
+                          <TableCell>Current</TableCell>
+                          <TableCell>NVP</TableCell>
+                          <TableCell>Diff</TableCell>
+                          <TableCell>Margin</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {Object.keys(data.periods.num_1.spreads)
+                          .sort((a, b) => parseFloat(a) - parseFloat(b))
+                          .map(key => {
+                            const spread = data.periods.num_1.spreads[key];
+                            if (!spread.home || !spread.away) return null;
+                            
+                            const nvp = calculateTwoWayNVP(spread.home, spread.away);
+                            return (
+                              <React.Fragment key={key}>
+                                <TableRow sx={{ 
+                                  bgcolor: nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(spread.home) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
+                                }}>
+                                  <TableCell rowSpan="2">{key}</TableCell>
+                                  <TableCell sx={{ fontWeight: 'medium' }}>{data.home} {key}</TableCell>
+                                  <TableCell>{spread.home}</TableCell>
+                                  <TableCell>{nvp.homeNVP || ''}</TableCell>
+                                  <TableCell sx={{ color: 'success.main' }}>
+                                    {nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(spread.home) ? 
+                                      `+${(parseFloat(nvp.homeNVP) - parseFloat(spread.home)).toFixed(3)}` : 
+                                      nvp.homeNVP ? (parseFloat(nvp.homeNVP) - parseFloat(spread.home)).toFixed(3) : ''}
+                                  </TableCell>
+                                  <TableCell rowSpan="2">{nvp.margin ? `${nvp.margin}%` : ''}</TableCell>
+                                </TableRow>
+                                <TableRow sx={{ 
+                                  bgcolor: nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(spread.away) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
+                                }}>
+                                  <TableCell sx={{ fontWeight: 'medium' }}>{data.away} {parseFloat(key) * -1}</TableCell>
+                                  <TableCell>{spread.away}</TableCell>
+                                  <TableCell>{nvp.awayNVP || ''}</TableCell>
+                                  <TableCell sx={{ color: 'success.main' }}>
+                                    {nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(spread.away) ? 
+                                      `+${(parseFloat(nvp.awayNVP) - parseFloat(spread.away)).toFixed(3)}` : 
+                                      nvp.awayNVP ? (parseFloat(nvp.awayNVP) - parseFloat(spread.away)).toFixed(3) : ''}
+                                  </TableCell>
+                                </TableRow>
+                              </React.Fragment>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+              
+              {/* Totals Primo Tempo */}
+              {data.periods.num_1.totals && Object.keys(data.periods.num_1.totals).length > 0 && (
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Totals
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'background.default' }}>
+                          <TableCell>Line</TableCell>
+                          <TableCell>Outcome</TableCell>
+                          <TableCell>Current</TableCell>
+                          <TableCell>NVP</TableCell>
+                          <TableCell>Diff</TableCell>
+                          <TableCell>Margin</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {Object.keys(data.periods.num_1.totals)
+                          .sort((a, b) => parseFloat(a) - parseFloat(b))
+                          .map(key => {
+                            const total = data.periods.num_1.totals[key];
+                            if (!total.over || !total.under) return null;
+                            
+                            const nvp = calculateTwoWayNVP(total.over, total.under);
+                            return (
+                              <React.Fragment key={key}>
+                                <TableRow sx={{ 
+                                  bgcolor: nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(total.over) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
+                                }}>
+                                  <TableCell rowSpan="2">{key}</TableCell>
+                                  <TableCell sx={{ fontWeight: 'medium' }}>Over {key}</TableCell>
+                                  <TableCell>{total.over}</TableCell>
+                                  <TableCell>{nvp.homeNVP || ''}</TableCell>
+                                  <TableCell sx={{ color: 'success.main' }}>
+                                    {nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(total.over) ? 
+                                      `+${(parseFloat(nvp.homeNVP) - parseFloat(total.over)).toFixed(3)}` : 
+                                      nvp.homeNVP ? (parseFloat(nvp.homeNVP) - parseFloat(total.over)).toFixed(3) : ''}
+                                  </TableCell>
+                                  <TableCell rowSpan="2">{nvp.margin ? `${nvp.margin}%` : ''}</TableCell>
+                                </TableRow>
+                                <TableRow sx={{ 
+                                  bgcolor: nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(total.under) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
+                                }}>
+                                  <TableCell sx={{ fontWeight: 'medium' }}>Under {key}</TableCell>
+                                  <TableCell>{total.under}</TableCell>
+                                  <TableCell>{nvp.awayNVP || ''}</TableCell>
+                                  <TableCell sx={{ color: 'success.main' }}>
+                                    {nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(total.under) ? 
+                                      `+${(parseFloat(nvp.awayNVP) - parseFloat(total.under)).toFixed(3)}` : 
+                                      nvp.awayNVP ? (parseFloat(nvp.awayNVP) - parseFloat(total.under)).toFixed(3) : ''}
+                                  </TableCell>
+                                </TableRow>
+                              </React.Fragment>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+            </Box>
+          )}
         </Box>
       </Paper>
     );
