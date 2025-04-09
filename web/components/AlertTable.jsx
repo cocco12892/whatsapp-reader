@@ -19,7 +19,8 @@ import {
   CircularProgress,
   Dialog,
   DialogContent,
-  DialogTitle
+  DialogTitle,
+  Grid
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -66,6 +67,11 @@ const AlertTable = () => {
     return savedCursor || null;
   });
   const timeoutRef = useRef(null);
+  
+  // Nuove variabili di stato per il grafico integrato nella tabella
+  const [selectedChartEventIdForTable, setSelectedChartEventIdForTable] = useState(null);
+  const [tableChartLoading, setTableChartLoading] = useState(false);
+  const [showTableChart, setShowTableChart] = useState(false);
 
   const renderChartComponentToImage = async (eventId) => {
     const container = document.createElement('div');
@@ -292,6 +298,25 @@ const AlertTable = () => {
   const showOddsChartDialog = (eventId) => {
     setSelectedChartEventId(eventId);
     setShowOddsChart(true);
+  };
+  
+  // Funzione per selezionare un evento e mostrarne il grafico nella tabella
+  const showChartInTable = async (eventId) => {
+    // Se clicchiamo sullo stesso evento, nascondiamo il grafico
+    if (selectedChartEventIdForTable === eventId) {
+      setShowTableChart(false);
+      setSelectedChartEventIdForTable(null);
+      return;
+    }
+    
+    setTableChartLoading(true);
+    setSelectedChartEventIdForTable(eventId);
+    setShowTableChart(true);
+    
+    // Assicurati che il grafico venga aggiornato
+    setTimeout(() => {
+      setTableChartLoading(false);
+    }, 500);
   };
 
   // Sort alerts from newest to oldest by timestamp
@@ -583,6 +608,70 @@ const AlertTable = () => {
 
       <Collapse in={isExpanded} orientation="horizontal" sx={{ width: '100%', height: '100%', position: 'relative' }}>
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2, position: 'relative' }}>
+          {/* Area grafico integrata nella tabella - NUOVA */}
+          {showTableChart && (
+            <Box sx={{ 
+              mb: 2, 
+              p: 2, 
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              backgroundColor: 'white'
+            }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={8}>
+                  {tableChartLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+                      <CircularProgress size={40} />
+                    </Box>
+                  ) : (
+                    <Box sx={{ height: 300, position: 'relative' }}>
+                      {/* Qui inseriamo il componente EventOddsChart */}
+                      <EventOddsChart 
+                        eventId={selectedChartEventIdForTable} 
+                        compact={true} // Parametro per versione compatta
+                      />
+                    </Box>
+                  )}
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ mb: 1 }}>Andamento Quote</Typography>
+                      {/* Informazioni sulla partita */}
+                      {groupedAlerts.find(g => g.eventId === selectedChartEventIdForTable) && (
+                        <>
+                          <Typography variant="body1" sx={{ mb: 0.5 }}>
+                            <strong>Match:</strong> {groupedAlerts.find(g => g.eventId === selectedChartEventIdForTable).match}
+                          </Typography>
+                          <Typography variant="body1" sx={{ mb: 0.5 }}>
+                            <strong>Lega:</strong> {groupedAlerts.find(g => g.eventId === selectedChartEventIdForTable).league}
+                          </Typography>
+                          <Typography variant="body1" sx={{ color: 'success.main' }}>
+                            <strong>Linea:</strong> {groupedAlerts.find(g => g.eventId === selectedChartEventIdForTable).lineInfo}
+                          </Typography>
+                        </>
+                      )}
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button 
+                        variant="outlined" 
+                        color="error" 
+                        size="small"
+                        onClick={() => {
+                          setShowTableChart(false);
+                          setSelectedChartEventIdForTable(null);
+                        }}
+                      >
+                        Chiudi
+                      </Button>
+                    </Box>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+          
           {/* Modale delle odds all'interno del Box principale */}
           {showMatrix && matrixData && (
             <Box sx={{ 
@@ -733,7 +822,8 @@ const AlertTable = () => {
                         onClick={() => toggleGroup(`${group.eventId}-${group.lineInfo}`)}
                         sx={{ 
                           cursor: 'pointer',
-                          bgcolor: latestAlert.starts && isWithin24Hours(latestAlert.starts) ? 'rgba(33, 150, 243, 0.15)' : 'inherit'
+                          bgcolor: selectedChartEventIdForTable === group.eventId ? 'rgba(33, 150, 243, 0.25)' : 
+                                  latestAlert.starts && isWithin24Hours(latestAlert.starts) ? 'rgba(33, 150, 243, 0.15)' : 'inherit'
                         }}
                       >
                         <TableCell>
@@ -758,6 +848,18 @@ const AlertTable = () => {
                         <TableCell>
                           <Box sx={{ display: 'flex', gap: 1 }}>
                             <Button
+                              variant={selectedChartEventIdForTable === group.eventId ? "contained" : "outlined"}
+                              color={selectedChartEventIdForTable === group.eventId ? "success" : "secondary"}
+                              size="small"
+                              startIcon={<TimelineIcon />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                showChartInTable(group.eventId);
+                              }}
+                            >
+                              {selectedChartEventIdForTable === group.eventId ? "Grafico Attivo" : "Mostra Grafico"}
+                            </Button>
+                            <Button
                               variant="outlined"
                               color="primary"
                               size="small"
@@ -773,18 +875,6 @@ const AlertTable = () => {
                               }}
                             >
                               View Odds
-                            </Button>
-                            <Button
-                              variant="outlined"
-                              color="secondary"
-                              size="small"
-                              startIcon={<TimelineIcon />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                showOddsChartDialog(group.eventId);
-                              }}
-                            >
-                              Chart
                             </Button>
                           </Box>
                         </TableCell>
