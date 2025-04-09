@@ -13,7 +13,7 @@ import ImageIcon from '@mui/icons-material/Image';
 import html2canvas from 'html2canvas';
 import { getEventData, sendAlertNotification } from './AlertUtils';
 
-const EventOddsChart = ({ eventId }) => {
+const EventOddsChart = ({ eventId, onRenderComplete, compact = false }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -109,11 +109,15 @@ const EventOddsChart = ({ eventId }) => {
         setError(error.message || 'Errore nel caricamento dei dati');
       } finally {
         setLoading(false);
+        // Notifica che il rendering è completo (se la funzione è fornita)
+        if (onRenderComplete) {
+          onRenderComplete();
+        }
       }
     };
     
     fetchEventData();
-  }, [eventId]);
+  }, [eventId, onRenderComplete]);
   
   // Funzione per ottenere le opzioni disponibili per un mercato
   const getMarketOptions = (historyData, marketType) => {
@@ -482,57 +486,65 @@ const EventOddsChart = ({ eventId }) => {
   }
   
   return (
-    <Paper sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2, mb: 2 }}>
-      <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-            <Typography variant="subtitle2" color="primary.main" sx={{ mr: 1 }}>Home:</Typography>
-            <Typography variant="body2">{marketInfo.homeTeam}</Typography>
+    <Paper sx={{ 
+      p: compact ? 1 : 2, 
+      bgcolor: 'background.paper', 
+      borderRadius: 2, 
+      mb: compact ? 0 : 2,
+      height: compact ? '100%' : 'auto'
+    }}>
+      {!compact && (
+        <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+              <Typography variant="subtitle2" color="primary.main" sx={{ mr: 1 }}>Home:</Typography>
+              <Typography variant="body2">{marketInfo.homeTeam}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+              <Typography variant="subtitle2" color="primary.main" sx={{ mr: 1 }}>Away:</Typography>
+              <Typography variant="body2">{marketInfo.awayTeam}</Typography>
+            </Box>
+            <Typography variant="subtitle1" color="secondary.main">{getMarketTitle()}</Typography>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-            <Typography variant="subtitle2" color="primary.main" sx={{ mr: 1 }}>Away:</Typography>
-            <Typography variant="body2">{marketInfo.awayTeam}</Typography>
+          <Box sx={{ mt: { xs: 2, md: 0 }, display: 'flex', gap: 2 }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Market</InputLabel>
+              <Select
+                value={selectedMarket}
+                onChange={handleMarketChange}
+                label="Market"
+                disabled={loading}
+              >
+                {availableMarkets.map(market => (
+                  <MenuItem key={market} value={market}>
+                    {market.charAt(0).toUpperCase() + market.slice(1)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Option</InputLabel>
+              <Select
+                value={selectedOption}
+                onChange={handleOptionChange}
+                label="Option"
+                disabled={marketOptions.length === 0 || loading}
+              >
+                {marketOptions.map(option => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
-          <Typography variant="subtitle1" color="secondary.main">{getMarketTitle()}</Typography>
         </Box>
-        <Box sx={{ mt: { xs: 2, md: 0 }, display: 'flex', gap: 2 }}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Market</InputLabel>
-            <Select
-              value={selectedMarket}
-              onChange={handleMarketChange}
-              label="Market"
-              disabled={loading}
-            >
-              {availableMarkets.map(market => (
-                <MenuItem key={market} value={market}>
-                  {market.charAt(0).toUpperCase() + market.slice(1)}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Option</InputLabel>
-            <Select
-              value={selectedOption}
-              onChange={handleOptionChange}
-              label="Option"
-              disabled={marketOptions.length === 0 || loading}
-            >
-              {marketOptions.map(option => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
-      </Box>
+      )}
       
       <Box 
         sx={{ 
-          height: 400, 
-          width: 400, 
+          height: compact ? '100%' : 400, 
+          width: compact ? '100%' : 400, 
           position: 'relative',
           margin: '0 auto' // Centra il grafico
         }} 
@@ -551,7 +563,7 @@ const EventOddsChart = ({ eventId }) => {
             bgcolor: 'rgba(255, 255, 255, 0.7)',
             zIndex: 1
           }}>
-            <CircularProgress />
+            <CircularProgress size={compact ? 30 : 40} />
           </Box>
         )}
         
@@ -564,23 +576,25 @@ const EventOddsChart = ({ eventId }) => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
                 dataKey="label" 
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: compact ? 9 : 10 }}
                 angle={-45}
                 textAnchor="end"
-                height={60}
+                height={compact ? 40 : 60}
               />
               <YAxis 
                 yAxisId="left"
                 domain={[minOdds, maxOdds]} 
                 tickFormatter={(value) => value.toFixed(2)}
-                tickCount={5}
+                tickCount={compact ? 3 : 5}
                 allowDecimals={true}
+                width={compact ? 30 : 40}
               />
               <YAxis 
                 yAxisId="right"
                 orientation="right"
                 domain={[minLimit, maxLimit]} 
-                tickCount={3}
+                tickCount={compact ? 2 : 3}
+                width={compact ? 30 : 40}
               />
               <Tooltip 
                 formatter={(value, name) => [
@@ -591,8 +605,9 @@ const EventOddsChart = ({ eventId }) => {
                   const matchingData = data.find(item => item.label === label);
                   return matchingData ? `${matchingData.formattedDate}` : label;
                 }}
+                contentStyle={{ fontSize: compact ? 11 : 14 }}
               />
-              <Legend />
+              {!compact && <Legend />}
               <Line 
                 yAxisId="left"
                 type="monotone" 
@@ -628,37 +643,50 @@ const EventOddsChart = ({ eventId }) => {
         )}
       </Box>
       
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      {compact ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-            <Box sx={{ width: 12, height: 12, bgcolor: '#4caf50', borderRadius: '50%', mr: 0.5 }}></Box>
-            <Typography variant="caption">price</Typography>
+            <Box sx={{ width: 10, height: 10, bgcolor: '#4caf50', borderRadius: '50%', mr: 0.5 }}></Box>
+            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>price</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box sx={{ width: 12, height: 12, bgcolor: '#ff9800', borderRadius: '50%', mr: 0.5 }}></Box>
-            <Typography variant="caption">limit</Typography>
+            <Box sx={{ width: 10, height: 10, bgcolor: '#ff9800', borderRadius: '50%', mr: 0.5 }}></Box>
+            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>limit</Typography>
           </Box>
         </Box>
-        
-        <ButtonGroup variant="contained" size="small">
-          <Button
-            color="primary"
-            startIcon={<SendIcon />}
-            onClick={handleSendAlert}
-            disabled={sendingAlert || sendingImage || !marketInfo.hasData}
-          >
-            {sendingAlert ? 'Invio...' : 'Testo'}
-          </Button>
-          <Button
-            color="secondary"
-            startIcon={<ImageIcon />}
-            onClick={handleSendImage}
-            disabled={sendingAlert || sendingImage || !marketInfo.hasData}
-          >
-            {sendingImage ? 'Invio...' : 'Immagine'}
-          </Button>
-        </ButtonGroup>
-      </Box>
+      ) : (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+              <Box sx={{ width: 12, height: 12, bgcolor: '#4caf50', borderRadius: '50%', mr: 0.5 }}></Box>
+              <Typography variant="caption">price</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box sx={{ width: 12, height: 12, bgcolor: '#ff9800', borderRadius: '50%', mr: 0.5 }}></Box>
+              <Typography variant="caption">limit</Typography>
+            </Box>
+          </Box>
+          
+          <ButtonGroup variant="contained" size="small">
+            <Button
+              color="primary"
+              startIcon={<SendIcon />}
+              onClick={handleSendAlert}
+              disabled={sendingAlert || sendingImage || !marketInfo.hasData}
+            >
+              {sendingAlert ? 'Invio...' : 'Testo'}
+            </Button>
+            <Button
+              color="secondary"
+              startIcon={<ImageIcon />}
+              onClick={handleSendImage}
+              disabled={sendingAlert || sendingImage || !marketInfo.hasData}
+            >
+              {sendingImage ? 'Invio...' : 'Immagine'}
+            </Button>
+          </ButtonGroup>
+        </Box>
+      )}
       
       {/* Feedback per l'utente */}
       <Snackbar 
