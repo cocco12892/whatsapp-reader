@@ -109,12 +109,13 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
     // Dopo aver calcolato il valore NVP, verifica se è un alert di tipo money_line e invia la notifica
     if (nvpValue && (alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') && 
         (alert.outcome.toLowerCase().includes('home') || alert.outcome.toLowerCase().includes('away'))) {
-      
+  
       // Crea una copia dell'alert con il valore NVP
       const alertWithNVP = { ...alert, nvp: nvpValue };
-      
+  
       // Invia la notifica solo dopo aver calcolato il valore NVP
-      sendAlertNotification(alertWithNVP, "120363401713435750@g.us");
+      // Utilizziamo await per assicurarci che la notifica venga inviata prima di continuare
+      await sendAlertNotification(alertWithNVP, "120363401713435750@g.us");
     }
     
     return nvpValue;
@@ -196,6 +197,9 @@ export const sendAlertNotification = async (alert, chatId) => {
                     `📉 *TO*: ${alert.changeTo}\n` +
                     `🔢 *NVP*: ${alert.nvp}\n` +
                     `🆔 *EventID*: ${alert.eventId}`;
+    
+    // Aggiungiamo un ritardo di 500ms tra le richieste per evitare problemi di rate limiting
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     // Invia il messaggio alla chat
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
