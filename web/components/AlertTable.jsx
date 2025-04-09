@@ -31,7 +31,6 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import BettingMatrix from './BettingMatrix';
 import { calculateTwoWayNVP, calculateThreeWayNVP } from './NVPCalculations';
 import { getDiffColor, isWithin24Hours, isPositiveEV, calculateAlertNVP, addNVPToAlerts } from './AlertUtils';
-};
 
 
 const AlertTable = () => {
