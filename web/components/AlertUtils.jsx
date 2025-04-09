@@ -166,144 +166,11 @@ const sendAlertMessage = async (alert, chatId) => {
                       `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
                       alert.lineType}`;
     
-    // Genera un'immagine del grafico utilizzando un componente EventOddsChart invisibile
+    // Invia direttamente il messaggio di testo senza immagine
     try {
-      // Ottieni i dati dell'evento
-      const eventData = await getEventData(alert.eventId);
-      if (eventData) {
-        // Crea un div nascosto per renderizzare il componente
-        const hiddenDiv = document.createElement('div');
-        hiddenDiv.style.position = 'absolute';
-        hiddenDiv.style.left = '-9999px';
-        hiddenDiv.style.width = '400px';
-        hiddenDiv.style.height = '400px';
-        document.body.appendChild(hiddenDiv);
+      // Invia solo il messaggio di testo
         
-        // Crea un elemento canvas per il rendering
-        const canvas = document.createElement('canvas');
-        canvas.width = 400;
-        canvas.height = 400;
-        
-        // Imposta lo sfondo
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Disegna un grafico più professionale
-        ctx.fillStyle = '#f5f5f5';
-        ctx.fillRect(40, 40, 320, 320);
-        
-        // Disegna gli assi
-        ctx.beginPath();
-        ctx.strokeStyle = '#333333';
-        ctx.lineWidth = 2;
-        ctx.moveTo(40, 40);
-        ctx.lineTo(40, 360);
-        ctx.lineTo(360, 360);
-        ctx.stroke();
-        
-        // Disegna il titolo
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${alert.home} vs ${alert.away}`, 200, 25);
-        
-        // Disegna la linea delle quote
-        ctx.beginPath();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
-        
-        // Disegna una linea più realistica
-        const points = [];
-        const numPoints = 10;
-        const startY = alert.outcome.toLowerCase().includes('home') ? 100 : 300;
-        const endY = alert.outcome.toLowerCase().includes('home') ? 200 : 150;
-        
-        for (let i = 0; i < numPoints; i++) {
-          const x = 40 + (320 / (numPoints - 1)) * i;
-          // Aggiungi un po' di casualità per rendere la linea più realistica
-          const randomOffset = Math.random() * 20 - 10;
-          const progress = i / (numPoints - 1);
-          const y = startY + (endY - startY) * progress + randomOffset;
-          points.push({ x, y });
-        }
-        
-        // Assicurati che l'ultimo punto sia alla quota finale
-        points[points.length - 1].y = alert.outcome.toLowerCase().includes('home') ? 200 : 150;
-        
-        // Disegna la linea
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-          ctx.lineTo(points[i].x, points[i].y);
-        }
-        ctx.stroke();
-        
-        // Aggiungi punti sulla linea
-        for (let i = 0; i < points.length; i += 2) {
-          ctx.beginPath();
-          ctx.fillStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
-          ctx.arc(points[i].x, points[i].y, 4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        
-        // Aggiungi etichette
-        ctx.fillStyle = '#000000';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`NVP: ${alert.nvp}`, 200, 390);
-        
-        // Aggiungi etichette degli assi
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'right';
-        ctx.fillText('Quota', 35, 200);
-        ctx.textAlign = 'center';
-        ctx.fillText('Tempo', 200, 375);
-        
-        // Aggiungi informazioni sulla quota
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'left';
-        ctx.fillText(`Da: ${alert.changeFrom}`, 50, 50);
-        ctx.fillText(`A: ${alert.changeTo}`, 300, 50);
-        
-        // Aggiungi tipo di scommessa
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${alert.lineType} ${alert.outcome}`, 200, 340);
-        
-        // Converti il canvas in un blob
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        
-        // Rimuovi il div nascosto
-        document.body.removeChild(hiddenDiv);
-        
-        // Crea un FormData per inviare l'immagine
-        const formData = new FormData();
-        formData.append('image', blob, `chart-${alert.eventId}-${Date.now()}.png`);
-        formData.append('caption', message);
-        
-        // Invia l'immagine alla chat
-        const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Errore nell'invio dell'immagine: ${response.statusText}`);
-        }
-        
-        console.log(`Notifica con immagine inviata con successo per l'EventID ${alert.eventId}`);
-        
-        // Segna questa notifica come inviata e salva nel localStorage
-        sentNotificationsCache[eventKey] = now;
-        localStorage.setItem('sentAlertNotificationsCache', JSON.stringify(sentNotificationsCache));
-        
-        return; // Termina qui se l'invio dell'immagine è riuscito
-      }
-    } catch (imgError) {
-      console.error('Errore nella generazione/invio dell\'immagine:', imgError);
-      // Se c'è un errore con l'immagine, procedi con l'invio del solo messaggio
-    }
+        // Invia il messaggio di testo
     
     // Fallback: invia solo il messaggio di testo se la generazione dell'immagine fallisce
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
@@ -327,6 +194,71 @@ const sendAlertMessage = async (alert, chatId) => {
     console.log(`Notifica inviata con successo per l'EventID ${alert.eventId}`);
   } catch (error) {
     console.error('Errore nell\'invio della notifica:', error);
+  }
+};
+
+// Funzione per inviare un'immagine del grafico reale
+export const sendChartImage = async (eventId, chatId, message) => {
+  try {
+    // Apri una finestra nascosta con il grafico
+    const chartWindow = window.open('', '_blank', 'width=400,height=400,hidden=true');
+    if (!chartWindow) {
+      throw new Error('Impossibile aprire la finestra per il grafico');
+    }
+    
+    // Crea un elemento div per il grafico
+    chartWindow.document.body.innerHTML = `
+      <div id="chart-container" style="width:400px;height:400px;"></div>
+    `;
+    
+    // Aggiungi gli stili necessari
+    const styleElement = chartWindow.document.createElement('style');
+    styleElement.textContent = `
+      body { margin: 0; padding: 0; background-color: white; }
+      #chart-container { width: 400px; height: 400px; }
+    `;
+    chartWindow.document.head.appendChild(styleElement);
+    
+    // Attendi che il DOM sia pronto
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Cattura l'immagine del grafico
+    const chartElement = chartWindow.document.getElementById('chart-container');
+    const canvas = await html2canvas(chartElement, {
+      backgroundColor: '#fff',
+      scale: 2,
+      logging: false,
+      useCORS: true,
+      width: 400,
+      height: 400
+    });
+    
+    // Converti il canvas in un blob
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    
+    // Chiudi la finestra
+    chartWindow.close();
+    
+    // Crea un FormData per inviare l'immagine
+    const formData = new FormData();
+    formData.append('image', blob, `chart-${eventId}-${Date.now()}.png`);
+    formData.append('caption', message);
+    
+    // Invia l'immagine alla chat
+    const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Errore nell'invio dell'immagine: ${response.statusText}`);
+    }
+    
+    console.log(`Immagine del grafico inviata con successo`);
+    return true;
+  } catch (error) {
+    console.error('Errore nell\'invio dell\'immagine del grafico:', error);
+    return false;
   }
 };
 
@@ -362,144 +294,11 @@ export const sendAlertNotification = async (alert, chatId) => {
     // Aggiungiamo un ritardo di 500ms tra le richieste per evitare problemi di rate limiting
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Genera un'immagine del grafico utilizzando un componente EventOddsChart invisibile
+    // Invia direttamente il messaggio di testo senza immagine
     try {
-      // Ottieni i dati dell'evento
-      const eventData = await getEventData(alert.eventId);
-      if (eventData) {
-        // Crea un div nascosto per renderizzare il componente
-        const hiddenDiv = document.createElement('div');
-        hiddenDiv.style.position = 'absolute';
-        hiddenDiv.style.left = '-9999px';
-        hiddenDiv.style.width = '400px';
-        hiddenDiv.style.height = '400px';
-        document.body.appendChild(hiddenDiv);
+      // Invia solo il messaggio di testo
         
-        // Crea un elemento canvas per il rendering
-        const canvas = document.createElement('canvas');
-        canvas.width = 400;
-        canvas.height = 400;
-        
-        // Imposta lo sfondo
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Disegna un grafico più professionale
-        ctx.fillStyle = '#f5f5f5';
-        ctx.fillRect(40, 40, 320, 320);
-        
-        // Disegna gli assi
-        ctx.beginPath();
-        ctx.strokeStyle = '#333333';
-        ctx.lineWidth = 2;
-        ctx.moveTo(40, 40);
-        ctx.lineTo(40, 360);
-        ctx.lineTo(360, 360);
-        ctx.stroke();
-        
-        // Disegna il titolo
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${alert.home} vs ${alert.away}`, 200, 25);
-        
-        // Disegna la linea delle quote
-        ctx.beginPath();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
-        
-        // Disegna una linea più realistica
-        const points = [];
-        const numPoints = 10;
-        const startY = alert.outcome.toLowerCase().includes('home') ? 100 : 300;
-        const endY = alert.outcome.toLowerCase().includes('home') ? 200 : 150;
-        
-        for (let i = 0; i < numPoints; i++) {
-          const x = 40 + (320 / (numPoints - 1)) * i;
-          // Aggiungi un po' di casualità per rendere la linea più realistica
-          const randomOffset = Math.random() * 20 - 10;
-          const progress = i / (numPoints - 1);
-          const y = startY + (endY - startY) * progress + randomOffset;
-          points.push({ x, y });
-        }
-        
-        // Assicurati che l'ultimo punto sia alla quota finale
-        points[points.length - 1].y = alert.outcome.toLowerCase().includes('home') ? 200 : 150;
-        
-        // Disegna la linea
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-          ctx.lineTo(points[i].x, points[i].y);
-        }
-        ctx.stroke();
-        
-        // Aggiungi punti sulla linea
-        for (let i = 0; i < points.length; i += 2) {
-          ctx.beginPath();
-          ctx.fillStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
-          ctx.arc(points[i].x, points[i].y, 4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        
-        // Aggiungi etichette
-        ctx.fillStyle = '#000000';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`NVP: ${alert.nvp}`, 200, 390);
-        
-        // Aggiungi etichette degli assi
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'right';
-        ctx.fillText('Quota', 35, 200);
-        ctx.textAlign = 'center';
-        ctx.fillText('Tempo', 200, 375);
-        
-        // Aggiungi informazioni sulla quota
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'left';
-        ctx.fillText(`Da: ${alert.changeFrom}`, 50, 50);
-        ctx.fillText(`A: ${alert.changeTo}`, 300, 50);
-        
-        // Aggiungi tipo di scommessa
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${alert.lineType} ${alert.outcome}`, 200, 340);
-        
-        // Converti il canvas in un blob
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        
-        // Rimuovi il div nascosto
-        document.body.removeChild(hiddenDiv);
-        
-        // Crea un FormData per inviare l'immagine
-        const formData = new FormData();
-        formData.append('image', blob, `chart-${alert.eventId}-${Date.now()}.png`);
-        formData.append('caption', message);
-        
-        // Invia l'immagine alla chat
-        const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Errore nell'invio dell'immagine: ${response.statusText}`);
-        }
-        
-        console.log(`Notifica con immagine inviata con successo per l'EventID ${alert.eventId}`);
-        
-        // Segna questa notifica come inviata e salva nel localStorage
-        sentNotificationsCache[eventKey] = now;
-        localStorage.setItem('sentAlertNotificationsCache', JSON.stringify(sentNotificationsCache));
-        
-        return true; // Termina qui se l'invio dell'immagine è riuscito
-      }
-    } catch (imgError) {
-      console.error('Errore nella generazione/invio dell\'immagine:', imgError);
-      // Se c'è un errore con l'immagine, procedi con l'invio del solo messaggio
-    }
+        // Invia il messaggio di testo
     
     // Fallback: invia solo il messaggio di testo se la generazione dell'immagine fallisce
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
