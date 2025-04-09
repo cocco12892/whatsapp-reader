@@ -16,7 +16,10 @@ import {
   TextField,
   Tab,
   Tabs,
-  CircularProgress
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogTitle
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -26,9 +29,12 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import CloseIcon from '@mui/icons-material/Close';
 
 // Import components and utilities
 import BettingMatrix from './BettingMatrix';
+import EventOddsChart from './EventOddsChart';
 import { calculateTwoWayNVP, calculateThreeWayNVP } from './NVPCalculations';
 import { getDiffColor, isWithin24Hours, isPositiveEV, calculateAlertNVP, addNVPToAlerts, getEventData, sendAlertNotification } from './AlertUtils';
 
@@ -45,6 +51,8 @@ const AlertTable = () => {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
+  const [showOddsChart, setShowOddsChart] = useState(false);
+  const [selectedChartEventId, setSelectedChartEventId] = useState(null);
   const [alertsWithNVP, setAlertsWithNVP] = useState([]);
   const [nvpCache, setNvpCache] = useState({});
   const [nvpRefreshTimers, setNvpRefreshTimers] = useState({});
@@ -211,6 +219,11 @@ const AlertTable = () => {
     } finally {
       setMatrixLoading(false);
     }
+  };
+  
+  const showOddsChartDialog = (eventId) => {
+    setSelectedChartEventId(eventId);
+    setShowOddsChart(true);
   };
 
   // Sort alerts from newest to oldest by timestamp
@@ -675,23 +688,37 @@ const AlertTable = () => {
                           </IconButton>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="outlined"
-                            color="primary"
-                            size="small"
-                            startIcon={<VisibilityIcon />}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Estrai le informazioni sulla linea dal gruppo
-                              const lineInfo = group.lineInfo.split(' ');
-                              const lineType = lineInfo[0];
-                              const outcome = lineInfo[1];
-                              const points = lineInfo[2] || '';
-                              showBettingMatrix(group.eventId, lineType, outcome, points);
-                            }}
-                          >
-                            View Odds
-                          </Button>
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Button
+                              variant="outlined"
+                              color="primary"
+                              size="small"
+                              startIcon={<VisibilityIcon />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Estrai le informazioni sulla linea dal gruppo
+                                const lineInfo = group.lineInfo.split(' ');
+                                const lineType = lineInfo[0];
+                                const outcome = lineInfo[1];
+                                const points = lineInfo[2] || '';
+                                showBettingMatrix(group.eventId, lineType, outcome, points);
+                              }}
+                            >
+                              View Odds
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              color="secondary"
+                              size="small"
+                              startIcon={<TimelineIcon />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                showOddsChartDialog(group.eventId);
+                              }}
+                            >
+                              Chart
+                            </Button>
+                          </Box>
                         </TableCell>
                       </TableRow>
                       
@@ -813,6 +840,24 @@ const AlertTable = () => {
           )}
         </Box>
       </Collapse>
+      
+      {/* Dialog per il grafico delle quote */}
+      <Dialog 
+        open={showOddsChart} 
+        onClose={() => setShowOddsChart(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Andamento Quote</Typography>
+          <IconButton onClick={() => setShowOddsChart(false)} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {selectedChartEventId && <EventOddsChart eventId={selectedChartEventId} />}
+        </DialogContent>
+      </Dialog>
     </Paper>
   );
 };
