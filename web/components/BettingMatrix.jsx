@@ -189,7 +189,7 @@ const BettingMatrix = ({ data, onClose }) => {
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
                 Money Line (Margin: {moneylineNVP.margin}%)
               </Typography>
-            <TableContainer component={Paper} variant="outlined">
+              <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -246,7 +246,7 @@ const BettingMatrix = ({ data, onClose }) => {
             <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
               Spreads
             </Typography>
-          <TableContainer component={Paper} variant="outlined">
+            <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -301,7 +301,7 @@ const BettingMatrix = ({ data, onClose }) => {
             <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
               Totals
             </Typography>
-          <TableContainer component={Paper} variant="outlined">
+            <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
