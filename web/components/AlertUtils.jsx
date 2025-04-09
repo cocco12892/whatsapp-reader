@@ -1,7 +1,27 @@
 import React from 'react';
 
-// Cache per le notifiche inviate
-const sentNotificationsCache = {};
+// Cache per le notifiche inviate (persistente tra ricaricamenti della pagina)
+let sentNotificationsCache = {};
+
+// Carica la cache delle notifiche dal localStorage all'avvio
+try {
+  const savedCache = localStorage.getItem('sentAlertNotificationsCache');
+  if (savedCache) {
+    sentNotificationsCache = JSON.parse(savedCache);
+    
+    // Pulizia delle notifiche più vecchie di 24 ore
+    const now = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    Object.keys(sentNotificationsCache).forEach(key => {
+      if (now - sentNotificationsCache[key] > oneDayMs) {
+        delete sentNotificationsCache[key];
+      }
+    });
+  }
+} catch (e) {
+  console.error('Errore nel caricamento della cache delle notifiche:', e);
+  sentNotificationsCache = {};
+}
 
 // Utility functions for AlertTable component
 export const getDiffColor = (diffValue) => {
@@ -99,10 +119,14 @@ const pendingRequests = {};
 // Funzione per inviare una notifica di alert alla chat specificata
 export const sendAlertNotification = async (alert, chatId) => {
   try {
-    // Verifica se abbiamo già inviato questa notifica specifica
-    const alertKey = `${alert.id}-${alert.eventId}`;
-    if (sentNotificationsCache[alertKey]) {
-      console.log(`Notifica già inviata per l'alert ${alertKey}`);
+    // Verifica se abbiamo già inviato una notifica per questo EventID nell'ultima ora
+    const eventKey = `event_${alert.eventId}`;
+    const now = Date.now();
+    const lastSentTime = sentNotificationsCache[eventKey] || 0;
+    const oneHourMs = 3600000; // 1 ora in millisecondi
+    
+    if (now - lastSentTime < oneHourMs) {
+      console.log(`Notifica già inviata per l'EventID ${alert.eventId} nell'ultima ora (${Math.floor((now - lastSentTime) / 60000)} minuti fa)`);
       return;
     }
     
@@ -129,10 +153,11 @@ export const sendAlertNotification = async (alert, chatId) => {
       throw new Error(`Errore nell'invio della notifica: ${response.statusText}`);
     }
     
-    // Segna questa notifica come inviata
-    sentNotificationsCache[alertKey] = Date.now();
+    // Segna questa notifica come inviata e salva nel localStorage
+    sentNotificationsCache[eventKey] = now;
+    localStorage.setItem('sentAlertNotificationsCache', JSON.stringify(sentNotificationsCache));
     
-    console.log(`Notifica inviata con successo per l'alert ${alertKey}`);
+    console.log(`Notifica inviata con successo per l'EventID ${alert.eventId}`);
   } catch (error) {
     console.error('Errore nell\'invio della notifica:', error);
   }

@@ -53,7 +53,6 @@ const AlertTable = () => {
     return savedCursor || null;
   });
   const timeoutRef = useRef(null);
-  const [sentAlertNotifications, setSentAlertNotifications] = useState({});
 
   // Calculate NVP for a specific alert
   const calculateSingleAlertNVP = async (alert) => {
@@ -305,20 +304,9 @@ const AlertTable = () => {
                       (alert.outcome.toLowerCase().includes('home') || alert.outcome.toLowerCase().includes('away')) &&
                       alert.nvp) {
                     
-                    // Controlla se abbiamo già inviato una notifica per questo EventID nell'ultima ora
-                    const now = Date.now();
-                    const lastSentTime = sentAlertNotifications[alert.eventId] || 0;
-                    
-                    if (now - lastSentTime > 3600000) { // 1 ora in millisecondi
-                      // Invia notifica e aggiorna lo stato
-                      sendAlertNotification(alert, "120363401713435750@g.us");
-                      
-                      // Aggiorna lo stato delle notifiche inviate
-                      setSentAlertNotifications(prev => ({
-                        ...prev,
-                        [alert.eventId]: now
-                      }));
-                    }
+                    // Invia la notifica - la funzione sendAlertNotification gestirà internamente
+                    // il controllo per evitare invii multipli nell'arco di un'ora
+                    sendAlertNotification(alert, "120363401713435750@g.us");
                   }
                 });
                 
