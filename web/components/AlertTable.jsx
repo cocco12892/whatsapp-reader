@@ -837,8 +837,6 @@ const AlertTable = () => {
                                   <TableCell>From</TableCell>
                                   <TableCell>To</TableCell>
                                   <TableCell>% Change</TableCell>
-                                  <TableCell>NoVig</TableCell>
-                                  <TableCell>Diff</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
@@ -859,8 +857,6 @@ const AlertTable = () => {
                                         <TableCell>{alert.changeFrom}</TableCell>
                                         <TableCell>{alert.changeTo}</TableCell>
                                         <TableCell>{parseFloat(alert.percentageChange).toFixed(2)}%</TableCell>
-                                        <TableCell>-</TableCell>
-                                        <TableCell>-</TableCell>
                                       </TableRow>
                                     );
                                   })}
