@@ -427,8 +427,14 @@ const EventOddsChart = ({ eventId }) => {
         outcome: selectedOption.includes('-') ? selectedOption.split('-')[0] : selectedOption
       };
       
-      // Prepara il messaggio con le informazioni richieste - solo il nome della partita
-      const caption = `📊 *MATCH*: ${alertData.home} vs ${alertData.away}`;
+      // Prepara il messaggio completo con tutte le informazioni
+      const caption = `📊 *MATCH*: ${alertData.home} vs ${alertData.away}\n` +
+                      `📈 *FROM*: ${alertData.changeFrom}\n` +
+                      `📉 *TO*: ${alertData.changeTo}\n` +
+                      `🔢 *NVP*: ${alertData.nvp}\n` +
+                      `${alertData.lineType === 'MONEYLINE' ? 
+                        `*MONEYLINE ${alertData.outcome.toUpperCase()}*` : 
+                        alertData.lineType}`;
       
       // Crea un FormData per inviare l'immagine direttamente
       const formData = new FormData();
