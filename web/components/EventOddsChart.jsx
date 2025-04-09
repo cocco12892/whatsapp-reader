@@ -346,7 +346,7 @@ const EventOddsChart = ({ eventId }) => {
         outcome: selectedOption.includes('-') ? selectedOption.split('-')[0] : selectedOption
       };
       
-      // Invia direttamente il messaggio alla chat senza passare per sendAlertNotification
+      // Usa sempre la stessa chat per inviare il messaggio
       const chatId = "120363401713435750@g.us";
       
       // Prepara il messaggio con le informazioni richieste
