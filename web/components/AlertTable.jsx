@@ -1191,7 +1191,7 @@ const AlertTable = () => {
                             <Typography variant="body2">{group.match}</Typography>
                             {latestAlert.starts && (
                               <Typography variant="caption" color="text.secondary">
-                                {new Date(latestAlert.starts).toLocaleString()}
+                                {new Date(parseInt(latestAlert.starts)).toLocaleString()}
                               </Typography>
                             )}
                           </Box>
