@@ -109,13 +109,23 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
     // Dopo aver calcolato il valore NVP, verifica se è un alert di tipo money_line e invia la notifica
     if (nvpValue && (alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') && 
         (alert.outcome.toLowerCase().includes('home') || alert.outcome.toLowerCase().includes('away'))) {
+
+      // Verifica se la partita è tra più di un giorno
+      const now = Date.now();
+      const matchTime = parseInt(alert.starts);
+      const oneDayMs = 24 * 60 * 60 * 1000; // 24 ore in millisecondi
   
-      // Crea una copia dell'alert con il valore NVP
-      const alertWithNVP = { ...alert, nvp: nvpValue };
-  
-      // Invia la notifica solo dopo aver calcolato il valore NVP
-      // Utilizziamo await per assicurarci che la notifica venga inviata prima di continuare
-      await sendAlertNotification(alertWithNVP, "120363401713435750@g.us");
+      // Invia la notifica solo se la partita è entro le prossime 24 ore
+      if (!matchTime || (matchTime - now <= oneDayMs)) {
+        // Crea una copia dell'alert con il valore NVP
+        const alertWithNVP = { ...alert, nvp: nvpValue };
+    
+        // Invia la notifica solo dopo aver calcolato il valore NVP
+        // Utilizziamo await per assicurarci che la notifica venga inviata prima di continuare
+        await sendAlertNotification(alertWithNVP, "120363401713435750@g.us");
+      } else {
+        console.log(`Alert non inviato per EventID ${alert.eventId}: la partita è tra più di un giorno (${new Date(matchTime).toLocaleString()})`);
+      }
     }
     
     return nvpValue;
