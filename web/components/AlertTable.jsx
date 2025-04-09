@@ -291,14 +291,78 @@ const AlertTable = () => {
           // Process the alerts one by one
           const promises = result.data.map(alert => {
             const eventId = alert.eventId || alert.id.split('-')[1];
-            return calculateNoVigPrice(
-              alert.changeFrom, alert.changeTo, eventId, alert.lineType, alert.outcome, alert.points
-            ).then(noVigPrice => ({
-              ...alert, 
-              noVigPrice,
-              // Calcola la differenza tra NoVig e quota attuale
-              nvpDiff: (parseFloat(noVigPrice) - parseFloat(alert.changeTo)).toFixed(3)
-            }));
+            
+            // Fetch market data to get proper NVP values
+            return fetchMarketData(eventId).then(marketData => {
+              let nvpValue = null;
+              
+              if (marketData && marketData.periods && marketData.periods.num_0) {
+                const period0 = marketData.periods.num_0;
+                
+                // Determina il tipo di mercato e l'outcome per trovare il valore NVP corretto
+                if (alert.lineType === 'SPREAD') {
+                  const spreads = period0.spreads || {};
+                  // Trova il punto spread corretto
+                  const spreadKey = alert.points || Object.keys(spreads)[0];
+                  if (spreads[spreadKey]) {
+                    const nvp = calculateTwoWayNVP(spreads[spreadKey].home, spreads[spreadKey].away);
+                    nvpValue = alert.outcome.toLowerCase().includes('home') ? nvp.homeNVP : nvp.awayNVP;
+                  }
+                } 
+                else if (alert.lineType === 'TOTAL') {
+                  const totals = period0.totals || {};
+                  // Trova il punto total corretto
+                  const totalKey = alert.points || Object.keys(totals)[0];
+                  if (totals[totalKey]) {
+                    const nvp = calculateTwoWayNVP(totals[totalKey].over, totals[totalKey].under);
+                    nvpValue = alert.outcome.toLowerCase().includes('over') ? nvp.homeNVP : nvp.awayNVP;
+                  }
+                }
+                else if (alert.lineType === 'MONEYLINE') {
+                  const moneyline = period0.money_line || {};
+                  if (moneyline.home && moneyline.away) {
+                    // Controlla se è un mercato a 3 vie (con pareggio)
+                    if (moneyline.draw) {
+                      const nvp = calculateThreeWayNVP(moneyline.home, moneyline.draw, moneyline.away);
+                      if (alert.outcome.toLowerCase().includes('home')) nvpValue = nvp.homeNVP;
+                      else if (alert.outcome.toLowerCase().includes('draw')) nvpValue = nvp.drawNVP;
+                      else nvpValue = nvp.awayNVP;
+                    } else {
+                      // Mercato a 2 vie
+                      const nvp = calculateTwoWayNVP(moneyline.home, moneyline.away);
+                      nvpValue = alert.outcome.toLowerCase().includes('home') ? nvp.homeNVP : nvp.awayNVP;
+                    }
+                  }
+                }
+              }
+              
+              // Se non abbiamo trovato un valore NVP, usiamo il metodo di fallback
+              if (!nvpValue) {
+                return calculateNoVigPrice(
+                  alert.changeFrom, alert.changeTo, eventId, alert.lineType, alert.outcome, alert.points
+                ).then(noVigPrice => ({
+                  ...alert, 
+                  noVigPrice,
+                  nvpDiff: (parseFloat(noVigPrice) - parseFloat(alert.changeTo)).toFixed(3)
+                }));
+              }
+              
+              return {
+                ...alert,
+                noVigPrice: nvpValue,
+                nvpDiff: (parseFloat(nvpValue) - parseFloat(alert.changeTo)).toFixed(3)
+              };
+            }).catch(err => {
+              // In caso di errore, usa il metodo di fallback
+              console.error("Error fetching market data:", err);
+              return calculateNoVigPrice(
+                alert.changeFrom, alert.changeTo, eventId, alert.lineType, alert.outcome, alert.points
+              ).then(noVigPrice => ({
+                ...alert, 
+                noVigPrice,
+                nvpDiff: (parseFloat(noVigPrice) - parseFloat(alert.changeTo)).toFixed(3)
+              }));
+            });
           });
           
           return Promise.all(promises).then(alertsWithNoVig => {
