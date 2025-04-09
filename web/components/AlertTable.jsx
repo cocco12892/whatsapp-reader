@@ -44,6 +44,8 @@ const AlertTable = () => {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
+  const [alertsWithNVP, setAlertsWithNVP] = useState([]);
+  const [nvpCache, setNvpCache] = useState({});  // Cache for NVP values to avoid redundant calculations
   const [latestCursor, setLatestCursor] = useState(() => {
     // Initialize latestCursor from localStorage if available
     const savedCursor = localStorage.getItem('alertCursor');
@@ -154,6 +156,153 @@ const AlertTable = () => {
     };
   };
 
+  // Calculate NVP for a specific alert
+  const calculateAlertNVP = async (alert) => {
+    try {
+      const response = await fetch(`https://swordfish-production.up.railway.app/events/${alert.eventId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      const data = result.data;
+      
+      // Extract necessary data based on the line type
+      const period0 = data.periods?.num_0;
+      if (!period0) return null;
+      
+      let nvpValue = null;
+      
+      if (alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') {
+        const moneyline = period0.money_line || {};
+        if (moneyline.home && moneyline.draw && moneyline.away) {
+          const nvp = calculateThreeWayNVP(moneyline.home, moneyline.draw, moneyline.away);
+          
+          if (alert.outcome.toLowerCase().includes('home')) {
+            nvpValue = nvp.homeNVP;
+          } else if (alert.outcome.toLowerCase().includes('draw')) {
+            nvpValue = nvp.drawNVP;
+          } else {
+            nvpValue = nvp.awayNVP;
+          }
+        }
+      } 
+      else if (alert.lineType === 'SPREAD') {
+        const spreads = period0.spreads || {};
+        const points = alert.points || Object.keys(spreads)[0];
+        
+        if (spreads[points] && spreads[points].home && spreads[points].away) {
+          const nvp = calculateTwoWayNVP(spreads[points].home, spreads[points].away);
+          
+          nvpValue = alert.outcome.toLowerCase().includes('home') ? 
+            nvp.homeNVP : nvp.awayNVP;
+        }
+      }
+      else if (alert.lineType === 'TOTAL') {
+        const totals = period0.totals || {};
+        const points = alert.points || Object.keys(totals)[0];
+        
+        if (totals[points] && totals[points].over && totals[points].under) {
+          const nvp = calculateTwoWayNVP(totals[points].over, totals[points].under);
+          
+          nvpValue = alert.outcome.toLowerCase().includes('over') ? 
+            nvp.homeNVP : nvp.awayNVP;
+        }
+      }
+      
+      return nvpValue;
+    } catch (err) {
+      console.error('Error calculating NVP for alert:', err);
+      return null;
+    }
+  };
+
+  // New function to calculate and add NVP values to alerts
+  const addNVPToAlerts = async (alertsList) => {
+    const uniqueEventIds = [...new Set(alertsList.map(alert => alert.eventId))];
+    const eventData = {};
+    const updatedNvpCache = { ...nvpCache };
+    
+    // Fetch all event data in parallel
+    await Promise.all(uniqueEventIds.map(async (eventId) => {
+      try {
+        const response = await fetch(`https://swordfish-production.up.railway.app/events/${eventId}`);
+        if (response.ok) {
+          const result = await response.json();
+          eventData[eventId] = result.data;
+        }
+      } catch (err) {
+        console.error(`Error fetching data for event ${eventId}:`, err);
+      }
+    }));
+    
+    // Calculate NVP for each alert
+    const alertsWithNVP = alertsList.map(alert => {
+      // Check if we already have the NVP value in cache
+      const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
+      if (updatedNvpCache[cacheKey]) {
+        return { ...alert, nvp: updatedNvpCache[cacheKey] };
+      }
+      
+      const data = eventData[alert.eventId];
+      if (!data) return { ...alert, nvp: null };
+      
+      const period0 = data.periods?.num_0;
+      if (!period0) return { ...alert, nvp: null };
+      
+      let nvpValue = null;
+      
+      if (alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') {
+        const moneyline = period0.money_line || {};
+        if (moneyline.home && moneyline.draw && moneyline.away) {
+          const nvp = calculateThreeWayNVP(moneyline.home, moneyline.draw, moneyline.away);
+          
+          if (alert.outcome.toLowerCase().includes('home')) {
+            nvpValue = nvp.homeNVP;
+          } else if (alert.outcome.toLowerCase().includes('draw')) {
+            nvpValue = nvp.drawNVP;
+          } else {
+            nvpValue = nvp.awayNVP;
+          }
+        }
+      } 
+      else if (alert.lineType === 'SPREAD') {
+        const spreads = period0.spreads || {};
+        const points = alert.points || Object.keys(spreads)[0];
+        
+        if (spreads[points] && spreads[points].home && spreads[points].away) {
+          const nvp = calculateTwoWayNVP(spreads[points].home, spreads[points].away);
+          
+          nvpValue = alert.outcome.toLowerCase().includes('home') ? 
+            nvp.homeNVP : nvp.awayNVP;
+        }
+      }
+      else if (alert.lineType === 'TOTAL') {
+        const totals = period0.totals || {};
+        const points = alert.points || Object.keys(totals)[0];
+        
+        if (totals[points] && totals[points].over && totals[points].under) {
+          const nvp = calculateTwoWayNVP(totals[points].over, totals[points].under);
+          
+          nvpValue = alert.outcome.toLowerCase().includes('over') ? 
+            nvp.homeNVP : nvp.awayNVP;
+        }
+      }
+      
+      // Save to cache
+      if (nvpValue) {
+        updatedNvpCache[cacheKey] = nvpValue;
+      }
+      
+      return { ...alert, nvp: nvpValue };
+    });
+    
+    // Update the NVP cache
+    setNvpCache(updatedNvpCache);
+    
+    return alertsWithNVP;
+  };
+
   const handleSetCursor = () => {
     if (cursorInput && !isNaN(parseInt(cursorInput))) {
       const newCursor = parseInt(cursorInput);
@@ -238,39 +387,45 @@ const AlertTable = () => {
           if (!resp.ok) throw new Error(`HTTP error! Status: ${resp.status}`);
           return resp.json();
         })
-        .then(result => {
+        .then(async result => {
           // Process the alerts without NoVig calculation
           const alertsWithoutNoVig = result.data.map(alert => ({
             ...alert
           }));
           
-          const promises = Promise.resolve(alertsWithoutNoVig);
+          // Sort alerts from newest to oldest by timestamp
+          const sortAlerts = (alerts) => 
+            [...alerts].sort((a, b) => 
+              parseInt(b.id.split('-')[0]) - parseInt(a.id.split('-')[0])
+            );
           
-          return promises.then(alertsWithoutNoVig => {
-            // Sort alerts from newest to oldest by timestamp
-            const sortAlerts = (alerts) => 
-              [...alerts].sort((a, b) => 
-                parseInt(b.id.split('-')[0]) - parseInt(a.id.split('-')[0])
-              );
+          // ALWAYS append new alerts to existing ones, never replace
+          setAlerts(prev => {
+            // Create combined array with duplicates removed (based on ID)
+            const existingIds = new Set(prev.map(a => a.id));
+            const uniqueNewAlerts = alertsWithoutNoVig.filter(a => !existingIds.has(a.id));
             
-            // ALWAYS append new alerts to existing ones, never replace
-            setAlerts(prev => {
-              // Create combined array with duplicates removed (based on ID)
+            // Combine previous alerts with new ones and sort
+            return sortAlerts([...prev, ...uniqueNewAlerts]);
+          });
+          
+          if (result.data.length > 0) {
+            const timestamps = result.data.map(item => parseInt(item.id.split('-')[0]));
+            const maxTimestamp = Math.max(...timestamps);
+            setLatestCursor(maxTimestamp);
+            // Save latest cursor to localStorage
+            localStorage.setItem('alertCursor', maxTimestamp);
+            
+            // Calculate NVP values for new alerts
+            const newAlertsWithNVP = await addNVPToAlerts(alertsWithoutNoVig);
+            
+            // Update alertsWithNVP state
+            setAlertsWithNVP(prev => {
               const existingIds = new Set(prev.map(a => a.id));
-              const uniqueNewAlerts = alertsWithoutNoVig.filter(a => !existingIds.has(a.id));
-              
-              // Combine previous alerts with new ones and sort
+              const uniqueNewAlerts = newAlertsWithNVP.filter(a => !existingIds.has(a.id));
               return sortAlerts([...prev, ...uniqueNewAlerts]);
             });
-            
-            if (result.data.length > 0) {
-              const timestamps = result.data.map(item => parseInt(item.id.split('-')[0]));
-              const maxTimestamp = Math.max(...timestamps);
-              setLatestCursor(maxTimestamp);
-              // Save latest cursor to localStorage
-              localStorage.setItem('alertCursor', maxTimestamp);
-            }
-          });
+          }
         })
         .catch(err => {
           setError(err.message);
@@ -320,6 +475,30 @@ const AlertTable = () => {
 
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
+  };
+
+  // Find NVP for a specific alert
+  const findNVPForAlert = (alertId) => {
+    const alertWithNVP = alertsWithNVP.find(a => a.id === alertId);
+    return alertWithNVP ? alertWithNVP.nvp : null;
+  };
+  
+  // Function to calculate if a bet is worth taking (positive EV)
+  const isPositiveEV = (nvp, currentOdds) => {
+    if (!nvp || !currentOdds) return false;
+    return parseFloat(nvp) > parseFloat(currentOdds);
+  };
+  
+  // Function to get a color for diff value 
+  const getDiffColor = (diffValue) => {
+    if (!diffValue) return 'inherit';
+    const diff = parseFloat(diffValue);
+    
+    if (diff > 0.5) return 'success.main'; // Very good value
+    if (diff > 0.2) return 'success.light'; // Good value
+    if (diff > 0) return '#4caf50'; // Positive but small value
+    if (diff > -0.1) return 'text.primary'; // Negative but close to fair
+    return 'error.light'; // Bad value
   };
 
   // Group alerts by eventId and line info
@@ -935,6 +1114,8 @@ const AlertTable = () => {
                                   <TableCell>Change</TableCell>
                                   <TableCell>From</TableCell>
                                   <TableCell>To</TableCell>
+                                  <TableCell>NVP</TableCell>
+                                  <TableCell>Diff</TableCell>
                                   <TableCell>% Change</TableCell>
                                 </TableRow>
                               </TableHead>
@@ -948,13 +1129,34 @@ const AlertTable = () => {
                                     const date = new Date(parseInt(timestamp));
                                     const timeStr = date.toLocaleTimeString();
                                     
+                                    // Find NVP for this alert 
+                                    const nvpValue = findNVPForAlert(alert.id);
+                                    
+                                    // Calculate difference between NVP and current odds
+                                    let diffValue = null;
+                                    if (nvpValue && alert.changeTo) {
+                                      diffValue = (parseFloat(nvpValue) - parseFloat(alert.changeTo)).toFixed(3);
+                                    }
+                                    
                                     return (
-                                      <TableRow key={alert.id} hover>
+                                      <TableRow key={alert.id} hover sx={{
+                                        bgcolor: diffValue && parseFloat(diffValue) > 0.2 ? 'rgba(76, 175, 80, 0.15)' : 
+                                                diffValue && parseFloat(diffValue) > 0 ? 'rgba(76, 175, 80, 0.05)' : 'inherit'
+                                      }}>
                                         <TableCell>{timeStr}</TableCell>
                                         <TableCell>{idPart}</TableCell>
                                         <TableCell>{alert.changeDirection}</TableCell>
                                         <TableCell>{alert.changeFrom}</TableCell>
                                         <TableCell>{alert.changeTo}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'medium' }}>
+                                          {nvpValue ? nvpValue : 'Loading...'}
+                                        </TableCell>
+                                        <TableCell sx={{ 
+                                          color: diffValue ? getDiffColor(diffValue) : 'inherit',
+                                          fontWeight: 'bold'
+                                        }}>
+                                          {diffValue ? (parseFloat(diffValue) > 0 ? `+${diffValue}` : diffValue) : '-'}
+                                        </TableCell>
                                         <TableCell>{parseFloat(alert.percentageChange).toFixed(2)}%</TableCell>
                                       </TableRow>
                                     );
