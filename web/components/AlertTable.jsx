@@ -651,11 +651,14 @@ const AlertTable = () => {
   const BettingMatrix = ({ data, onClose }) => {
     if (!data) return <Box p={2}>No data available</Box>;
 
-    // Extract the latest spreads data from period 0
-    const period0 = data.periods?.num_0;
-    const spreads = period0?.spreads || {};
-    const totals = period0?.totals || {};
-    const moneyline = period0?.money_line || {};
+    // Stato per gestire la visualizzazione del periodo (match intero o primo tempo)
+    const [activePeriod, setActivePeriod] = useState('num_0');
+    
+    // Extract the latest data for the selected period
+    const periodData = data.periods?.[activePeriod];
+    const spreads = periodData?.spreads || {};
+    const totals = periodData?.totals || {};
+    const moneyline = periodData?.money_line || {};
     
     // Informazioni sulla linea selezionata dall'alert
     const selectedLine = data.selectedLine || {};
@@ -764,6 +767,24 @@ const AlertTable = () => {
             </Typography>
           </Box>
           
+          {/* Selettore del periodo */}
+          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+            <Button 
+              variant={activePeriod === 'num_0' ? 'contained' : 'outlined'}
+              onClick={() => setActivePeriod('num_0')}
+              sx={{ mr: 1 }}
+            >
+              Match Intero
+            </Button>
+            <Button 
+              variant={activePeriod === 'num_1' ? 'contained' : 'outlined'}
+              onClick={() => setActivePeriod('num_1')}
+              disabled={!data.periods?.num_1}
+            >
+              Primo Tempo
+            </Button>
+          </Box>
+          
           {/* Mostra il valore NVP specifico per la linea selezionata */}
           {data.selectedLine && selectedNVP && (
             <Box sx={{ 
@@ -775,6 +796,7 @@ const AlertTable = () => {
             }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
                 Selected Line: {data.selectedLine.lineType} {data.selectedLine.outcome} {data.selectedLine.points}
+                {activePeriod === 'num_1' ? ' (Primo Tempo)' : ' (Match Intero)'}
               </Typography>
               <Box sx={{ display: 'flex', gap: 4 }}>
                 <Box>
@@ -806,7 +828,7 @@ const AlertTable = () => {
           {moneylineNVP && (
             <Box sx={{ mb: 4 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                Money Line (Margin: {moneylineNVP.margin}%)
+                Money Line {activePeriod === 'num_1' ? '(Primo Tempo)' : '(Match Intero)'} (Margin: {moneylineNVP.margin}%)
               </Typography>
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
@@ -863,7 +885,7 @@ const AlertTable = () => {
           
           <Box sx={{ mb: 4 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-              Spreads
+              Spreads {activePeriod === 'num_1' ? '(Primo Tempo)' : '(Match Intero)'}
             </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
@@ -918,7 +940,7 @@ const AlertTable = () => {
           
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-              Totals
+              Totals {activePeriod === 'num_1' ? '(Primo Tempo)' : '(Match Intero)'}
             </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
