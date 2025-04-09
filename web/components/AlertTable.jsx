@@ -171,7 +171,7 @@ const AlertTable = () => {
     }));
   };
 
-  const showBettingMatrix = async (eventId) => {
+  const showBettingMatrix = async (eventId, lineType, outcome, points) => {
     setSelectedEventId(eventId);
     setMatrixLoading(true);
     
@@ -181,7 +181,17 @@ const AlertTable = () => {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
       const result = await response.json();
-      setMatrixData(result.data);
+      
+      // Aggiungi informazioni sulla linea selezionata
+      setMatrixData({
+        ...result.data,
+        selectedLine: {
+          lineType,
+          outcome,
+          points
+        }
+      });
+      
       setShowMatrix(true);
     } catch (err) {
       console.error("Error fetching matrix data:", err);
@@ -351,6 +361,10 @@ const AlertTable = () => {
     const spreads = period0?.spreads || {};
     const totals = period0?.totals || {};
     const moneyline = period0?.money_line || {};
+    
+    // Informazioni sulla linea selezionata dall'alert
+    const selectedLine = data.selectedLine || {};
+    const { lineType, outcome, points } = selectedLine;
 
     // Create sorted arrays of spread and total keys
     const spreadKeys = Object.keys(spreads).sort((a, b) => parseFloat(a) - parseFloat(b));
@@ -376,6 +390,47 @@ const AlertTable = () => {
         totalsNVP[key] = calculateTwoWayNVP(totals[key].over, totals[key].under);
       }
     });
+    
+    // Determina il valore NVP specifico per la linea selezionata
+    let selectedNVP = null;
+    let selectedCurrentOdds = null;
+    
+    if (lineType === 'SPREAD') {
+      const spreadKey = points || spreadKeys[0];
+      if (spreadsNVP[spreadKey]) {
+        selectedNVP = outcome.toLowerCase().includes('home') ? 
+          spreadsNVP[spreadKey].homeNVP : 
+          spreadsNVP[spreadKey].awayNVP;
+        selectedCurrentOdds = outcome.toLowerCase().includes('home') ? 
+          spreads[spreadKey].home : 
+          spreads[spreadKey].away;
+      }
+    } 
+    else if (lineType === 'TOTAL') {
+      const totalKey = points || totalKeys[0];
+      if (totalsNVP[totalKey]) {
+        selectedNVP = outcome.toLowerCase().includes('over') ? 
+          totalsNVP[totalKey].homeNVP : 
+          totalsNVP[totalKey].awayNVP;
+        selectedCurrentOdds = outcome.toLowerCase().includes('over') ? 
+          totals[totalKey].over : 
+          totals[totalKey].under;
+      }
+    }
+    else if (lineType === 'MONEYLINE' && moneylineNVP) {
+      if (outcome.toLowerCase().includes('home')) {
+        selectedNVP = moneylineNVP.homeNVP;
+        selectedCurrentOdds = moneyline.home;
+      } 
+      else if (outcome.toLowerCase().includes('draw')) {
+        selectedNVP = moneylineNVP.drawNVP;
+        selectedCurrentOdds = moneyline.draw;
+      }
+      else {
+        selectedNVP = moneylineNVP.awayNVP;
+        selectedCurrentOdds = moneyline.away;
+      }
+    }
 
     return (
       <Paper 
@@ -408,6 +463,45 @@ const AlertTable = () => {
           <Typography variant="body2" sx={{ mb: 2 }}>
             Match Time: {new Date(data.starts).toLocaleString()}
           </Typography>
+          
+          {/* Mostra il valore NVP specifico per la linea selezionata */}
+          {data.selectedLine && selectedNVP && (
+            <Box sx={{ 
+              mb: 3, 
+              p: 2, 
+              bgcolor: 'primary.light', 
+              color: 'primary.contrastText',
+              borderRadius: 1
+            }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                Selected Line: {data.selectedLine.lineType} {data.selectedLine.outcome} {data.selectedLine.points}
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 4 }}>
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>Current Odds:</Typography>
+                  <Typography variant="h6">{selectedCurrentOdds}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>No Vig Price (NVP):</Typography>
+                  <Typography variant="h6" sx={{ color: 'success.light' }}>{selectedNVP}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>Difference:</Typography>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      color: parseFloat(selectedNVP) > parseFloat(selectedCurrentOdds) ? 'success.light' : 'error.light',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {parseFloat(selectedNVP) > parseFloat(selectedCurrentOdds) ? 
+                      `+${(parseFloat(selectedNVP) - parseFloat(selectedCurrentOdds)).toFixed(3)}` : 
+                      (parseFloat(selectedNVP) - parseFloat(selectedCurrentOdds)).toFixed(3)}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          )}
           
           {moneylineNVP && (
             <Box sx={{ mb: 4 }}>
@@ -817,7 +911,12 @@ const AlertTable = () => {
                             startIcon={<VisibilityIcon />}
                             onClick={(e) => {
                               e.stopPropagation();
-                              showBettingMatrix(group.eventId);
+                              // Estrai le informazioni sulla linea dal gruppo
+                              const lineInfo = group.lineInfo.split(' ');
+                              const lineType = lineInfo[0];
+                              const outcome = lineInfo[1];
+                              const points = lineInfo[2] || '';
+                              showBettingMatrix(group.eventId, lineType, outcome, points);
                             }}
                           >
                             View Odds
