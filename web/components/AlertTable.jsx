@@ -298,15 +298,13 @@ const AlertTable = () => {
                 
                 if (uniqueNewAlerts.length === 0) return prev;
                 
-                // Controlla se ci sono alert di tipo money_line da notificare
+                // Controlla se ci sono alert di tipo money_line da mettere in coda per notifica
                 uniqueNewAlerts.forEach(alert => {
                   if ((alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') && 
-                      (alert.outcome.toLowerCase().includes('home') || alert.outcome.toLowerCase().includes('away')) &&
-                      alert.nvp) {
+                      (alert.outcome.toLowerCase().includes('home') || alert.outcome.toLowerCase().includes('away'))) {
                     
-                    // Invia la notifica - la funzione sendAlertNotification gestirà internamente
-                    // il controllo per evitare invii multipli nell'arco di un'ora
-                    sendAlertNotification(alert, "120363401713435750@g.us");
+                    // Metti in coda l'alert - verrà inviato solo dopo il calcolo del NVP
+                    queueAlertNotification(alert, "120363401713435750@g.us");
                   }
                 });
                 

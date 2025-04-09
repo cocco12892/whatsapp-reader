@@ -2,6 +2,8 @@ import React from 'react';
 
 // Cache per le notifiche inviate (persistente tra ricaricamenti della pagina)
 let sentNotificationsCache = {};
+// Cache per gli alert in attesa di calcolo NVP prima dell'invio
+let pendingAlertNotifications = {};
 
 // Carica la cache delle notifiche dal localStorage all'avvio
 try {
@@ -104,6 +106,11 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
       }
     }
     
+    // Controlla se questo alert è in attesa di invio notifica
+    if (pendingAlertNotifications[alert.id]) {
+      updateAndSendQueuedAlert(alert.id, nvpValue);
+    }
+    
     return nvpValue;
   } catch (err) {
     console.error('Error calculating NVP for alert:', err);
@@ -116,19 +123,56 @@ const eventDataCache = {};
 const eventDataTimestamps = {};
 const pendingRequests = {};
 
-// Funzione per inviare una notifica di alert alla chat specificata
-export const sendAlertNotification = async (alert, chatId) => {
+// Funzione per aggiungere un alert alla coda di notifiche in attesa di NVP
+export const queueAlertNotification = (alert, chatId) => {
+  // Verifica se abbiamo già inviato una notifica per questo EventID nell'ultima ora
+  const eventKey = `event_${alert.eventId}`;
+  const now = Date.now();
+  const lastSentTime = sentNotificationsCache[eventKey] || 0;
+  const oneHourMs = 3600000; // 1 ora in millisecondi
+  
+  if (now - lastSentTime < oneHourMs) {
+    console.log(`Notifica già inviata per l'EventID ${alert.eventId} nell'ultima ora (${Math.floor((now - lastSentTime) / 60000)} minuti fa)`);
+    return false;
+  }
+  
+  // Se l'alert ha già un valore NVP, invialo subito
+  if (alert.nvp) {
+    sendAlertMessage(alert, chatId);
+    return true;
+  }
+  
+  // Altrimenti, mettilo in coda
+  pendingAlertNotifications[alert.id] = {
+    alert,
+    chatId,
+    timestamp: now
+  };
+  
+  console.log(`Alert ${alert.id} messo in coda in attesa di calcolo NVP`);
+  return true;
+};
+
+// Funzione per aggiornare un alert in coda con il valore NVP e inviarlo
+export const updateAndSendQueuedAlert = (alertId, nvpValue) => {
+  const pendingAlert = pendingAlertNotifications[alertId];
+  if (!pendingAlert) return;
+  
+  // Aggiorna l'alert con il valore NVP
+  pendingAlert.alert.nvp = nvpValue;
+  
+  // Invia la notifica
+  sendAlertMessage(pendingAlert.alert, pendingAlert.chatId);
+  
+  // Rimuovi l'alert dalla coda
+  delete pendingAlertNotifications[alertId];
+};
+
+// Funzione interna per inviare effettivamente il messaggio
+const sendAlertMessage = async (alert, chatId) => {
   try {
-    // Verifica se abbiamo già inviato una notifica per questo EventID nell'ultima ora
     const eventKey = `event_${alert.eventId}`;
     const now = Date.now();
-    const lastSentTime = sentNotificationsCache[eventKey] || 0;
-    const oneHourMs = 3600000; // 1 ora in millisecondi
-    
-    if (now - lastSentTime < oneHourMs) {
-      console.log(`Notifica già inviata per l'EventID ${alert.eventId} nell'ultima ora (${Math.floor((now - lastSentTime) / 60000)} minuti fa)`);
-      return;
-    }
     
     // Prepara il messaggio con le informazioni richieste
     const message = `🚨 *ALERT NoVig*\n\n` +
@@ -161,6 +205,11 @@ export const sendAlertNotification = async (alert, chatId) => {
   } catch (error) {
     console.error('Errore nell\'invio della notifica:', error);
   }
+};
+
+// Funzione di compatibilità per il vecchio metodo (deprecata)
+export const sendAlertNotification = async (alert, chatId) => {
+  return queueAlertNotification(alert, chatId);
 };
 
 // Funzione per ottenere i dati dell'evento con cache e deduplicazione delle richieste
