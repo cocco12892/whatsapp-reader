@@ -5,9 +5,11 @@ import {
 } from 'recharts';
 import { 
   Box, Typography, Select, MenuItem, 
-  FormControl, InputLabel, Paper, CircularProgress 
+  FormControl, InputLabel, Paper, CircularProgress,
+  Button, Snackbar, Alert
 } from '@mui/material';
-import { getEventData } from './AlertUtils';
+import SendIcon from '@mui/icons-material/Send';
+import { getEventData, sendAlertNotification } from './AlertUtils';
 
 const EventOddsChart = ({ eventId }) => {
   const [data, setData] = useState([]);
@@ -20,6 +22,9 @@ const EventOddsChart = ({ eventId }) => {
     marketOption: '',
     hasData: false
   });
+  const [sendingAlert, setSendingAlert] = useState(false);
+  const [alertSent, setAlertSent] = useState(false);
+  const [alertError, setAlertError] = useState(null);
   const [availableMarkets, setAvailableMarkets] = useState([]);
   const [selectedMarket, setSelectedMarket] = useState('');
   const [selectedOption, setSelectedOption] = useState('');
@@ -314,6 +319,47 @@ const EventOddsChart = ({ eventId }) => {
     return '';
   };
   
+  const handleSendAlert = async () => {
+    if (!eventId || !data.length || !marketInfo.homeTeam) {
+      setAlertError("Dati insufficienti per inviare l'alert");
+      return;
+    }
+    
+    setSendingAlert(true);
+    setAlertError(null);
+    
+    try {
+      // Prepara i dati dell'alert
+      const alertData = {
+        id: `${Date.now()}-${eventId}`,
+        eventId: eventId,
+        home: marketInfo.homeTeam,
+        away: marketInfo.awayTeam,
+        changeFrom: data.length > 1 ? data[0].odds.toFixed(2) : "N/A",
+        changeTo: data.length > 0 ? data[data.length - 1].odds.toFixed(2) : "N/A",
+        nvp: data.length > 0 ? data[data.length - 1].odds.toFixed(3) : "N/A",
+        lineType: selectedMarket.toUpperCase(),
+        outcome: selectedOption.split('-')[0]
+      };
+      
+      // Invia l'alert alla chat di gruppo predefinita
+      const chatId = "120363401713435750@g.us";
+      const success = await sendAlertNotification(alertData, chatId);
+      
+      if (success) {
+        setAlertSent(true);
+        setTimeout(() => setAlertSent(false), 3000);
+      } else {
+        throw new Error("Invio non riuscito");
+      }
+    } catch (error) {
+      console.error("Errore nell'invio dell'alert:", error);
+      setAlertError("Errore nell'invio dell'alert: " + (error.message || "Errore sconosciuto"));
+    } finally {
+      setSendingAlert(false);
+    }
+  };
+  
   if (loading && !data.length) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
@@ -469,16 +515,52 @@ const EventOddsChart = ({ eventId }) => {
         )}
       </Box>
       
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-          <Box sx={{ width: 12, height: 12, bgcolor: '#4caf50', borderRadius: '50%', mr: 0.5 }}></Box>
-          <Typography variant="caption">price</Typography>
-        </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Box sx={{ width: 12, height: 12, bgcolor: '#ff9800', borderRadius: '50%', mr: 0.5 }}></Box>
-          <Typography variant="caption">limit</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+            <Box sx={{ width: 12, height: 12, bgcolor: '#4caf50', borderRadius: '50%', mr: 0.5 }}></Box>
+            <Typography variant="caption">price</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ width: 12, height: 12, bgcolor: '#ff9800', borderRadius: '50%', mr: 0.5 }}></Box>
+            <Typography variant="caption">limit</Typography>
+          </Box>
         </Box>
+        
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<SendIcon />}
+          onClick={handleSendAlert}
+          disabled={sendingAlert || !marketInfo.hasData}
+          size="small"
+        >
+          {sendingAlert ? 'Invio...' : 'Invia Alert Manuale'}
+        </Button>
       </Box>
+      
+      {/* Feedback per l'utente */}
+      <Snackbar 
+        open={alertSent} 
+        autoHideDuration={3000} 
+        onClose={() => setAlertSent(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" sx={{ width: '100%' }}>
+          Alert inviato con successo!
+        </Alert>
+      </Snackbar>
+      
+      <Snackbar 
+        open={!!alertError} 
+        autoHideDuration={5000} 
+        onClose={() => setAlertError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" sx={{ width: '100%' }}>
+          {alertError}
+        </Alert>
+      </Snackbar>
     </Paper>
   );
 };
