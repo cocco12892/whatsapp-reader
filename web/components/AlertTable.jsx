@@ -14,9 +14,6 @@ import {
   Collapse,
   Tooltip,
   TextField,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   Tab,
   Tabs,
   CircularProgress
@@ -25,659 +22,17 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
-// NVP Calculation Functions
-const calculateNVPValues = (odds, tolerance = 0.0001, maxIterations = 100) => {
-  // Extract odds and convert to probabilities
-  const probabilities = {};
-  let totalProbability = 0;
-  
-  for (const [key, value] of Object.entries(odds)) {
-    if (value !== undefined && value > 0) {
-      probabilities[key] = 1 / value;
-      totalProbability += probabilities[key];
-    }
-  }
-  
-  // Calculate bookmaker's margin
-  const margin = totalProbability - 1;
-  
-  // Convert to array for processing
-  const probabilityValues = Object.values(probabilities);
-  
-  // Apply power method to remove vigorish
-  const fairProbabilities = powerMethod(probabilityValues, tolerance, maxIterations);
-  
-  // Convert fair probabilities back to odds (NVP)
-  const nvpValues = {};
-  const keys = Object.keys(probabilities);
-  
-  fairProbabilities.forEach((fairProb, index) => {
-    nvpValues[keys[index]] = 1 / fairProb;
-  });
-  
-  // Return the results
-  return {
-    nvp: nvpValues,
-    fairProbabilities: fairProbabilities.reduce((obj, prob, i) => {
-      obj[keys[i]] = prob;
-      return obj;
-    }, {}),
-    rawProbabilities: probabilities,
-    margin: margin * 100 // Convert to percentage
-  };
+// Import components and utilities
+import BettingMatrix from './BettingMatrix';
+import { calculateTwoWayNVP, calculateThreeWayNVP } from './NVPCalculations';
+import { getDiffColor, isWithin24Hours, isPositiveEV, calculateAlertNVP, addNVPToAlerts } from './AlertUtils';
 };
 
-const powerMethod = (probabilities, tolerance, maxIterations) => {
-  let r = 1; // Initial exponent
-  let adjustedProbs = probabilities.map(p => Math.pow(p, r));
-  
-  for (let i = 0; i < maxIterations; i++) {
-    // Calculate difference from 1
-    const sumProbs = adjustedProbs.reduce((sum, p) => sum + p, 0);
-    const diff = sumProbs - 1;
-    
-    // If close enough to 1, we're done
-    if (Math.abs(diff) < tolerance) {
-      break;
-    }
-    
-    // Calculate gradient for Newton-Raphson method
-    const gradient = probabilities.reduce(
-      (sum, p) => sum + Math.log(p) * Math.pow(p, r), 
-      0
-    );
-    
-    // Adjust r using Newton-Raphson step
-    r -= diff / gradient;
-    
-    // Recalculate probabilities with new r
-    adjustedProbs = probabilities.map(p => Math.pow(p, r));
-  }
-  
-  return adjustedProbs;
-};
-
-// Calculate NVP for a 2-way market (spreads, totals)
-const calculateTwoWayNVP = (home, away) => {
-  const odds = {
-    home: parseFloat(home),
-    away: parseFloat(away)
-  };
-  
-  const result = calculateNVPValues(odds);
-  return {
-    homeNVP: result.nvp.home.toFixed(3),
-    awayNVP: result.nvp.away.toFixed(3),
-    margin: result.margin.toFixed(2)
-  };
-};
-
-// Calculate NVP for a 3-way market (moneyline with draw)
-const calculateThreeWayNVP = (home, draw, away) => {
-  const odds = {
-    home: parseFloat(home),
-    draw: parseFloat(draw),
-    away: parseFloat(away)
-  };
-  
-  const result = calculateNVPValues(odds);
-  return {
-    homeNVP: result.nvp.home.toFixed(3),
-    drawNVP: result.nvp.draw.toFixed(3),
-    awayNVP: result.nvp.away.toFixed(3),
-    margin: result.margin.toFixed(2)
-  };
-};
-
-// Betting Matrix Component
-const BettingMatrix = ({ data, onClose }) => {
-  if (!data) return <Box p={2}>No data available</Box>;
-
-  // Extract the latest data for match intero (period 0)
-  const periodData = data.periods?.num_0;
-  const spreads = periodData?.spreads || {};
-  const totals = periodData?.totals || {};
-  const moneyline = periodData?.money_line || {};
-  
-  // Informazioni sulla linea selezionata dall'alert
-  const selectedLine = data.selectedLine || {};
-  const { lineType, outcome, points } = selectedLine;
-
-  // Create sorted arrays of spread and total keys
-  const spreadKeys = Object.keys(spreads).sort((a, b) => parseFloat(a) - parseFloat(b));
-  const totalKeys = Object.keys(totals).sort((a, b) => parseFloat(a) - parseFloat(b));
-
-  // Calculate NVP for moneyline (3-way)
-  let moneylineNVP = null;
-  if (moneyline.home && moneyline.draw && moneyline.away) {
-    moneylineNVP = calculateThreeWayNVP(moneyline.home, moneyline.draw, moneyline.away);
-  }
-
-  // Calculate NVP for spreads and totals (2-way)
-  const spreadsNVP = {};
-  spreadKeys.forEach(key => {
-    if (spreads[key].home && spreads[key].away) {
-      spreadsNVP[key] = calculateTwoWayNVP(spreads[key].home, spreads[key].away);
-    }
-  });
-
-  const totalsNVP = {};
-  totalKeys.forEach(key => {
-    if (totals[key].over && totals[key].under) {
-      totalsNVP[key] = calculateTwoWayNVP(totals[key].over, totals[key].under);
-    }
-  });
-  
-  // Determina il valore NVP specifico per la linea selezionata
-  let selectedNVP = null;
-  let selectedCurrentOdds = null;
-  
-  if (lineType === 'SPREAD') {
-    const spreadKey = points || spreadKeys[0];
-    if (spreadsNVP[spreadKey]) {
-      selectedNVP = outcome.toLowerCase().includes('home') ? 
-        spreadsNVP[spreadKey].homeNVP : 
-        spreadsNVP[spreadKey].awayNVP;
-      selectedCurrentOdds = outcome.toLowerCase().includes('home') ? 
-        spreads[spreadKey].home : 
-        spreads[spreadKey].away;
-    }
-  } 
-  else if (lineType === 'TOTAL') {
-    const totalKey = points || totalKeys[0];
-    if (totalsNVP[totalKey]) {
-      selectedNVP = outcome.toLowerCase().includes('over') ? 
-        totalsNVP[totalKey].homeNVP : 
-        totalsNVP[totalKey].awayNVP;
-      selectedCurrentOdds = outcome.toLowerCase().includes('over') ? 
-        totals[totalKey].over : 
-        totals[totalKey].under;
-    }
-  }
-  else if (lineType === 'MONEYLINE' && moneylineNVP) {
-    if (outcome.toLowerCase().includes('home')) {
-      selectedNVP = moneylineNVP.homeNVP;
-      selectedCurrentOdds = moneyline.home;
-    } 
-    else if (outcome.toLowerCase().includes('draw')) {
-      selectedNVP = moneylineNVP.drawNVP;
-      selectedCurrentOdds = moneyline.draw;
-    }
-    else {
-      selectedNVP = moneylineNVP.awayNVP;
-      selectedCurrentOdds = moneyline.away;
-    }
-  }
-
-  return (
-    <Paper 
-      sx={{ 
-        width: '90%', 
-        maxWidth: '1200px', 
-        maxHeight: '90%',
-        overflow: 'auto',
-        position: 'relative'
-      }}
-    >
-      <Box sx={{ 
-        p: 2, 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-        bgcolor: 'primary.main',
-        color: 'primary.contrastText'
-      }}>
-        <Typography variant="h6">
-          {data.home} vs {data.away} | {data.league_name}
-        </Typography>
-        <IconButton onClick={onClose} size="small" color="inherit">
-          <CloseIcon />
-        </IconButton>
-      </Box>
-      <Box sx={{ p: 3, overflow: 'auto' }}>
-        <Box sx={{ mb: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-            Match Time: {new Date(data.starts).toLocaleString()}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Event ID: {data.event_id}
-          </Typography>
-        </Box>
-        
-        {/* Titolo della sezione */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-            Dati di Scommessa
-          </Typography>
-        </Box>
-        
-        {/* Mostra il valore NVP specifico per la linea selezionata */}
-        {data.selectedLine && selectedNVP && (
-          <Box sx={{ 
-            mb: 3, 
-            p: 2, 
-            bgcolor: 'primary.light', 
-            color: 'primary.contrastText',
-            borderRadius: 1
-          }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-              Selected Line: {data.selectedLine.lineType} {data.selectedLine.outcome} {data.selectedLine.points}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 4 }}>
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>Current Odds:</Typography>
-                <Typography variant="h6">{selectedCurrentOdds}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>No Vig Price (NVP):</Typography>
-                <Typography variant="h6" sx={{ color: 'success.light' }}>{selectedNVP}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>Difference:</Typography>
-                <Typography 
-                  variant="h6" 
-                  sx={{ 
-                    color: parseFloat(selectedNVP) > parseFloat(selectedCurrentOdds) ? 'success.light' : 'error.light',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  {parseFloat(selectedNVP) > parseFloat(selectedCurrentOdds) ? 
-                    `+${(parseFloat(selectedNVP) - parseFloat(selectedCurrentOdds)).toFixed(3)}` : 
-                    (parseFloat(selectedNVP) - parseFloat(selectedCurrentOdds)).toFixed(3)}
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
-        )}
-        
-        {/* MATCH INTERO */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, bgcolor: 'primary.main', color: 'primary.contrastText', p: 1, borderRadius: 1 }}>
-            Match Intero
-          </Typography>
-          
-          {/* Money Line Match Intero */}
-          {moneylineNVP && (
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                Money Line (Margin: {moneylineNVP.margin}%)
-              </Typography>
-            <TableContainer component={Paper} variant="outlined">
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'background.default' }}>
-                    <TableCell>Outcome</TableCell>
-                    <TableCell>Current</TableCell>
-                    <TableCell>NVP</TableCell>
-                    <TableCell>Diff</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  <TableRow sx={{ 
-                    bgcolor: parseFloat(moneylineNVP.homeNVP) > parseFloat(moneyline.home) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                  }}>
-                    <TableCell sx={{ fontWeight: 'medium' }}>{data.home}</TableCell>
-                    <TableCell>{moneyline.home}</TableCell>
-                    <TableCell>{moneylineNVP.homeNVP}</TableCell>
-                    <TableCell sx={{ color: 'success.main' }}>
-                      {parseFloat(moneylineNVP.homeNVP) > parseFloat(moneyline.home) ? 
-                        `+${(parseFloat(moneylineNVP.homeNVP) - parseFloat(moneyline.home)).toFixed(3)}` : 
-                        (parseFloat(moneylineNVP.homeNVP) - parseFloat(moneyline.home)).toFixed(3)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow sx={{ 
-                    bgcolor: parseFloat(moneylineNVP.drawNVP) > parseFloat(moneyline.draw) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                  }}>
-                    <TableCell sx={{ fontWeight: 'medium' }}>Draw</TableCell>
-                    <TableCell>{moneyline.draw}</TableCell>
-                    <TableCell>{moneylineNVP.drawNVP}</TableCell>
-                    <TableCell sx={{ color: 'success.main' }}>
-                      {parseFloat(moneylineNVP.drawNVP) > parseFloat(moneyline.draw) ? 
-                        `+${(parseFloat(moneylineNVP.drawNVP) - parseFloat(moneyline.draw)).toFixed(3)}` : 
-                        (parseFloat(moneylineNVP.drawNVP) - parseFloat(moneyline.draw)).toFixed(3)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow sx={{ 
-                    bgcolor: parseFloat(moneylineNVP.awayNVP) > parseFloat(moneyline.away) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                  }}>
-                    <TableCell sx={{ fontWeight: 'medium' }}>{data.away}</TableCell>
-                    <TableCell>{moneyline.away}</TableCell>
-                    <TableCell>{moneylineNVP.awayNVP}</TableCell>
-                    <TableCell sx={{ color: 'success.main' }}>
-                      {parseFloat(moneylineNVP.awayNVP) > parseFloat(moneyline.away) ? 
-                        `+${(parseFloat(moneylineNVP.awayNVP) - parseFloat(moneyline.away)).toFixed(3)}` : 
-                        (parseFloat(moneylineNVP.awayNVP) - parseFloat(moneyline.away)).toFixed(3)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        )}
-        
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-              Spreads
-            </Typography>
-          <TableContainer component={Paper} variant="outlined">
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'background.default' }}>
-                  <TableCell>Line</TableCell>
-                  <TableCell>Outcome</TableCell>
-                  <TableCell>Current</TableCell>
-                  <TableCell>NVP</TableCell>
-                  <TableCell>Diff</TableCell>
-                  <TableCell>Margin</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {spreadKeys.map(key => {
-                  const nvp = spreadsNVP[key] || {};
-                  return (
-                    <React.Fragment key={key}>
-                      <TableRow sx={{ 
-                        bgcolor: nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(spreads[key].home) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                      }}>
-                        <TableCell rowSpan="2">{key}</TableCell>
-                        <TableCell sx={{ fontWeight: 'medium' }}>{data.home} {key}</TableCell>
-                        <TableCell>{spreads[key].home}</TableCell>
-                        <TableCell>{nvp.homeNVP || ''}</TableCell>
-                        <TableCell sx={{ color: 'success.main' }}>
-                          {nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(spreads[key].home) ? 
-                            `+${(parseFloat(nvp.homeNVP) - parseFloat(spreads[key].home)).toFixed(3)}` : 
-                            nvp.homeNVP ? (parseFloat(nvp.homeNVP) - parseFloat(spreads[key].home)).toFixed(3) : ''}
-                        </TableCell>
-                        <TableCell rowSpan="2">{nvp.margin ? `${nvp.margin}%` : ''}</TableCell>
-                      </TableRow>
-                      <TableRow sx={{ 
-                        bgcolor: nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(spreads[key].away) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                      }}>
-                        <TableCell sx={{ fontWeight: 'medium' }}>{data.away} {parseFloat(key) * -1}</TableCell>
-                        <TableCell>{spreads[key].away}</TableCell>
-                        <TableCell>{nvp.awayNVP || ''}</TableCell>
-                        <TableCell sx={{ color: 'success.main' }}>
-                          {nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(spreads[key].away) ? 
-                            `+${(parseFloat(nvp.awayNVP) - parseFloat(spreads[key].away)).toFixed(3)}` : 
-                            nvp.awayNVP ? (parseFloat(nvp.awayNVP) - parseFloat(spreads[key].away)).toFixed(3) : ''}
-                        </TableCell>
-                      </TableRow>
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-        
-          <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-              Totals
-            </Typography>
-          <TableContainer component={Paper} variant="outlined">
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'background.default' }}>
-                  <TableCell>Line</TableCell>
-                  <TableCell>Outcome</TableCell>
-                  <TableCell>Current</TableCell>
-                  <TableCell>NVP</TableCell>
-                  <TableCell>Diff</TableCell>
-                  <TableCell>Margin</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {totalKeys.map(key => {
-                  const nvp = totalsNVP[key] || {};
-                  return (
-                    <React.Fragment key={key}>
-                      <TableRow sx={{ 
-                        bgcolor: nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(totals[key].over) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                      }}>
-                        <TableCell rowSpan="2">{key}</TableCell>
-                        <TableCell sx={{ fontWeight: 'medium' }}>Over {key}</TableCell>
-                        <TableCell>{totals[key].over}</TableCell>
-                        <TableCell>{nvp.homeNVP || ''}</TableCell>
-                        <TableCell sx={{ color: 'success.main' }}>
-                          {nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(totals[key].over) ? 
-                            `+${(parseFloat(nvp.homeNVP) - parseFloat(totals[key].over)).toFixed(3)}` : 
-                            nvp.homeNVP ? (parseFloat(nvp.homeNVP) - parseFloat(totals[key].over)).toFixed(3) : ''}
-                        </TableCell>
-                        <TableCell rowSpan="2">{nvp.margin ? `${nvp.margin}%` : ''}</TableCell>
-                      </TableRow>
-                      <TableRow sx={{ 
-                        bgcolor: nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(totals[key].under) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                      }}>
-                        <TableCell sx={{ fontWeight: 'medium' }}>Under {key}</TableCell>
-                        <TableCell>{totals[key].under}</TableCell>
-                        <TableCell>{nvp.awayNVP || ''}</TableCell>
-                        <TableCell sx={{ color: 'success.main' }}>
-                          {nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(totals[key].under) ? 
-                            `+${(parseFloat(nvp.awayNVP) - parseFloat(totals[key].under)).toFixed(3)}` : 
-                            nvp.awayNVP ? (parseFloat(nvp.awayNVP) - parseFloat(totals[key].under)).toFixed(3) : ''}
-                        </TableCell>
-                      </TableRow>
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-        
-        {/* PRIMO TEMPO */}
-        {data.periods?.num_1 && (
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, bgcolor: 'secondary.main', color: 'secondary.contrastText', p: 1, borderRadius: 1 }}>
-              Primo Tempo
-            </Typography>
-            
-            {/* Money Line Primo Tempo */}
-            {data.periods.num_1.money_line && (
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                  Money Line
-                </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: 'background.default' }}>
-                        <TableCell>Outcome</TableCell>
-                        <TableCell>Current</TableCell>
-                        <TableCell>NVP</TableCell>
-                        <TableCell>Diff</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {data.periods.num_1.money_line.home && data.periods.num_1.money_line.draw && data.periods.num_1.money_line.away && (() => {
-                        const ml = data.periods.num_1.money_line;
-                        const nvp = calculateThreeWayNVP(ml.home, ml.draw, ml.away);
-                        return (
-                          <>
-                            <TableRow sx={{ 
-                              bgcolor: parseFloat(nvp.homeNVP) > parseFloat(ml.home) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                            }}>
-                              <TableCell sx={{ fontWeight: 'medium' }}>{data.home}</TableCell>
-                              <TableCell>{ml.home}</TableCell>
-                              <TableCell>{nvp.homeNVP}</TableCell>
-                              <TableCell sx={{ color: 'success.main' }}>
-                                {parseFloat(nvp.homeNVP) > parseFloat(ml.home) ? 
-                                  `+${(parseFloat(nvp.homeNVP) - parseFloat(ml.home)).toFixed(3)}` : 
-                                  (parseFloat(nvp.homeNVP) - parseFloat(ml.home)).toFixed(3)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow sx={{ 
-                              bgcolor: parseFloat(nvp.drawNVP) > parseFloat(ml.draw) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                            }}>
-                              <TableCell sx={{ fontWeight: 'medium' }}>Draw</TableCell>
-                              <TableCell>{ml.draw}</TableCell>
-                              <TableCell>{nvp.drawNVP}</TableCell>
-                              <TableCell sx={{ color: 'success.main' }}>
-                                {parseFloat(nvp.drawNVP) > parseFloat(ml.draw) ? 
-                                  `+${(parseFloat(nvp.drawNVP) - parseFloat(ml.draw)).toFixed(3)}` : 
-                                  (parseFloat(nvp.drawNVP) - parseFloat(ml.draw)).toFixed(3)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow sx={{ 
-                              bgcolor: parseFloat(nvp.awayNVP) > parseFloat(ml.away) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                            }}>
-                              <TableCell sx={{ fontWeight: 'medium' }}>{data.away}</TableCell>
-                              <TableCell>{ml.away}</TableCell>
-                              <TableCell>{nvp.awayNVP}</TableCell>
-                              <TableCell sx={{ color: 'success.main' }}>
-                                {parseFloat(nvp.awayNVP) > parseFloat(ml.away) ? 
-                                  `+${(parseFloat(nvp.awayNVP) - parseFloat(ml.away)).toFixed(3)}` : 
-                                  (parseFloat(nvp.awayNVP) - parseFloat(ml.away)).toFixed(3)}
-                              </TableCell>
-                            </TableRow>
-                          </>
-                        );
-                      })()}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            )}
-            
-            {/* Spreads Primo Tempo */}
-            {data.periods.num_1.spreads && Object.keys(data.periods.num_1.spreads).length > 0 && (
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                  Spreads
-                </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: 'background.default' }}>
-                        <TableCell>Line</TableCell>
-                        <TableCell>Outcome</TableCell>
-                        <TableCell>Current</TableCell>
-                        <TableCell>NVP</TableCell>
-                        <TableCell>Diff</TableCell>
-                        <TableCell>Margin</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {Object.keys(data.periods.num_1.spreads)
-                        .sort((a, b) => parseFloat(a) - parseFloat(b))
-                        .map(key => {
-                          const spread = data.periods.num_1.spreads[key];
-                          if (!spread.home || !spread.away) return null;
-                          
-                          const nvp = calculateTwoWayNVP(spread.home, spread.away);
-                          return (
-                            <React.Fragment key={key}>
-                              <TableRow sx={{ 
-                                bgcolor: nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(spread.home) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                              }}>
-                                <TableCell rowSpan="2">{key}</TableCell>
-                                <TableCell sx={{ fontWeight: 'medium' }}>{data.home} {key}</TableCell>
-                                <TableCell>{spread.home}</TableCell>
-                                <TableCell>{nvp.homeNVP || ''}</TableCell>
-                                <TableCell sx={{ color: 'success.main' }}>
-                                  {nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(spread.home) ? 
-                                    `+${(parseFloat(nvp.homeNVP) - parseFloat(spread.home)).toFixed(3)}` : 
-                                    nvp.homeNVP ? (parseFloat(nvp.homeNVP) - parseFloat(spread.home)).toFixed(3) : ''}
-                                </TableCell>
-                                <TableCell rowSpan="2">{nvp.margin ? `${nvp.margin}%` : ''}</TableCell>
-                              </TableRow>
-                              <TableRow sx={{ 
-                                bgcolor: nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(spread.away) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                              }}>
-                                <TableCell sx={{ fontWeight: 'medium' }}>{data.away} {parseFloat(key) * -1}</TableCell>
-                                <TableCell>{spread.away}</TableCell>
-                                <TableCell>{nvp.awayNVP || ''}</TableCell>
-                                <TableCell sx={{ color: 'success.main' }}>
-                                  {nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(spread.away) ? 
-                                    `+${(parseFloat(nvp.awayNVP) - parseFloat(spread.away)).toFixed(3)}` : 
-                                    nvp.awayNVP ? (parseFloat(nvp.awayNVP) - parseFloat(spread.away)).toFixed(3) : ''}
-                                </TableCell>
-                              </TableRow>
-                            </React.Fragment>
-                          );
-                        })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            )}
-            
-            {/* Totals Primo Tempo */}
-            {data.periods.num_1.totals && Object.keys(data.periods.num_1.totals).length > 0 && (
-              <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                  Totals
-                </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: 'background.default' }}>
-                        <TableCell>Line</TableCell>
-                        <TableCell>Outcome</TableCell>
-                        <TableCell>Current</TableCell>
-                        <TableCell>NVP</TableCell>
-                        <TableCell>Diff</TableCell>
-                        <TableCell>Margin</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {Object.keys(data.periods.num_1.totals)
-                        .sort((a, b) => parseFloat(a) - parseFloat(b))
-                        .map(key => {
-                          const total = data.periods.num_1.totals[key];
-                          if (!total.over || !total.under) return null;
-                          
-                          const nvp = calculateTwoWayNVP(total.over, total.under);
-                          return (
-                            <React.Fragment key={key}>
-                              <TableRow sx={{ 
-                                bgcolor: nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(total.over) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                              }}>
-                                <TableCell rowSpan="2">{key}</TableCell>
-                                <TableCell sx={{ fontWeight: 'medium' }}>Over {key}</TableCell>
-                                <TableCell>{total.over}</TableCell>
-                                <TableCell>{nvp.homeNVP || ''}</TableCell>
-                                <TableCell sx={{ color: 'success.main' }}>
-                                  {nvp.homeNVP && parseFloat(nvp.homeNVP) > parseFloat(total.over) ? 
-                                    `+${(parseFloat(nvp.homeNVP) - parseFloat(total.over)).toFixed(3)}` : 
-                                    nvp.homeNVP ? (parseFloat(nvp.homeNVP) - parseFloat(total.over)).toFixed(3) : ''}
-                                </TableCell>
-                                <TableCell rowSpan="2">{nvp.margin ? `${nvp.margin}%` : ''}</TableCell>
-                              </TableRow>
-                              <TableRow sx={{ 
-                                bgcolor: nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(total.under) ? 'rgba(76, 175, 80, 0.1)' : 'inherit'
-                              }}>
-                                <TableCell sx={{ fontWeight: 'medium' }}>Under {key}</TableCell>
-                                <TableCell>{total.under}</TableCell>
-                                <TableCell>{nvp.awayNVP || ''}</TableCell>
-                                <TableCell sx={{ color: 'success.main' }}>
-                                  {nvp.awayNVP && parseFloat(nvp.awayNVP) > parseFloat(total.under) ? 
-                                    `+${(parseFloat(nvp.awayNVP) - parseFloat(total.under)).toFixed(3)}` : 
-                                    nvp.awayNVP ? (parseFloat(nvp.awayNVP) - parseFloat(total.under)).toFixed(3) : ''}
-                                </TableCell>
-                              </TableRow>
-                            </React.Fragment>
-                          );
-                        })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            )}
-          </Box>
-        )}
-      </Box>
-    </Paper>
-  );
-};
 
 const AlertTable = () => {
   const [alerts, setAlerts] = useState([]);
@@ -703,65 +58,9 @@ const AlertTable = () => {
 
 
   // Calculate NVP for a specific alert
-  const calculateAlertNVP = async (alert) => {
-    try {
-      const response = await fetch(`https://swordfish-production.up.railway.app/events/${alert.eventId}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      const data = result.data;
-      
-      // Extract necessary data based on the line type
-      const period0 = data.periods?.num_0;
-      if (!period0) return null;
-      
-      let nvpValue = null;
-      
-      if (alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') {
-        const moneyline = period0.money_line || {};
-        if (moneyline.home && moneyline.draw && moneyline.away) {
-          const nvp = calculateThreeWayNVP(moneyline.home, moneyline.draw, moneyline.away);
-          
-          if (alert.outcome.toLowerCase().includes('home')) {
-            nvpValue = nvp.homeNVP;
-          } else if (alert.outcome.toLowerCase().includes('draw')) {
-            nvpValue = nvp.drawNVP;
-          } else {
-            nvpValue = nvp.awayNVP;
-          }
-        }
-      } 
-      else if (alert.lineType === 'SPREAD') {
-        const spreads = period0.spreads || {};
-        const points = alert.points || Object.keys(spreads)[0];
-        
-        if (spreads[points] && spreads[points].home && spreads[points].away) {
-          const nvp = calculateTwoWayNVP(spreads[points].home, spreads[points].away);
-          
-          nvpValue = alert.outcome.toLowerCase().includes('home') ? 
-            nvp.homeNVP : nvp.awayNVP;
-        }
-      }
-      else if (alert.lineType === 'TOTAL') {
-        const totals = period0.totals || {};
-        const points = alert.points || Object.keys(totals)[0];
-        
-        if (totals[points] && totals[points].over && totals[points].under) {
-          const nvp = calculateTwoWayNVP(totals[points].over, totals[points].under);
-          
-          nvpValue = alert.outcome.toLowerCase().includes('over') ? 
-            nvp.homeNVP : nvp.awayNVP;
-        }
-      }
-      
-      return nvpValue;
-    } catch (err) {
-      console.error('Error calculating NVP for alert:', err);
-      return null;
-    }
-  }, [addNVPToAlerts]);
+  const calculateSingleAlertNVP = async (alert) => {
+    return calculateAlertNVP(alert, calculateTwoWayNVP, calculateThreeWayNVP);
+  };
 
   // Schedule NVP refresh for a specific alert
   const scheduleNvpRefresh = (alert) => {
@@ -774,7 +73,7 @@ const AlertTable = () => {
     
     // Calcola immediatamente l'NVP per l'alert, indipendentemente dall'età
     const calculateNvpImmediately = async () => {
-      const newNvpValue = await calculateAlertNVP(alert);
+      const newNvpValue = await calculateSingleAlertNVP(alert);
       if (newNvpValue) {
         // Update the cache with the new value
         const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
@@ -834,90 +133,13 @@ const AlertTable = () => {
   };
 
   // New function to calculate and add NVP values to alerts
-  const addNVPToAlerts = useCallback(async (alertsList) => {
-    const uniqueEventIds = [...new Set(alertsList.map(alert => alert.eventId))];
-    const eventData = {};
-    const updatedNvpCache = { ...nvpCache };
-    
-    // Fetch all event data in parallel
-    await Promise.all(uniqueEventIds.map(async (eventId) => {
-      try {
-        const response = await fetch(`https://swordfish-production.up.railway.app/events/${eventId}`);
-        if (response.ok) {
-          const result = await response.json();
-          eventData[eventId] = result.data;
-        }
-      } catch (err) {
-        console.error(`Error fetching data for event ${eventId}:`, err);
-      }
-    }));
-    
-    // Calculate NVP for each alert
-    const alertsWithNVP = alertsList.map(alert => {
-      // Check if we already have the NVP value in cache
-      const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
-      if (updatedNvpCache[cacheKey]) {
-        return { ...alert, nvp: updatedNvpCache[cacheKey] };
-      }
-        
-      const data = eventData[alert.eventId];
-      if (!data) return { ...alert, nvp: null };
-        
-      // Aggiungi l'orario di inizio partita all'alert
-      const alertWithStarts = { 
-        ...alert, 
-        starts: data.starts 
-      };
-      
-      const period0 = data.periods?.num_0;
-      if (!period0) return { ...alertWithStarts, nvp: null };
-      
-      let nvpValue = null;
-      
-      if (alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') {
-        const moneyline = period0.money_line || {};
-        if (moneyline.home && moneyline.draw && moneyline.away) {
-          const nvp = calculateThreeWayNVP(moneyline.home, moneyline.draw, moneyline.away);
-          
-          if (alert.outcome.toLowerCase().includes('home')) {
-            nvpValue = nvp.homeNVP;
-          } else if (alert.outcome.toLowerCase().includes('draw')) {
-            nvpValue = nvp.drawNVP;
-          } else {
-            nvpValue = nvp.awayNVP;
-          }
-        }
-      } 
-      else if (alert.lineType === 'SPREAD') {
-        const spreads = period0.spreads || {};
-        const points = alert.points || Object.keys(spreads)[0];
-        
-        if (spreads[points] && spreads[points].home && spreads[points].away) {
-          const nvp = calculateTwoWayNVP(spreads[points].home, spreads[points].away);
-          
-          nvpValue = alert.outcome.toLowerCase().includes('home') ? 
-            nvp.homeNVP : nvp.awayNVP;
-        }
-      }
-      else if (alert.lineType === 'TOTAL') {
-        const totals = period0.totals || {};
-        const points = alert.points || Object.keys(totals)[0];
-        
-        if (totals[points] && totals[points].over && totals[points].under) {
-          const nvp = calculateTwoWayNVP(totals[points].over, totals[points].under);
-          
-          nvpValue = alert.outcome.toLowerCase().includes('over') ? 
-            nvp.homeNVP : nvp.awayNVP;
-        }
-      }
-      
-      // Save to cache
-      if (nvpValue) {
-        updatedNvpCache[cacheKey] = nvpValue;
-      }
-      
-      return { ...alertWithStarts, nvp: nvpValue };
-    });
+  const processAlertsWithNVP = useCallback(async (alertsList) => {
+    const { alertsWithNVP, updatedNvpCache } = await addNVPToAlerts(
+      alertsList, 
+      nvpCache, 
+      calculateTwoWayNVP, 
+      calculateThreeWayNVP
+    );
     
     // Update the NVP cache
     setNvpCache(updatedNvpCache);
@@ -985,6 +207,12 @@ const AlertTable = () => {
   };
 
 
+  // Sort alerts from newest to oldest by timestamp
+  const sortAlerts = useCallback((alerts) => 
+    [...alerts].sort((a, b) => 
+      parseInt(b.id.split('-')[0]) - parseInt(a.id.split('-')[0])
+    ), []);
+
   // Changed to Promise-based approach with useCallback
   const fetchAlerts = useCallback((cursor = null) => {
     setIsLoading(true);
@@ -1020,12 +248,6 @@ const AlertTable = () => {
             ...alert
           }));
           
-          // Sort alerts from newest to oldest by timestamp
-          const sortAlerts = (alerts) => 
-            [...alerts].sort((a, b) => 
-              parseInt(b.id.split('-')[0]) - parseInt(a.id.split('-')[0])
-            );
-          
           // ALWAYS append new alerts to existing ones, never replace
           setAlerts(prev => {
             // Create combined array with duplicates removed (based on ID)
@@ -1044,7 +266,7 @@ const AlertTable = () => {
             localStorage.setItem('alertCursor', maxTimestamp);
             
             // Calculate NVP values for new alerts
-            const newAlertsWithNVP = await addNVPToAlerts(alertsWithoutNoVig);
+            const newAlertsWithNVP = await processAlertsWithNVP(alertsWithoutNoVig);
             
             // Update alertsWithNVP state
             setAlertsWithNVP(prev => {
@@ -1066,7 +288,7 @@ const AlertTable = () => {
       console.error('Error:', err);
       setIsLoading(false);
     }
-  };
+  }, [latestCursor, processAlertsWithNVP, sortAlerts]);
 
   // Effetto per impostare lo stato iniziale di pausa
   useEffect(() => {
@@ -1138,29 +360,6 @@ const AlertTable = () => {
     return parseFloat(nvp) > parseFloat(currentOdds);
   };
   
-  // Function to get a color for diff value 
-  const getDiffColor = (diffValue) => {
-    if (!diffValue) return 'inherit';
-    const diff = parseFloat(diffValue);
-    
-    if (diff > 0.5) return 'success.main'; // Very good value
-    if (diff > 0.2) return 'success.light'; // Good value
-    if (diff > 0) return '#4caf50'; // Positive but small value
-    if (diff > -0.1) return 'text.primary'; // Negative but close to fair
-    return 'error.light'; // Bad value
-  };
-  
-  // Function to check if a match is within 24 hours
-  const isWithin24Hours = (timestamp) => {
-    if (!timestamp) return false;
-    
-    const matchTime = new Date(parseInt(timestamp));
-    const now = new Date();
-    const diffMs = matchTime - now;
-    const diffHours = diffMs / (1000 * 60 * 60);
-    
-    return diffHours >= 0 && diffHours <= 24;
-  };
 
   // Group alerts by eventId and line info
   const groupedAlerts = useMemo(() => {
