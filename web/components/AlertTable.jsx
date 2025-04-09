@@ -38,6 +38,11 @@ import EventOddsChart from './EventOddsChart';
 import { calculateTwoWayNVP, calculateThreeWayNVP } from './NVPCalculations';
 import { getDiffColor, isWithin24Hours, isPositiveEV, calculateAlertNVP, addNVPToAlerts, getEventData, sendAlertNotification } from './AlertUtils';
 
+import ReactDOM from 'react-dom';
+import html2canvas from 'html2canvas';
+
+
+
 const AlertTable = () => {
   const [alerts, setAlerts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,6 +66,69 @@ const AlertTable = () => {
     return savedCursor || null;
   });
   const timeoutRef = useRef(null);
+
+  const renderChartComponentToImage = async (eventId) => {
+    const container = document.createElement('div');
+    container.style.width = '400px';
+    container.style.height = '400px';
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '-9999px';
+    container.style.backgroundColor = '#fff';
+    document.body.appendChild(container);
+    
+    return new Promise((resolve, reject) => {
+      try {
+        // Renderizza il componente del grafico nel container
+        ReactDOM.render(
+          <EventOddsChart 
+            eventId={eventId}
+            onRenderComplete={() => {
+              setTimeout(async () => {
+                try {
+                  // Cattura l'immagine del grafico
+                  const canvas = await html2canvas(container, {
+                    backgroundColor: '#fff',
+                    scale: 2,
+                    logging: false,
+                    useCORS: true
+                  });
+                  
+                  // Pulizia
+                  ReactDOM.unmountComponentAtNode(container);
+                  document.body.removeChild(container);
+                  
+                  resolve(canvas);
+                } catch (error) {
+                  console.error('Errore durante la cattura del grafico:', error);
+                  ReactDOM.unmountComponentAtNode(container);
+                  document.body.removeChild(container);
+                  reject(error);
+                }
+              }, 1500); // Attendi che il grafico sia completamente renderizzato
+            }}
+          />,
+          container
+        );
+      } catch (error) {
+        console.error('Errore durante il rendering del grafico:', error);
+        if (document.body.contains(container)) {
+          ReactDOM.unmountComponentAtNode(container);
+          document.body.removeChild(container);
+        }
+        reject(error);
+      }
+    });
+  };
+
+  // Rendi la funzione disponibile globalmente
+  useEffect(() => {
+    window.renderChartForAlert = renderChartComponentToImage;
+    
+    return () => {
+      delete window.renderChartForAlert;
+    };
+  }, []);
 
   // Calculate NVP for a specific alert
   const calculateSingleAlertNVP = async (alert) => {

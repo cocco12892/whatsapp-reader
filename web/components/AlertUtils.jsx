@@ -1,17 +1,20 @@
-import React from 'react';
+// Modified version of AlertUtils.js with automatic chart sending
 
-// Cache per le notifiche inviate (persistente tra ricaricamenti della pagina)
+import React from 'react';
+import html2canvas from 'html2canvas'; // Make sure this is imported
+
+// Cache for sent notifications (persistent between page reloads)
 let sentNotificationsCache = {};
-// Cache per gli alert in attesa di calcolo NVP prima dell'invio
+// Cache for alerts waiting for NVP calculation before sending
 let pendingAlertNotifications = {};
 
-// Carica la cache delle notifiche dal localStorage all'avvio
+// Load notification cache from localStorage on startup
 try {
   const savedCache = localStorage.getItem('sentAlertNotificationsCache');
   if (savedCache) {
     sentNotificationsCache = JSON.parse(savedCache);
     
-    // Pulizia delle notifiche più vecchie di 24 ore
+    // Clean notifications older than 24 hours
     const now = Date.now();
     const oneDayMs = 24 * 60 * 60 * 1000;
     Object.keys(sentNotificationsCache).forEach(key => {
@@ -21,7 +24,7 @@ try {
     });
   }
 } catch (e) {
-  console.error('Errore nel caricamento della cache delle notifiche:', e);
+  console.error('Error loading notification cache:', e);
   sentNotificationsCache = {};
 }
 
@@ -54,7 +57,197 @@ export const isPositiveEV = (nvp, currentOdds) => {
   return parseFloat(nvp) > parseFloat(currentOdds);
 };
 
-// Calculate NVP for a specific alert
+// NEW FUNCTION: Send chart image for an alert
+const sendChartImageForAlert = async (alert, chatId) => {
+  try {
+    // Check if we've already sent a chart for this event in the last hour
+    const eventKey = `event_chart_${alert.eventId}`;
+    const now = Date.now();
+    const lastSentTime = sentNotificationsCache[eventKey] || 0;
+    const oneHourMs = 3600000; // 1 hour in milliseconds
+    
+    if (now - lastSentTime < oneHourMs) {
+      console.log(`Chart already sent for EventID ${alert.eventId} in the last hour (${Math.floor((now - lastSentTime) / 60000)} minutes ago)`);
+      return false;
+    }
+    
+    // Generate message for chart caption
+    const caption = `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
+                    `Market: ${alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line' ? 
+                      `MONEYLINE ${alert.outcome.toUpperCase()}` : 
+                      alert.lineType}`;
+    
+    console.log(`Generating chart for EventID ${alert.eventId}`);
+    
+    // Send chart image using existing function
+    const chartSent = await sendChartImage(alert.eventId, chatId, caption);
+    
+    if (chartSent) {
+      // Mark this chart as sent and save to localStorage
+      sentNotificationsCache[eventKey] = now;
+      localStorage.setItem('sentAlertNotificationsCache', JSON.stringify(sentNotificationsCache));
+      console.log(`Chart sent successfully for EventID ${alert.eventId}`);
+    }
+    
+    return chartSent;
+  } catch (error) {
+    console.error('Error sending chart for alert:', error);
+    return false;
+  }
+};
+
+// Cache for event data to avoid repeated calls
+const eventDataCache = {};
+const eventDataTimestamps = {};
+const pendingRequests = {};
+
+// Function to send a message
+const sendAlertMessage = async (alert, chatId) => {
+  try {
+    const eventKey = `event_${alert.eventId}`;
+    const now = Date.now();
+    
+    // Prepare message with required information
+    const message = `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
+                    `📈 *FROM*: ${alert.changeFrom}\n` +
+                    `📉 *TO*: ${alert.changeTo}\n` +
+                    `🔢 *NVP*: ${alert.nvp}\n` +
+                    `${alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line' ? 
+                      `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
+                      alert.lineType}`;
+    
+    // Send text message
+    const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: message
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error sending notification: ${response.statusText}`);
+    }
+    
+    // Mark this notification as sent and save to localStorage
+    sentNotificationsCache[eventKey] = now;
+    localStorage.setItem('sentAlertNotificationsCache', JSON.stringify(sentNotificationsCache));
+    
+    console.log(`Notification sent successfully for EventID ${alert.eventId}`);
+  } catch (error) {
+    console.error('Error sending notification:', error);
+  }
+};
+
+export const sendChartImage = async (eventId, chatId, message) => {
+  try {
+    // Verifica se la funzione renderChartForAlert è disponibile globalmente
+    if (typeof window.renderChartForAlert !== 'function') {
+      console.error('La funzione renderChartForAlert non è disponibile. Assicurati che AlertTable sia montato.');
+      
+      // Fallback: usa il metodo tradizionale della finestra
+      return sendChartImageFallback(eventId, chatId, message);
+    }
+    
+    console.log(`Generazione grafico per EventID ${eventId}`);
+    
+    // Usa la funzione globale per renderizzare il grafico
+    const chartCanvas = await window.renderChartForAlert(eventId);
+    
+    // Converti il canvas in un blob
+    const blob = await new Promise(resolve => chartCanvas.toBlob(resolve, 'image/png'));
+    
+    // Crea il FormData per inviare l'immagine
+    const formData = new FormData();
+    formData.append('image', blob, `chart-${eventId}-${Date.now()}.png`);
+    formData.append('caption', message);
+    
+    // Invia l'immagine alla chat
+    const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Errore nell'invio dell'immagine: ${response.statusText}`);
+    }
+    
+    console.log(`Immagine del grafico inviata con successo per EventID ${eventId}`);
+    return true;
+  } catch (error) {
+    console.error('Errore nell\'invio dell\'immagine del grafico:', error);
+    return false;
+  }
+};
+
+// Funzione di fallback che usa il metodo della finestra (come metodo alternativo)
+const sendChartImageFallback = async (eventId, chatId, message) => {
+  try {
+    // Apri una finestra nascosta con il grafico
+    const chartWindow = window.open('', '_blank', 'width=400,height=400,hidden=true');
+    if (!chartWindow) {
+      throw new Error('Impossibile aprire la finestra per il grafico');
+    }
+    
+    // Crea un elemento div per il grafico
+    chartWindow.document.body.innerHTML = `
+      <div id="chart-container" style="width:400px;height:400px;"></div>
+    `;
+    
+    // Aggiungi gli stili necessari
+    const styleElement = chartWindow.document.createElement('style');
+    styleElement.textContent = `
+      body { margin: 0; padding: 0; background-color: white; }
+      #chart-container { width: 400px; height: 400px; }
+    `;
+    chartWindow.document.head.appendChild(styleElement);
+    
+    // Attendi che il DOM sia pronto
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Cattura l'immagine del grafico
+    const chartElement = chartWindow.document.getElementById('chart-container');
+    const canvas = await html2canvas(chartElement, {
+      backgroundColor: '#fff',
+      scale: 2,
+      logging: false,
+      useCORS: true,
+      width: 400,
+      height: 400
+    });
+    
+    // Converti il canvas in un blob
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    
+    // Chiudi la finestra
+    chartWindow.close();
+    
+    // Crea un FormData per inviare l'immagine
+    const formData = new FormData();
+    formData.append('image', blob, `chart-${eventId}-${Date.now()}.png`);
+    formData.append('caption', message);
+    
+    // Invia l'immagine alla chat
+    const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Errore nell'invio dell'immagine: ${response.statusText}`);
+    }
+    
+    console.log(`Immagine del grafico inviata con successo`);
+    return true;
+  } catch (error) {
+    console.error('Errore nell\'invio dell\'immagine del grafico:', error);
+    return false;
+  }
+};
+
+// Modifica calculateAlertNVP per inviare automaticamente anche il grafico
 export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThreeWayNVP) => {
   try {
     // Usa la funzione getEventData per ottenere i dati dell'evento con cache
@@ -130,9 +323,29 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
         // Crea una copia dell'alert con il valore NVP
         const alertWithNVP = { ...alert, nvp: nvpValue };
     
-        // Invia la notifica solo dopo aver calcolato il valore NVP
-        // Utilizziamo await per assicurarci che la notifica venga inviata prima di continuare
-        await sendAlertNotification(alertWithNVP, "120363401713435750@g.us");
+        // Invia la notifica di testo
+        const notificationSent = await sendAlertNotification(alertWithNVP, "120363401713435750@g.us");
+        
+        // Se la notifica di testo è stata inviata con successo, invia anche il grafico
+        if (notificationSent) {
+          // Aggiungi un piccolo ritardo per assicurarti che il messaggio di testo venga inviato prima
+          setTimeout(async () => {
+            try {
+              // Prepara il messaggio per la didascalia del grafico
+              const chartCaption = `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
+                                  `Market: ${alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line' ? 
+                                    `MONEYLINE ${alert.outcome.toUpperCase()}` : 
+                                    alert.lineType}`;
+              
+              console.log(`Invio grafico per EventID ${alert.eventId}`);
+              
+              // Invia l'immagine del grafico usando la funzione esistente
+              await sendChartImage(alert.eventId, "120363401713435750@g.us", chartCaption);
+            } catch (err) {
+              console.error('Errore durante l\'invio del grafico:', err);
+            }
+          }, 1500); // Attendi 1.5 secondi prima di inviare il grafico
+        }
       } else {
         console.log(`Alert non inviato per EventID ${alert.eventId}: la partita è tra più di un giorno (${new Date(matchTime).toLocaleString()})`);
       }
@@ -145,138 +358,27 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
   }
 };
 
-// Cache globale per i dati degli eventi per evitare chiamate ripetute
-const eventDataCache = {};
-const eventDataTimestamps = {};
-const pendingRequests = {};
-
-
-// Funzione interna per inviare effettivamente il messaggio
-const sendAlertMessage = async (alert, chatId) => {
-  try {
-    const eventKey = `event_${alert.eventId}`;
-    const now = Date.now();
-    
-    // Prepara il messaggio con le informazioni richieste
-    const message = `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
-                    `📈 *FROM*: ${alert.changeFrom}\n` +
-                    `📉 *TO*: ${alert.changeTo}\n` +
-                    `🔢 *NVP*: ${alert.nvp}\n` +
-                    `${alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line' ? 
-                      `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
-                      alert.lineType}`;
-    
-    // Invia il messaggio di testo
-    const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        content: message
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Errore nell'invio della notifica: ${response.statusText}`);
-    }
-    
-    // Segna questa notifica come inviata e salva nel localStorage
-    sentNotificationsCache[eventKey] = now;
-    localStorage.setItem('sentAlertNotificationsCache', JSON.stringify(sentNotificationsCache));
-    
-    console.log(`Notifica inviata con successo per l'EventID ${alert.eventId}`);
-  } catch (error) {
-    console.error('Errore nell\'invio della notifica:', error);
-  }
-};
-
-// Funzione per inviare un'immagine del grafico reale
-export const sendChartImage = async (eventId, chatId, message) => {
-  try {
-    // Apri una finestra nascosta con il grafico
-    const chartWindow = window.open('', '_blank', 'width=400,height=400,hidden=true');
-    if (!chartWindow) {
-      throw new Error('Impossibile aprire la finestra per il grafico');
-    }
-    
-    // Crea un elemento div per il grafico
-    chartWindow.document.body.innerHTML = `
-      <div id="chart-container" style="width:400px;height:400px;"></div>
-    `;
-    
-    // Aggiungi gli stili necessari
-    const styleElement = chartWindow.document.createElement('style');
-    styleElement.textContent = `
-      body { margin: 0; padding: 0; background-color: white; }
-      #chart-container { width: 400px; height: 400px; }
-    `;
-    chartWindow.document.head.appendChild(styleElement);
-    
-    // Attendi che il DOM sia pronto
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Cattura l'immagine del grafico
-    const chartElement = chartWindow.document.getElementById('chart-container');
-    const canvas = await html2canvas(chartElement, {
-      backgroundColor: '#fff',
-      scale: 2,
-      logging: false,
-      useCORS: true,
-      width: 400,
-      height: 400
-    });
-    
-    // Converti il canvas in un blob
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-    
-    // Chiudi la finestra
-    chartWindow.close();
-    
-    // Crea un FormData per inviare l'immagine
-    const formData = new FormData();
-    formData.append('image', blob, `chart-${eventId}-${Date.now()}.png`);
-    formData.append('caption', message);
-    
-    // Invia l'immagine alla chat
-    const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Errore nell'invio dell'immagine: ${response.statusText}`);
-    }
-    
-    console.log(`Immagine del grafico inviata con successo`);
-    return true;
-  } catch (error) {
-    console.error('Errore nell\'invio dell\'immagine del grafico:', error);
-    return false;
-  }
-};
-
-// Funzione per inviare una notifica di alert alla chat specificata
+// Function to send alert notification to specified chat
 export const sendAlertNotification = async (alert, chatId) => {
   try {
-    // Verifica se abbiamo già inviato una notifica per questo EventID nell'ultima ora
+    // Check if we've already sent a notification for this EventID in the last hour
     const eventKey = `event_${alert.eventId}`;
     const now = Date.now();
     const lastSentTime = sentNotificationsCache[eventKey] || 0;
-    const oneHourMs = 3600000; // 1 ora in millisecondi
+    const oneHourMs = 3600000; // 1 hour in milliseconds
     
     if (now - lastSentTime < oneHourMs) {
-      console.log(`Notifica già inviata per l'EventID ${alert.eventId} nell'ultima ora (${Math.floor((now - lastSentTime) / 60000)} minuti fa)`);
+      console.log(`Notification already sent for EventID ${alert.eventId} in the last hour (${Math.floor((now - lastSentTime) / 60000)} minutes ago)`);
       return false;
     }
     
-    // Verifica che l'alert abbia un valore NVP
+    // Check that the alert has an NVP value
     if (!alert.nvp) {
-      console.log(`Alert ${alert.id} non ha un valore NVP, non invio notifica`);
+      console.log(`Alert ${alert.id} has no NVP value, not sending notification`);
       return false;
     }
     
-    // Prepara il messaggio con le informazioni richieste
+    // Prepare message with required information
     const message = `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
                     `📈 *FROM*: ${alert.changeFrom}\n` +
                     `📉 *TO*: ${alert.changeTo}\n` +
@@ -285,10 +387,10 @@ export const sendAlertNotification = async (alert, chatId) => {
                       `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
                       alert.lineType}`;
     
-    // Aggiungiamo un ritardo di 500ms tra le richieste per evitare problemi di rate limiting
+    // Add a 500ms delay between requests to avoid rate limiting
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Invia il messaggio di testo
+    // Send text message
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
       method: 'POST',
       headers: {
@@ -300,43 +402,43 @@ export const sendAlertNotification = async (alert, chatId) => {
     });
     
     if (!response.ok) {
-      throw new Error(`Errore nell'invio della notifica: ${response.statusText}`);
+      throw new Error(`Error sending notification: ${response.statusText}`);
     }
     
-    // Segna questa notifica come inviata e salva nel localStorage
+    // Mark this notification as sent and save to localStorage
     sentNotificationsCache[eventKey] = now;
     localStorage.setItem('sentAlertNotificationsCache', JSON.stringify(sentNotificationsCache));
     
-    console.log(`Notifica inviata con successo per l'EventID ${alert.eventId}`);
+    console.log(`Notification sent successfully for EventID ${alert.eventId}`);
     return true;
   } catch (error) {
-    console.error('Errore nell\'invio della notifica:', error);
+    console.error('Error sending notification:', error);
     return false;
   }
 };
 
-// Funzione per ottenere i dati dell'evento con cache e deduplicazione delle richieste
+// Function to get event data with cache and request deduplication
 export const getEventData = async (eventId) => {
-  // Se abbiamo già una richiesta in corso per questo evento, attendiamo quella invece di farne una nuova
+  // If we already have a pending request for this event, wait for that instead of making a new one
   if (pendingRequests[eventId]) {
     return pendingRequests[eventId];
   }
   
-  // Controlla se abbiamo dati in cache e se sono ancora validi (meno di 5 minuti)
+  // Check if we have cached data and if it's still valid (less than 5 minutes old)
   const now = Date.now();
   if (eventDataCache[eventId] && eventDataTimestamps[eventId] && 
       (now - eventDataTimestamps[eventId] < 5 * 60 * 1000)) {
     return eventDataCache[eventId];
   }
   
-  // Crea una nuova promessa per questa richiesta
+  // Create a new promise for this request
   pendingRequests[eventId] = new Promise(async (resolve, reject) => {
     try {
       console.log(`Fetching event data for ${eventId}`);
       const response = await fetch(`https://swordfish-production.up.railway.app/events/${eventId}`);
       if (response.ok) {
         const result = await response.json();
-        // Salva i dati nella cache
+        // Save data in cache
         eventDataCache[eventId] = result.data;
         eventDataTimestamps[eventId] = now;
         resolve(result.data);
@@ -347,7 +449,7 @@ export const getEventData = async (eventId) => {
       console.error(`Error fetching data for event ${eventId}:`, err);
       reject(err);
     } finally {
-      // Rimuovi questa richiesta dall'elenco delle richieste in corso
+      // Remove this request from the list of pending requests
       delete pendingRequests[eventId];
     }
   });
@@ -355,15 +457,15 @@ export const getEventData = async (eventId) => {
   return pendingRequests[eventId];
 };
 
-// Add NVP values to alerts - ottimizzato per ridurre le chiamate API
+// Add NVP values to alerts - optimized to reduce API calls
 export const addNVPToAlerts = async (alertsList, nvpCache, calculateTwoWayNVP, calculateThreeWayNVP) => {
-  // Filtra gli alert che non hanno già un valore NVP nella cache
+  // Filter alerts that don't already have an NVP value in the cache
   const alertsNeedingNVP = alertsList.filter(alert => {
     const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
     return !nvpCache[cacheKey];
   });
   
-  // Se tutti gli alert hanno già un valore NVP nella cache, restituisci subito
+  // If all alerts already have NVP values in the cache, return immediately
   if (alertsNeedingNVP.length === 0) {
     const alertsWithCachedNVP = alertsList.map(alert => {
       const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
@@ -372,13 +474,13 @@ export const addNVPToAlerts = async (alertsList, nvpCache, calculateTwoWayNVP, c
     return { alertsWithNVP: alertsWithCachedNVP, updatedNvpCache: nvpCache };
   }
   
-  // Ottieni solo gli ID evento unici per gli alert che necessitano di NVP
+  // Get only unique event IDs for alerts that need NVP
   const uniqueEventIds = [...new Set(alertsNeedingNVP.map(alert => alert.eventId))];
   const eventData = {};
   const updatedNvpCache = { ...nvpCache };
   
-  // Fetch all event data in parallel, ma solo per gli eventi necessari
-  // Usa la funzione getEventData per sfruttare la cache e deduplicare le richieste
+  // Fetch all event data in parallel, but only for necessary events
+  // Use getEventData to leverage cache and deduplicate requests
   await Promise.all(uniqueEventIds.map(async (eventId) => {
     try {
       const data = await getEventData(eventId);
@@ -399,7 +501,7 @@ export const addNVPToAlerts = async (alertsList, nvpCache, calculateTwoWayNVP, c
     const data = eventData[alert.eventId];
     if (!data) return { ...alert, nvp: null };
       
-    // Aggiungi l'orario di inizio partita all'alert
+    // Add match start time to alert
     const alertWithStarts = { 
       ...alert, 
       starts: data.starts 
