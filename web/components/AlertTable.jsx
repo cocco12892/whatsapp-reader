@@ -70,7 +70,7 @@ const calculateNVPValues = (odds, tolerance = 0.0001, maxIterations = 100) => {
     }, {}),
     rawProbabilities: probabilities,
     margin: margin * 100 // Convert to percentage
-  }, [addNVPToAlerts]);
+  };
 };
 
 const powerMethod = (probabilities, tolerance, maxIterations) => {
