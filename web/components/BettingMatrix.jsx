@@ -191,7 +191,7 @@ const BettingMatrix = ({ data, onClose }) => {
               </Typography>
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
-                <TableHead>
+                  <TableHead>
                   <TableRow sx={{ bgcolor: 'background.default' }}>
                     <TableCell>Outcome</TableCell>
                     <TableCell>Current</TableCell>
@@ -248,7 +248,7 @@ const BettingMatrix = ({ data, onClose }) => {
             </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
-              <TableHead>
+                <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
                   <TableCell>Line</TableCell>
                   <TableCell>Outcome</TableCell>
@@ -303,7 +303,7 @@ const BettingMatrix = ({ data, onClose }) => {
             </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
-              <TableHead>
+                <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
                   <TableCell>Line</TableCell>
                   <TableCell>Outcome</TableCell>
