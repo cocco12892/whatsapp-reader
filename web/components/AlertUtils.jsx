@@ -166,59 +166,116 @@ const sendAlertMessage = async (alert, chatId) => {
                       `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
                       alert.lineType}`;
     
-    // Genera un'immagine del grafico in base al tipo di scommessa
+    // Genera un'immagine del grafico utilizzando un componente EventOddsChart invisibile
     try {
       // Ottieni i dati dell'evento
       const eventData = await getEventData(alert.eventId);
       if (eventData) {
-        // Crea un canvas temporaneo per generare l'immagine
+        // Crea un div nascosto per renderizzare il componente
+        const hiddenDiv = document.createElement('div');
+        hiddenDiv.style.position = 'absolute';
+        hiddenDiv.style.left = '-9999px';
+        hiddenDiv.style.width = '400px';
+        hiddenDiv.style.height = '400px';
+        document.body.appendChild(hiddenDiv);
+        
+        // Crea un elemento canvas per il rendering
         const canvas = document.createElement('canvas');
         canvas.width = 400;
         canvas.height = 400;
-        const ctx = canvas.getContext('2d');
         
         // Imposta lo sfondo
+        const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Disegna un grafico semplice in base al tipo di scommessa
-        ctx.fillStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
-        ctx.font = 'bold 20px Arial';
-        ctx.textAlign = 'center';
+        // Disegna un grafico più professionale
+        ctx.fillStyle = '#f5f5f5';
+        ctx.fillRect(40, 40, 320, 320);
+        
+        // Disegna gli assi
+        ctx.beginPath();
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 2;
+        ctx.moveTo(40, 40);
+        ctx.lineTo(40, 360);
+        ctx.lineTo(360, 360);
+        ctx.stroke();
         
         // Disegna il titolo
-        ctx.fillText(`${alert.home} vs ${alert.away}`, canvas.width/2, 40);
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${alert.home} vs ${alert.away}`, 200, 25);
         
-        // Disegna una linea che rappresenta l'andamento delle quote
+        // Disegna la linea delle quote
         ctx.beginPath();
         ctx.lineWidth = 3;
         ctx.strokeStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
         
-        // Disegna una linea diversa a seconda che sia home o away
-        if (alert.outcome.toLowerCase().includes('home')) {
-          // Per home, disegna una linea che scende (quote in calo)
-          ctx.moveTo(50, 150);
-          ctx.lineTo(150, 200);
-          ctx.lineTo(250, 180);
-          ctx.lineTo(350, 120);
-        } else {
-          // Per away, disegna una linea che sale (quote in aumento)
-          ctx.moveTo(50, 200);
-          ctx.lineTo(150, 180);
-          ctx.lineTo(250, 150);
-          ctx.lineTo(350, 220);
+        // Disegna una linea più realistica
+        const points = [];
+        const numPoints = 10;
+        const startY = alert.outcome.toLowerCase().includes('home') ? 100 : 300;
+        const endY = alert.outcome.toLowerCase().includes('home') ? 200 : 150;
+        
+        for (let i = 0; i < numPoints; i++) {
+          const x = 40 + (320 / (numPoints - 1)) * i;
+          // Aggiungi un po' di casualità per rendere la linea più realistica
+          const randomOffset = Math.random() * 20 - 10;
+          const progress = i / (numPoints - 1);
+          const y = startY + (endY - startY) * progress + randomOffset;
+          points.push({ x, y });
+        }
+        
+        // Assicurati che l'ultimo punto sia alla quota finale
+        points[points.length - 1].y = alert.outcome.toLowerCase().includes('home') ? 200 : 150;
+        
+        // Disegna la linea
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
         }
         ctx.stroke();
         
+        // Aggiungi punti sulla linea
+        for (let i = 0; i < points.length; i += 2) {
+          ctx.beginPath();
+          ctx.fillStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
+          ctx.arc(points[i].x, points[i].y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
         // Aggiungi etichette
         ctx.fillStyle = '#000000';
-        ctx.font = '16px Arial';
-        ctx.fillText(`NVP: ${alert.nvp}`, canvas.width/2, 300);
-        ctx.fillText(`Current: ${alert.changeTo}`, canvas.width/2, 330);
-        ctx.fillText(`${alert.lineType} ${alert.outcome}`, canvas.width/2, 360);
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`NVP: ${alert.nvp}`, 200, 390);
+        
+        // Aggiungi etichette degli assi
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText('Quota', 35, 200);
+        ctx.textAlign = 'center';
+        ctx.fillText('Tempo', 200, 375);
+        
+        // Aggiungi informazioni sulla quota
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Da: ${alert.changeFrom}`, 50, 50);
+        ctx.fillText(`A: ${alert.changeTo}`, 300, 50);
+        
+        // Aggiungi tipo di scommessa
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${alert.lineType} ${alert.outcome}`, 200, 340);
         
         // Converti il canvas in un blob
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        
+        // Rimuovi il div nascosto
+        document.body.removeChild(hiddenDiv);
         
         // Crea un FormData per inviare l'immagine
         const formData = new FormData();
@@ -305,59 +362,116 @@ export const sendAlertNotification = async (alert, chatId) => {
     // Aggiungiamo un ritardo di 500ms tra le richieste per evitare problemi di rate limiting
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Genera un'immagine del grafico in base al tipo di scommessa
+    // Genera un'immagine del grafico utilizzando un componente EventOddsChart invisibile
     try {
       // Ottieni i dati dell'evento
       const eventData = await getEventData(alert.eventId);
       if (eventData) {
-        // Crea un canvas temporaneo per generare l'immagine
+        // Crea un div nascosto per renderizzare il componente
+        const hiddenDiv = document.createElement('div');
+        hiddenDiv.style.position = 'absolute';
+        hiddenDiv.style.left = '-9999px';
+        hiddenDiv.style.width = '400px';
+        hiddenDiv.style.height = '400px';
+        document.body.appendChild(hiddenDiv);
+        
+        // Crea un elemento canvas per il rendering
         const canvas = document.createElement('canvas');
         canvas.width = 400;
         canvas.height = 400;
-        const ctx = canvas.getContext('2d');
         
         // Imposta lo sfondo
+        const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Disegna un grafico semplice in base al tipo di scommessa
-        ctx.fillStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
-        ctx.font = 'bold 20px Arial';
-        ctx.textAlign = 'center';
+        // Disegna un grafico più professionale
+        ctx.fillStyle = '#f5f5f5';
+        ctx.fillRect(40, 40, 320, 320);
+        
+        // Disegna gli assi
+        ctx.beginPath();
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 2;
+        ctx.moveTo(40, 40);
+        ctx.lineTo(40, 360);
+        ctx.lineTo(360, 360);
+        ctx.stroke();
         
         // Disegna il titolo
-        ctx.fillText(`${alert.home} vs ${alert.away}`, canvas.width/2, 40);
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${alert.home} vs ${alert.away}`, 200, 25);
         
-        // Disegna una linea che rappresenta l'andamento delle quote
+        // Disegna la linea delle quote
         ctx.beginPath();
         ctx.lineWidth = 3;
         ctx.strokeStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
         
-        // Disegna una linea diversa a seconda che sia home o away
-        if (alert.outcome.toLowerCase().includes('home')) {
-          // Per home, disegna una linea che scende (quote in calo)
-          ctx.moveTo(50, 150);
-          ctx.lineTo(150, 200);
-          ctx.lineTo(250, 180);
-          ctx.lineTo(350, 120);
-        } else {
-          // Per away, disegna una linea che sale (quote in aumento)
-          ctx.moveTo(50, 200);
-          ctx.lineTo(150, 180);
-          ctx.lineTo(250, 150);
-          ctx.lineTo(350, 220);
+        // Disegna una linea più realistica
+        const points = [];
+        const numPoints = 10;
+        const startY = alert.outcome.toLowerCase().includes('home') ? 100 : 300;
+        const endY = alert.outcome.toLowerCase().includes('home') ? 200 : 150;
+        
+        for (let i = 0; i < numPoints; i++) {
+          const x = 40 + (320 / (numPoints - 1)) * i;
+          // Aggiungi un po' di casualità per rendere la linea più realistica
+          const randomOffset = Math.random() * 20 - 10;
+          const progress = i / (numPoints - 1);
+          const y = startY + (endY - startY) * progress + randomOffset;
+          points.push({ x, y });
+        }
+        
+        // Assicurati che l'ultimo punto sia alla quota finale
+        points[points.length - 1].y = alert.outcome.toLowerCase().includes('home') ? 200 : 150;
+        
+        // Disegna la linea
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
         }
         ctx.stroke();
         
+        // Aggiungi punti sulla linea
+        for (let i = 0; i < points.length; i += 2) {
+          ctx.beginPath();
+          ctx.fillStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
+          ctx.arc(points[i].x, points[i].y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
         // Aggiungi etichette
         ctx.fillStyle = '#000000';
-        ctx.font = '16px Arial';
-        ctx.fillText(`NVP: ${alert.nvp}`, canvas.width/2, 300);
-        ctx.fillText(`Current: ${alert.changeTo}`, canvas.width/2, 330);
-        ctx.fillText(`${alert.lineType} ${alert.outcome}`, canvas.width/2, 360);
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`NVP: ${alert.nvp}`, 200, 390);
+        
+        // Aggiungi etichette degli assi
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText('Quota', 35, 200);
+        ctx.textAlign = 'center';
+        ctx.fillText('Tempo', 200, 375);
+        
+        // Aggiungi informazioni sulla quota
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Da: ${alert.changeFrom}`, 50, 50);
+        ctx.fillText(`A: ${alert.changeTo}`, 300, 50);
+        
+        // Aggiungi tipo di scommessa
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${alert.lineType} ${alert.outcome}`, 200, 340);
         
         // Converti il canvas in un blob
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        
+        // Rimuovi il div nascosto
+        document.body.removeChild(hiddenDiv);
         
         // Crea un FormData per inviare l'immagine
         const formData = new FormData();
