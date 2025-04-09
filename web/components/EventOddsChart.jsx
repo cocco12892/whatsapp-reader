@@ -339,19 +339,39 @@ const EventOddsChart = ({ eventId }) => {
         changeTo: data.length > 0 ? data[data.length - 1].odds.toFixed(2) : "N/A",
         nvp: data.length > 0 ? data[data.length - 1].odds.toFixed(3) : "N/A",
         lineType: selectedMarket.toUpperCase(),
-        outcome: selectedOption.split('-')[0]
+        outcome: selectedOption.includes('-') ? selectedOption.split('-')[0] : selectedOption
       };
       
-      // Invia l'alert alla chat di gruppo predefinita
+      // Invia direttamente il messaggio alla chat senza passare per sendAlertNotification
       const chatId = "120363401713435750@g.us";
-      const success = await sendAlertNotification(alertData, chatId);
       
-      if (success) {
-        setAlertSent(true);
-        setTimeout(() => setAlertSent(false), 3000);
-      } else {
-        throw new Error("Invio non riuscito");
+      // Prepara il messaggio con le informazioni richieste
+      const message = `📊 *MATCH*: ${alertData.home} vs ${alertData.away}\n` +
+                      `📈 *FROM*: ${alertData.changeFrom}\n` +
+                      `📉 *TO*: ${alertData.changeTo}\n` +
+                      `🔢 *NVP*: ${alertData.nvp}\n` +
+                      `${alertData.lineType === 'MONEYLINE' ? 
+                        `*MONEYLINE ${alertData.outcome.toUpperCase()}*` : 
+                        alertData.lineType}`;
+      
+      // Invia il messaggio direttamente alla chat
+      const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: message
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Errore nell'invio: ${response.statusText}`);
       }
+      
+      console.log('Alert inviato con successo:', message);
+      setAlertSent(true);
+      setTimeout(() => setAlertSent(false), 3000);
     } catch (error) {
       console.error("Errore nell'invio dell'alert:", error);
       setAlertError("Errore nell'invio dell'alert: " + (error.message || "Errore sconosciuto"));
