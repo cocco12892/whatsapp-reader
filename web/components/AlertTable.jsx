@@ -314,12 +314,18 @@ const AlertTable = () => {
       if (updatedNvpCache[cacheKey]) {
         return { ...alert, nvp: updatedNvpCache[cacheKey] };
       }
-      
+        
       const data = eventData[alert.eventId];
       if (!data) return { ...alert, nvp: null };
+        
+      // Aggiungi l'orario di inizio partita all'alert
+      const alertWithStarts = { 
+        ...alert, 
+        starts: data.starts 
+      };
       
       const period0 = data.periods?.num_0;
-      if (!period0) return { ...alert, nvp: null };
+      if (!period0) return { ...alertWithStarts, nvp: null };
       
       let nvpValue = null;
       
@@ -365,7 +371,7 @@ const AlertTable = () => {
         updatedNvpCache[cacheKey] = nvpValue;
       }
       
-      return { ...alert, nvp: nvpValue };
+      return { ...alertWithStarts, nvp: nvpValue };
     });
     
     // Update the NVP cache
@@ -1180,7 +1186,16 @@ const AlertTable = () => {
                         onClick={() => toggleGroup(`${group.eventId}-${group.lineInfo}`)}
                         sx={{ cursor: 'pointer' }}
                       >
-                        <TableCell>{group.match}</TableCell>
+                        <TableCell>
+                          <Box>
+                            <Typography variant="body2">{group.match}</Typography>
+                            {latestAlert.starts && (
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(latestAlert.starts).toLocaleString()}
+                              </Typography>
+                            )}
+                          </Box>
+                        </TableCell>
                         <TableCell>{group.league}</TableCell>
                         <TableCell>{group.lineInfo}</TableCell>
                         <TableCell>{latestAlert.id.split('-')[0]}</TableCell>
