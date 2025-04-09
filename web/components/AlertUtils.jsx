@@ -115,6 +115,16 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
       const matchTime = parseInt(alert.starts);
       const oneDayMs = 24 * 60 * 60 * 1000; // 24 ore in millisecondi
   
+      // Verifica se l'alert è più vecchio di 2 minuti
+      const alertTimestamp = parseInt(alert.id.split('-')[0]);
+      const twoMinutesMs = 2 * 60 * 1000; // 2 minuti in millisecondi
+      const isAlertTooOld = now - alertTimestamp > twoMinutesMs;
+  
+      if (isAlertTooOld) {
+        console.log(`Alert non inviato per EventID ${alert.eventId}: l'alert è più vecchio di 2 minuti (${new Date(alertTimestamp).toLocaleString()})`);
+        return nvpValue;
+      }
+  
       // Invia la notifica solo se la partita è entro le prossime 24 ore
       if (!matchTime || (matchTime - now <= oneDayMs)) {
         // Crea una copia dell'alert con il valore NVP
