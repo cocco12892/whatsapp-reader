@@ -288,13 +288,7 @@ export const sendAlertNotification = async (alert, chatId) => {
     // Aggiungiamo un ritardo di 500ms tra le richieste per evitare problemi di rate limiting
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Invia direttamente il messaggio di testo senza immagine
-    try {
-      // Invia solo il messaggio di testo
-        
-        // Invia il messaggio di testo
-    
-    // Fallback: invia solo il messaggio di testo se la generazione dell'immagine fallisce
+    // Invia il messaggio di testo
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
       method: 'POST',
       headers: {
