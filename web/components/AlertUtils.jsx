@@ -158,12 +158,14 @@ const sendAlertMessage = async (alert, chatId) => {
     const now = Date.now();
     
     // Prepara il messaggio con le informazioni richieste
-    const message = `🚨 *ALERT NoVig*\n\n` +
-                    `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
+    const message = `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
                     `📈 *FROM*: ${alert.changeFrom}\n` +
                     `📉 *TO*: ${alert.changeTo}\n` +
                     `🔢 *NVP*: ${alert.nvp}\n` +
-                    `🆔 *EventID*: ${alert.eventId}`;
+                    `🆔 *EventID*: ${alert.eventId}\n` +
+                    `${alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line' ? 
+                      `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
+                      alert.lineType}`;
     
     // Invia il messaggio alla chat
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
@@ -211,12 +213,14 @@ export const sendAlertNotification = async (alert, chatId) => {
     }
     
     // Prepara il messaggio con le informazioni richieste
-    const message = `🚨 *ALERT NoVig*\n\n` +
-                    `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
+    const message = `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
                     `📈 *FROM*: ${alert.changeFrom}\n` +
                     `📉 *TO*: ${alert.changeTo}\n` +
                     `🔢 *NVP*: ${alert.nvp}\n` +
-                    `🆔 *EventID*: ${alert.eventId}`;
+                    `🆔 *EventID*: ${alert.eventId}\n` +
+                    `${alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line' ? 
+                      `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
+                      alert.lineType}`;
     
     // Aggiungiamo un ritardo di 500ms tra le richieste per evitare problemi di rate limiting
     await new Promise(resolve => setTimeout(resolve, 500));
