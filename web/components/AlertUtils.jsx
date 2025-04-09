@@ -166,13 +166,7 @@ const sendAlertMessage = async (alert, chatId) => {
                       `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
                       alert.lineType}`;
     
-    // Invia direttamente il messaggio di testo senza immagine
-    try {
-      // Invia solo il messaggio di testo
-        
-        // Invia il messaggio di testo
-    
-    // Fallback: invia solo il messaggio di testo se la generazione dell'immagine fallisce
+    // Invia il messaggio di testo
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
       method: 'POST',
       headers: {
