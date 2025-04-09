@@ -304,7 +304,7 @@ const AlertTable = () => {
                       (alert.outcome.toLowerCase().includes('home') || alert.outcome.toLowerCase().includes('away'))) {
                     
                     // Metti in coda l'alert - verrà inviato solo dopo il calcolo del NVP
-                    queueAlertNotification(alert, "120363401713435750@g.us");
+                    sendAlertNotification(alert, "120363401713435750@g.us");
                   }
                 });
                 
