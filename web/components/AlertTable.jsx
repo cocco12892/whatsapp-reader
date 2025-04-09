@@ -61,7 +61,7 @@ const AlertTable = () => {
     return calculateAlertNVP(alert, calculateTwoWayNVP, calculateThreeWayNVP);
   };
 
-  // Schedule NVP refresh for a specific alert
+  // Schedule NVP refresh for a specific alert - ottimizzato per ridurre le chiamate API
   const scheduleNvpRefresh = (alert) => {
     const alertId = alert.id;
     const alertTimestamp = parseInt(alertId.split('-')[0]);
@@ -70,12 +70,32 @@ const AlertTable = () => {
     // Calculate how long ago the alert was created
     const alertAge = currentTime - alertTimestamp;
     
-    // Calcola immediatamente l'NVP per l'alert, indipendentemente dall'età
-    const calculateNvpImmediately = async () => {
+    // Calcola l'NVP per l'alert solo se non è già presente nella cache
+    const calculateNvpIfNeeded = async () => {
+      const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
+      
+      // Se il valore è già nella cache, non ricalcolare
+      if (nvpCache[cacheKey]) {
+        // Aggiorna solo lo stato con il valore dalla cache
+        setAlertsWithNVP(prev => {
+          const alertExists = prev.some(a => a.id === alertId);
+          if (!alertExists) {
+            return [...prev, { ...alert, nvp: nvpCache[cacheKey] }];
+          }
+          return prev.map(a => {
+            if (a.id === alertId && !a.nvp) {
+              return { ...a, nvp: nvpCache[cacheKey] };
+            }
+            return a;
+          });
+        });
+        return;
+      }
+      
+      // Calcola solo se non è nella cache
       const newNvpValue = await calculateSingleAlertNVP(alert);
       if (newNvpValue) {
         // Update the cache with the new value
-        const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
         setNvpCache(prev => ({
           ...prev,
           [cacheKey]: newNvpValue
@@ -83,6 +103,10 @@ const AlertTable = () => {
         
         // Update the alertsWithNVP state
         setAlertsWithNVP(prev => {
+          const alertExists = prev.some(a => a.id === alertId);
+          if (!alertExists) {
+            return [...prev, { ...alert, nvp: newNvpValue }];
+          }
           return prev.map(a => {
             if (a.id === alertId) {
               return { ...a, nvp: newNvpValue };
@@ -93,17 +117,13 @@ const AlertTable = () => {
       }
     };
     
-    // Calcola l'NVP immediatamente
-    calculateNvpImmediately();
+    // Calcola l'NVP solo se necessario
+    calculateNvpIfNeeded();
     
     // Only schedule refresh if the alert is less than 60 seconds old
-    if (alertAge < 60000) {
-      // Clear any existing timer for this alert
-      if (nvpRefreshTimers[alertId]) {
-        clearTimeout(nvpRefreshTimers[alertId]);
-      }
-      
-      // Schedule a refresh every 10 seconds until the alert is 60 seconds old
+    // e solo se non è già in corso un timer per questo alert
+    if (alertAge < 60000 && !nvpRefreshTimers[alertId]) {
+      // Schedule a refresh every 20 seconds until the alert is 60 seconds old
       const refreshTimer = setInterval(async () => {
         const newCurrentTime = Date.now();
         const newAlertAge = newCurrentTime - alertTimestamp;
@@ -120,8 +140,8 @@ const AlertTable = () => {
         }
         
         // Recalculate NVP
-        calculateNvpImmediately();
-      }, 10000); // Refresh every 10 seconds
+        calculateNvpIfNeeded();
+      }, 20000); // Refresh every 20 seconds invece di 10
       
       // Save the timer reference
       setNvpRefreshTimers(prev => ({
@@ -212,8 +232,11 @@ const AlertTable = () => {
       parseInt(b.id.split('-')[0]) - parseInt(a.id.split('-')[0])
     ), []);
 
-  // Changed to Promise-based approach with useCallback
+  // Implementazione ottimizzata con debounce e throttling
   const fetchAlerts = useCallback((cursor = null) => {
+    // Previeni chiamate multiple ravvicinate
+    if (isLoading) return;
+    
     setIsLoading(true);
     
     try {
@@ -236,12 +259,21 @@ const AlertTable = () => {
       
       url += `?dropNotificationsCursor=${timestamp}`;
       
+      // Aggiungi un timestamp casuale per evitare la cache del browser
+      url += `&_t=${Date.now()}`;
+      
       fetch(url)
         .then(resp => {
           if (!resp.ok) throw new Error(`HTTP error! Status: ${resp.status}`);
           return resp.json();
         })
         .then(async result => {
+          // Se non ci sono nuovi dati, termina subito
+          if (!result.data || result.data.length === 0) {
+            setIsLoading(false);
+            return;
+          }
+          
           // Process the alerts without NoVig calculation
           const alertsWithoutNoVig = result.data.map(alert => ({
             ...alert
@@ -253,6 +285,9 @@ const AlertTable = () => {
             const existingIds = new Set(prev.map(a => a.id));
             const uniqueNewAlerts = alertsWithoutNoVig.filter(a => !existingIds.has(a.id));
             
+            // Se non ci sono nuovi alert, non aggiornare lo stato
+            if (uniqueNewAlerts.length === 0) return prev;
+            
             // Combine previous alerts with new ones and sort
             return sortAlerts([...prev, ...uniqueNewAlerts]);
           });
@@ -260,19 +295,29 @@ const AlertTable = () => {
           if (result.data.length > 0) {
             const timestamps = result.data.map(item => parseInt(item.id.split('-')[0]));
             const maxTimestamp = Math.max(...timestamps);
-            setLatestCursor(maxTimestamp);
-            // Save latest cursor to localStorage
-            localStorage.setItem('alertCursor', maxTimestamp);
             
-            // Calculate NVP values for new alerts
-            const newAlertsWithNVP = await processAlertsWithNVP(alertsWithoutNoVig);
+            // Aggiorna il cursor solo se è effettivamente più recente
+            if (maxTimestamp > latestCursor) {
+              setLatestCursor(maxTimestamp);
+              // Save latest cursor to localStorage
+              localStorage.setItem('alertCursor', maxTimestamp);
+            }
             
-            // Update alertsWithNVP state
-            setAlertsWithNVP(prev => {
-              const existingIds = new Set(prev.map(a => a.id));
-              const uniqueNewAlerts = newAlertsWithNVP.filter(a => !existingIds.has(a.id));
-              return sortAlerts([...prev, ...uniqueNewAlerts]);
-            });
+            // Calculate NVP values for new alerts - in modo asincrono
+            setTimeout(async () => {
+              const newAlertsWithNVP = await processAlertsWithNVP(alertsWithoutNoVig);
+              
+              // Update alertsWithNVP state
+              setAlertsWithNVP(prev => {
+                const existingIds = new Set(prev.map(a => a.id));
+                const uniqueNewAlerts = newAlertsWithNVP.filter(a => !existingIds.has(a.id));
+                
+                // Se non ci sono nuovi alert con NVP, non aggiornare lo stato
+                if (uniqueNewAlerts.length === 0) return prev;
+                
+                return sortAlerts([...prev, ...uniqueNewAlerts]);
+              });
+            }, 100); // Piccolo ritardo per non bloccare l'UI
           }
         })
         .catch(err => {
@@ -287,7 +332,7 @@ const AlertTable = () => {
       console.error('Error:', err);
       setIsLoading(false);
     }
-  }, [latestCursor, processAlertsWithNVP, sortAlerts]);
+  }, [isLoading, latestCursor, processAlertsWithNVP, sortAlerts]);
 
   // Effetto per impostare lo stato iniziale di pausa
   useEffect(() => {
@@ -299,16 +344,16 @@ const AlertTable = () => {
     fetchAlerts();
   }, [fetchAlerts]);
   
-  // Effetto separato per gestire l'intervallo di aggiornamento
+  // Effetto separato per gestire l'intervallo di aggiornamento con throttling
   useEffect(() => {
-    // Set up auto-refresh every 5 seconds, but only if not paused
+    // Set up auto-refresh every 30 seconds, but only if not paused
     let intervalId;
     if (!isPaused) {
-      console.log("Starting auto-refresh interval");
+      console.log("Starting auto-refresh interval (throttled to 30s)");
       intervalId = setInterval(() => {
         console.log("Auto-refreshing alerts...");
         fetchAlerts(latestCursor);
-      }, 5000);
+      }, 30000); // Aumentato a 30 secondi per ridurre il numero di chiamate
     } else {
       console.log("Auto-refresh paused");
     }

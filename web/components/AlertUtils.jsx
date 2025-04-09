@@ -90,13 +90,29 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
   }
 };
 
-// Add NVP values to alerts
+// Add NVP values to alerts - ottimizzato per ridurre le chiamate API
 export const addNVPToAlerts = async (alertsList, nvpCache, calculateTwoWayNVP, calculateThreeWayNVP) => {
-  const uniqueEventIds = [...new Set(alertsList.map(alert => alert.eventId))];
+  // Filtra gli alert che non hanno già un valore NVP nella cache
+  const alertsNeedingNVP = alertsList.filter(alert => {
+    const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
+    return !nvpCache[cacheKey];
+  });
+  
+  // Se tutti gli alert hanno già un valore NVP nella cache, restituisci subito
+  if (alertsNeedingNVP.length === 0) {
+    const alertsWithCachedNVP = alertsList.map(alert => {
+      const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
+      return { ...alert, nvp: nvpCache[cacheKey] };
+    });
+    return { alertsWithNVP: alertsWithCachedNVP, updatedNvpCache: nvpCache };
+  }
+  
+  // Ottieni solo gli ID evento unici per gli alert che necessitano di NVP
+  const uniqueEventIds = [...new Set(alertsNeedingNVP.map(alert => alert.eventId))];
   const eventData = {};
   const updatedNvpCache = { ...nvpCache };
   
-  // Fetch all event data in parallel
+  // Fetch all event data in parallel, ma solo per gli eventi necessari
   await Promise.all(uniqueEventIds.map(async (eventId) => {
     try {
       const response = await fetch(`https://swordfish-production.up.railway.app/events/${eventId}`);
