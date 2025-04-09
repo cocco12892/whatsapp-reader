@@ -153,6 +153,9 @@ export const sendChartImage = async (eventId, chatId, message) => {
     
     console.log(`Generazione grafico per EventID ${eventId}`);
     
+    // Aggiungi un ritardo per assicurarsi che il grafico abbia tempo di caricare i dati
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     // Usa la funzione globale per renderizzare il grafico
     const chartCanvas = await window.renderChartForAlert(eventId);
     
@@ -264,7 +267,18 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
     
     if (alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') {
       const moneyline = period0.money_line || {};
-      if (moneyline.home && moneyline.draw && moneyline.away) {
+      // Verifica se è un mercato a 2 o 3 vie
+      if (moneyline.home && moneyline.away && !moneyline.draw) {
+        // Mercato a 2 vie (senza pareggio)
+        const nvp = calculateTwoWayNVP(moneyline.home, moneyline.away);
+        
+        if (alert.outcome.toLowerCase().includes('home')) {
+          nvpValue = nvp.homeNVP;
+        } else {
+          nvpValue = nvp.awayNVP;
+        }
+      } else if (moneyline.home && moneyline.draw && moneyline.away) {
+        // Mercato a 3 vie (con pareggio)
         const nvp = calculateThreeWayNVP(moneyline.home, moneyline.draw, moneyline.away);
         
         if (alert.outcome.toLowerCase().includes('home')) {
@@ -514,7 +528,18 @@ export const addNVPToAlerts = async (alertsList, nvpCache, calculateTwoWayNVP, c
     
     if (alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') {
       const moneyline = period0.money_line || {};
-      if (moneyline.home && moneyline.draw && moneyline.away) {
+      // Verifica se è un mercato a 2 o 3 vie
+      if (moneyline.home && moneyline.away && !moneyline.draw) {
+        // Mercato a 2 vie (senza pareggio)
+        const nvp = calculateTwoWayNVP(moneyline.home, moneyline.away);
+        
+        if (alert.outcome.toLowerCase().includes('home')) {
+          nvpValue = nvp.homeNVP;
+        } else {
+          nvpValue = nvp.awayNVP;
+        }
+      } else if (moneyline.home && moneyline.draw && moneyline.away) {
+        // Mercato a 3 vie (con pareggio)
         const nvp = calculateThreeWayNVP(moneyline.home, moneyline.draw, moneyline.away);
         
         if (alert.outcome.toLowerCase().includes('home')) {

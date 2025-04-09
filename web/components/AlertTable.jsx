@@ -75,8 +75,8 @@ const AlertTable = () => {
 
   const renderChartComponentToImage = async (eventId) => {
     const container = document.createElement('div');
-    container.style.width = '400px';
-    container.style.height = '400px';
+    container.style.width = '600px'; // Aumentato per avere più spazio per il grafico
+    container.style.height = '500px'; // Aumentato per avere più spazio per il grafico
     container.style.position = 'absolute';
     container.style.left = '-9999px';
     container.style.top = '-9999px';
@@ -92,12 +92,16 @@ const AlertTable = () => {
             onRenderComplete={() => {
               setTimeout(async () => {
                 try {
+                  console.log('Cattura del grafico in corso...');
                   // Cattura l'immagine del grafico
                   const canvas = await html2canvas(container, {
                     backgroundColor: '#fff',
                     scale: 2,
-                    logging: false,
-                    useCORS: true
+                    logging: true, // Attiva il logging per debug
+                    useCORS: true,
+                    allowTaint: true, // Permette di catturare anche elementi con origine diversa
+                    width: 600,
+                    height: 500
                   });
                   
                   // Pulizia
@@ -111,7 +115,7 @@ const AlertTable = () => {
                   document.body.removeChild(container);
                   reject(error);
                 }
-              }, 1500); // Attendi che il grafico sia completamente renderizzato
+              }, 3000); // Aumentato il tempo di attesa per assicurarsi che il grafico sia completamente renderizzato
             }}
           />,
           container
