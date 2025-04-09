@@ -412,38 +412,22 @@ const EventOddsChart = ({ eventId }) => {
         throw new Error("Impossibile convertire il grafico in immagine");
       }
       
-      // Crea un FormData per inviare l'immagine
+      // Crea un FormData per inviare l'immagine direttamente
       const formData = new FormData();
-      formData.append('file', blob, `chart-${eventId}-${Date.now()}.png`);
+      formData.append('image', blob, `chart-${eventId}-${Date.now()}.png`);
       
-      // Invia l'immagine alla chat
-      const chatId = "120363401713435750@g.us";
-      const uploadResponse = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!uploadResponse.ok) {
-        throw new Error(`Errore nell'upload dell'immagine: ${uploadResponse.statusText}`);
-      }
-      
-      const uploadResult = await uploadResponse.json();
-      const imagePath = uploadResult.path;
-      
-      // Prepara il messaggio con le informazioni del grafico
+      // Prepara la didascalia con le informazioni del grafico
       const caption = `📈 *Grafico Quote*: ${marketInfo.homeTeam} vs ${marketInfo.awayTeam}\n` +
                       `${getMarketTitle()}`;
+      formData.append('caption', caption);
       
-      // Invia l'immagine alla chat
+      // Usa sempre la stessa chat per inviare l'immagine
+      const chatId = "120363401713435750@g.us";
+      
+      // Invia l'immagine direttamente alla chat
       const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: caption,
-          attachment: imagePath
-        }),
+        body: formData
       });
       
       if (!response.ok) {
