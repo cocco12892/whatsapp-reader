@@ -604,6 +604,18 @@ const AlertTable = () => {
     if (diff > -0.1) return 'text.primary'; // Negative but close to fair
     return 'error.light'; // Bad value
   };
+  
+  // Function to check if a match is within 24 hours
+  const isWithin24Hours = (timestamp) => {
+    if (!timestamp) return false;
+    
+    const matchTime = new Date(parseInt(timestamp));
+    const now = new Date();
+    const diffMs = matchTime - now;
+    const diffHours = diffMs / (1000 * 60 * 60);
+    
+    return diffHours >= 0 && diffHours <= 24;
+  };
 
   // Group alerts by eventId and line info
   const groupedAlerts = React.useMemo(() => {
@@ -1184,7 +1196,10 @@ const AlertTable = () => {
                       <TableRow 
                         hover
                         onClick={() => toggleGroup(`${group.eventId}-${group.lineInfo}`)}
-                        sx={{ cursor: 'pointer' }}
+                        sx={{ 
+                          cursor: 'pointer',
+                          bgcolor: latestAlert.starts && isWithin24Hours(latestAlert.starts) ? 'rgba(33, 150, 243, 0.15)' : 'inherit'
+                        }}
                       >
                         <TableCell>
                           <Box>
