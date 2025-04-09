@@ -162,7 +162,6 @@ const sendAlertMessage = async (alert, chatId) => {
                     `📈 *FROM*: ${alert.changeFrom}\n` +
                     `📉 *TO*: ${alert.changeTo}\n` +
                     `🔢 *NVP*: ${alert.nvp}\n` +
-                    `🆔 *EventID*: ${alert.eventId}\n` +
                     `${alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line' ? 
                       `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
                       alert.lineType}`;
@@ -217,7 +216,6 @@ export const sendAlertNotification = async (alert, chatId) => {
                     `📈 *FROM*: ${alert.changeFrom}\n` +
                     `📉 *TO*: ${alert.changeTo}\n` +
                     `🔢 *NVP*: ${alert.nvp}\n` +
-                    `🆔 *EventID*: ${alert.eventId}\n` +
                     `${alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line' ? 
                       `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
                       alert.lineType}`;
