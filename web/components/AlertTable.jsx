@@ -227,6 +227,32 @@ const AlertTable = () => {
     // Calculate how long ago the alert was created
     const alertAge = currentTime - alertTimestamp;
     
+    // Calcola immediatamente l'NVP per l'alert, indipendentemente dall'età
+    const calculateNvpImmediately = async () => {
+      const newNvpValue = await calculateAlertNVP(alert);
+      if (newNvpValue) {
+        // Update the cache with the new value
+        const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
+        setNvpCache(prev => ({
+          ...prev,
+          [cacheKey]: newNvpValue
+        }));
+        
+        // Update the alertsWithNVP state
+        setAlertsWithNVP(prev => {
+          return prev.map(a => {
+            if (a.id === alertId) {
+              return { ...a, nvp: newNvpValue };
+            }
+            return a;
+          });
+        });
+      }
+    };
+    
+    // Calcola l'NVP immediatamente
+    calculateNvpImmediately();
+    
     // Only schedule refresh if the alert is less than 60 seconds old
     if (alertAge < 60000) {
       // Clear any existing timer for this alert
@@ -251,25 +277,7 @@ const AlertTable = () => {
         }
         
         // Recalculate NVP
-        const newNvpValue = await calculateAlertNVP(alert);
-        if (newNvpValue) {
-          // Update the cache with the new value
-          const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
-          setNvpCache(prev => ({
-            ...prev,
-            [cacheKey]: newNvpValue
-          }));
-          
-          // Update the alertsWithNVP state
-          setAlertsWithNVP(prev => {
-            return prev.map(a => {
-              if (a.id === alertId) {
-                return { ...a, nvp: newNvpValue };
-              }
-              return a;
-            });
-          });
-        }
+        calculateNvpImmediately();
       }, 10000); // Refresh every 10 seconds
       
       // Save the timer reference
@@ -1244,7 +1252,12 @@ const AlertTable = () => {
                                         <TableCell>{alert.changeFrom}</TableCell>
                                         <TableCell>{alert.changeTo}</TableCell>
                                         <TableCell sx={{ fontWeight: 'medium' }}>
-                                          {nvpValue ? nvpValue : 'Loading...'}
+                                          {nvpValue ? nvpValue : (
+                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                              <CircularProgress size={16} sx={{ mr: 1 }} />
+                                              <Typography variant="body2">Caricamento...</Typography>
+                                            </Box>
+                                          )}
                                         </TableCell>
                                         <TableCell sx={{ 
                                           color: diffValue ? getDiffColor(diffValue) : 'inherit',
