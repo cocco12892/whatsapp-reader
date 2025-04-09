@@ -1,5 +1,4 @@
 import React from 'react';
-import { calculateAlertNVP } from './NVPCalculations';
 
 // Utility functions for AlertTable component
 export const getDiffColor = (diffValue) => {

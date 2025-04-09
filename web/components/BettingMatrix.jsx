@@ -554,6 +554,7 @@ const BettingMatrix = ({ data, onClose }) => {
           </Box>
         )}
       </Box>
+      </Box>
     </Paper>
   );
 };
