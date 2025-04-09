@@ -192,7 +192,7 @@ const BettingMatrix = ({ data, onClose }) => {
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
-                  <TableRow sx={{ bgcolor: 'background.default' }}>
+                    <TableRow sx={{ bgcolor: 'background.default' }}>
                     <TableCell>Outcome</TableCell>
                     <TableCell>Current</TableCell>
                     <TableCell>NVP</TableCell>
@@ -249,7 +249,7 @@ const BettingMatrix = ({ data, onClose }) => {
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
-                <TableRow sx={{ bgcolor: 'background.default' }}>
+                  <TableRow sx={{ bgcolor: 'background.default' }}>
                   <TableCell>Line</TableCell>
                   <TableCell>Outcome</TableCell>
                   <TableCell>Current</TableCell>
@@ -304,7 +304,7 @@ const BettingMatrix = ({ data, onClose }) => {
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
-                <TableRow sx={{ bgcolor: 'background.default' }}>
+                  <TableRow sx={{ bgcolor: 'background.default' }}>
                   <TableCell>Line</TableCell>
                   <TableCell>Outcome</TableCell>
                   <TableCell>Current</TableCell>
