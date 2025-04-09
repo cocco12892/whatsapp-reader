@@ -414,13 +414,31 @@ const EventOddsChart = ({ eventId }) => {
         throw new Error("Impossibile convertire il grafico in immagine");
       }
       
+      // Prepara i dati dell'alert per la didascalia
+      const alertData = {
+        id: `${Date.now()}-${eventId}`,
+        eventId: eventId,
+        home: marketInfo.homeTeam,
+        away: marketInfo.awayTeam,
+        changeFrom: data.length > 1 ? data[0].odds.toFixed(2) : "N/A",
+        changeTo: data.length > 0 ? data[data.length - 1].odds.toFixed(2) : "N/A",
+        nvp: data.length > 0 ? data[data.length - 1].odds.toFixed(3) : "N/A",
+        lineType: selectedMarket.toUpperCase(),
+        outcome: selectedOption.includes('-') ? selectedOption.split('-')[0] : selectedOption
+      };
+      
+      // Prepara il messaggio con le informazioni richieste
+      const caption = `📊 *MATCH*: ${alertData.home} vs ${alertData.away}\n` +
+                      `📈 *FROM*: ${alertData.changeFrom}\n` +
+                      `📉 *TO*: ${alertData.changeTo}\n` +
+                      `🔢 *NVP*: ${alertData.nvp}\n` +
+                      `${alertData.lineType === 'MONEYLINE' ? 
+                        `*MONEYLINE ${alertData.outcome.toUpperCase()}*` : 
+                        alertData.lineType}`;
+      
       // Crea un FormData per inviare l'immagine direttamente
       const formData = new FormData();
       formData.append('image', blob, `chart-${eventId}-${Date.now()}.png`);
-      
-      // Prepara la didascalia con le informazioni del grafico
-      const caption = `📈 *Grafico Quote*: ${marketInfo.homeTeam} vs ${marketInfo.awayTeam}\n` +
-                      `${getMarketTitle()}`;
       formData.append('caption', caption);
       
       // Usa sempre la stessa chat per inviare l'immagine
