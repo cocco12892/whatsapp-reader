@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Paper, 
   Typography, 
@@ -32,7 +32,6 @@ import BettingMatrix from './BettingMatrix';
 import { calculateTwoWayNVP, calculateThreeWayNVP } from './NVPCalculations';
 import { getDiffColor, isWithin24Hours, isPositiveEV, calculateAlertNVP, addNVPToAlerts, getEventData } from './AlertUtils';
 
-
 const AlertTable = () => {
   const [alerts, setAlerts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,21 +46,20 @@ const AlertTable = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
   const [alertsWithNVP, setAlertsWithNVP] = useState([]);
-  const [nvpCache, setNvpCache] = useState({});  // Cache for NVP values to avoid redundant calculations
-  const [nvpRefreshTimers, setNvpRefreshTimers] = useState({});  // Timers for refreshing NVP values
+  const [nvpCache, setNvpCache] = useState({});
+  const [nvpRefreshTimers, setNvpRefreshTimers] = useState({});
   const [latestCursor, setLatestCursor] = useState(() => {
-    // Initialize latestCursor from localStorage if available
     const savedCursor = localStorage.getItem('alertCursor');
     return savedCursor || null;
   });
-
+  const timeoutRef = useRef(null);
 
   // Calculate NVP for a specific alert
   const calculateSingleAlertNVP = async (alert) => {
     return calculateAlertNVP(alert, calculateTwoWayNVP, calculateThreeWayNVP);
   };
 
-  // Schedule NVP refresh for a specific alert - ottimizzato per ridurre le chiamate API
+  // Schedule NVP refresh for a specific alert
   const scheduleNvpRefresh = (alert) => {
     const alertId = alert.id;
     const alertTimestamp = parseInt(alertId.split('-')[0]);
@@ -141,7 +139,7 @@ const AlertTable = () => {
         
         // Recalculate NVP
         calculateNvpIfNeeded();
-      }, 60000); // Aumentato a 60 secondi per ridurre ulteriormente le chiamate API
+      }, 60000);
       
       // Save the timer reference
       setNvpRefreshTimers(prev => ({
@@ -169,14 +167,15 @@ const AlertTable = () => {
     });
     
     return alertsWithNVP;
-  }, [nvpCache, scheduleNvpRefresh]);
+  }, [nvpCache]);
 
+  // Funzione per impostare il cursore
   const handleSetCursor = () => {
     if (cursorInput && !isNaN(parseInt(cursorInput))) {
       const newCursor = parseInt(cursorInput);
       setLatestCursor(newCursor);
       localStorage.setItem('alertCursor', newCursor);
-      fetchAlerts(newCursor);
+      
       setCursorInput('');
     }
   };
@@ -193,7 +192,6 @@ const AlertTable = () => {
     setMatrixLoading(true);
     
     try {
-      // Usa la funzione getEventData da AlertUtils
       const data = await getEventData(eventId);
       
       // Aggiungi informazioni sulla linea selezionata
@@ -215,56 +213,43 @@ const AlertTable = () => {
     }
   };
 
-  // Funzione non più necessaria, usiamo getEventData
-  const fetchMarketData = async (eventId) => {
-    try {
-      return await getEventData(eventId);
-    } catch (err) {
-      console.error("Error fetching market data:", err);
-      return null;
-    }
-  };
-
-
   // Sort alerts from newest to oldest by timestamp
   const sortAlerts = useCallback((alerts) => 
     [...alerts].sort((a, b) => 
       parseInt(b.id.split('-')[0]) - parseInt(a.id.split('-')[0])
     ), []);
 
-  // Implementazione ottimizzata con debounce e throttling
-  const fetchAlerts = useCallback((cursor = null) => {
-    // Previeni chiamate multiple ravvicinate
+  // Semplice funzione di fetch senza logica di throttling
+  const fetchAlerts = useCallback((cursor = null, forceUpdate = false) => {
+    // Controlla se il sistema è in pausa e in tal caso non fa nulla (solo se non è una chiamata forzata)
+    if (isPaused && !forceUpdate) {
+      console.log("Alert system is paused, skipping fetch");
+      return;
+    }
+    
+    // Previeni chiamate multiple se già in caricamento
     if (isLoading) return;
     
     setIsLoading(true);
+    console.log("Fetching alerts...");
     
     try {
       let url = 'https://pod-dolphin.fly.dev/alerts/user_2ip8HMVMMWrz0jJyFxT86OB5ZnU';
       
-      // Use cursor from parameters first, then localStorage, then default timestamp
+      // Usa il cursore fornito o prendi quello da localStorage
       let timestamp;
       if (cursor) {
         timestamp = cursor;
       } else {
-        // Try to get cursor from localStorage
         const savedCursor = localStorage.getItem('alertCursor');
-        if (savedCursor) {
-          timestamp = savedCursor;
-        } else {
-          // Default timestamp if nothing else is available
-          timestamp = 1743067773853;
-        }
+        timestamp = savedCursor || 1743067773853; // Valore predefinito
       }
       
       url += `?dropNotificationsCursor=${timestamp}`;
       
-      // Aggiungi un timestamp casuale per evitare la cache del browser
-      url += `&_t=${Date.now()}`;
-      
-      // Aggiungi un timeout per evitare che la richiesta rimanga in sospeso troppo a lungo
+      // Imposta un timeout per la richiesta
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 secondi di timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       fetch(url, { signal: controller.signal })
         .then(resp => {
@@ -279,50 +264,43 @@ const AlertTable = () => {
             return;
           }
           
-          // Process the alerts without NoVig calculation
           const alertsWithoutNoVig = result.data.map(alert => ({
             ...alert
           }));
           
-          // ALWAYS append new alerts to existing ones, never replace
+          // Aggiungi i nuovi alert a quelli esistenti
           setAlerts(prev => {
-            // Create combined array with duplicates removed (based on ID)
             const existingIds = new Set(prev.map(a => a.id));
             const uniqueNewAlerts = alertsWithoutNoVig.filter(a => !existingIds.has(a.id));
             
-            // Se non ci sono nuovi alert, non aggiornare lo stato
             if (uniqueNewAlerts.length === 0) return prev;
             
-            // Combine previous alerts with new ones and sort
             return sortAlerts([...prev, ...uniqueNewAlerts]);
           });
           
           if (result.data.length > 0) {
+            // Aggiorna il cursor al timestamp più recente
             const timestamps = result.data.map(item => parseInt(item.id.split('-')[0]));
             const maxTimestamp = Math.max(...timestamps);
             
-            // Aggiorna il cursor solo se è effettivamente più recente
             if (maxTimestamp > latestCursor) {
               setLatestCursor(maxTimestamp);
-              // Save latest cursor to localStorage
               localStorage.setItem('alertCursor', maxTimestamp);
             }
             
-            // Calculate NVP values for new alerts - in modo asincrono
+            // Calcola NVP per i nuovi alert
             setTimeout(async () => {
               const newAlertsWithNVP = await processAlertsWithNVP(alertsWithoutNoVig);
               
-              // Update alertsWithNVP state
               setAlertsWithNVP(prev => {
                 const existingIds = new Set(prev.map(a => a.id));
                 const uniqueNewAlerts = newAlertsWithNVP.filter(a => !existingIds.has(a.id));
                 
-                // Se non ci sono nuovi alert con NVP, non aggiornare lo stato
                 if (uniqueNewAlerts.length === 0) return prev;
                 
                 return sortAlerts([...prev, ...uniqueNewAlerts]);
               });
-            }, 100); // Piccolo ritardo per non bloccare l'UI
+            }, 100);
           }
         })
         .catch(err => {
@@ -337,74 +315,48 @@ const AlertTable = () => {
       console.error('Error:', err);
       setIsLoading(false);
     }
-  }, [isLoading, latestCursor, processAlertsWithNVP, sortAlerts]);
+  }, [isLoading, latestCursor, processAlertsWithNVP, sortAlerts, isPaused]);
 
-  // Effetto per impostare lo stato iniziale di pausa
+  // Implementazione semplicissima per il refresh ogni 10 secondi
   useEffect(() => {
-    // Sempre in pausa all'avvio, indipendentemente dal valore salvato
-    setIsPaused(true);
-    localStorage.setItem('alertTablePaused', 'true');
+    let intervalId = null;
     
-    // Carica gli alert iniziali
-    fetchAlerts();
-    
-    // Imposta un indicatore visibile per l'utente quando si verificano errori di rete
-    window.addEventListener('offline', () => {
-      setError('Connessione di rete non disponibile');
-    });
-    
-    window.addEventListener('online', () => {
-      setError(null);
-      // Riprova a caricare i dati quando la connessione torna disponibile
-      fetchAlerts(latestCursor);
-    });
-    
-    return () => {
-      window.removeEventListener('offline', () => {});
-      window.removeEventListener('online', () => {});
-    };
-  }, [fetchAlerts, latestCursor]);
-  
-  // Effetto separato per gestire l'intervallo di aggiornamento con throttling
-  useEffect(() => {
-    // Set up auto-refresh every 60 seconds, but only if not paused
-    let intervalId;
+    // Se non è in pausa, imposta un semplice intervallo che esegue fetchAlerts ogni 5 secondi
     if (!isPaused) {
-      console.log("Starting auto-refresh interval (throttled to 60s)");
+      
+      // Imposta un intervallo che si ripete ogni 5 secondi
       intervalId = setInterval(() => {
-        console.log("Auto-refreshing alerts...");
         fetchAlerts(latestCursor);
-      }, 60000); // Aumentato a 60 secondi per ridurre il numero di chiamate
-    } else {
-      console.log("Auto-refresh paused");
+      }, 5000);
+      
+      console.log("Avviato intervallo di refresh ogni 5 secondi");
     }
     
-    // Clean up interval on component unmount or when isPaused changes
+    // Pulizia dell'intervallo quando il componente si smonta o quando isPaused cambia
     return () => {
       if (intervalId) {
-        console.log("Clearing auto-refresh interval");
         clearInterval(intervalId);
+        console.log("Intervallo di refresh fermato");
       }
     };
   }, [isPaused, latestCursor, fetchAlerts]);
-  
-  // Effetto per la pulizia dei timer NVP quando il componente viene smontato
+
+  // Pulizia dei timer NVP quando il componente viene smontato
   useEffect(() => {
     return () => {
-      // Clear all NVP refresh timers
       Object.values(nvpRefreshTimers).forEach(timer => {
         clearInterval(timer);
       });
     };
   }, [nvpRefreshTimers]);
 
-  // Sempre collassato all'avvio, indipendentemente dal valore salvato
+  // Inizializzazione
   useEffect(() => {
     setIsExpanded(false);
     localStorage.setItem('alertTableExpanded', 'false');
   }, []);
   
-  // Save expanded state to localStorage when it changes
+  // Salva lo stato di espansione
   useEffect(() => {
     localStorage.setItem('alertTableExpanded', isExpanded.toString());
   }, [isExpanded]);
@@ -425,7 +377,6 @@ const AlertTable = () => {
     return parseFloat(nvp) > parseFloat(currentOdds);
   };
   
-
   // Group alerts by eventId and line info
   const groupedAlerts = useMemo(() => {
     const groups = {};
@@ -455,7 +406,6 @@ const AlertTable = () => {
       return bLatest - aLatest;
     });
   }, [alerts, alertsWithNVP]);
-
 
   return (
     <Paper sx={{ 
@@ -493,7 +443,7 @@ const AlertTable = () => {
                   <IconButton 
                     onClick={() => fetchAlerts(latestCursor)} 
                     color="inherit"
-                    disabled={isLoading}
+                    disabled={isLoading || isPaused} // Disabilitato quando in pausa
                     size="small"
                     sx={{ mr: 1 }}
                   >
@@ -508,6 +458,13 @@ const AlertTable = () => {
                     setIsPaused(newPausedState);
                     localStorage.setItem('alertTablePaused', newPausedState.toString());
                     console.log(`Auto-refresh ${newPausedState ? 'paused' : 'resumed'}`);
+                    
+                    // Aggiungi questa parte: se stiamo attivando il play, facciamo subito una chiamata
+                    if (!newPausedState) {
+                      setTimeout(() => {
+                        fetchAlerts(latestCursor);
+                      }, 100);
+                    }
                   }} 
                   color={isPaused ? "error" : "inherit"}
                   size="small"
@@ -586,13 +543,23 @@ const AlertTable = () => {
               variant="outlined"
               color="primary"
               onClick={() => fetchAlerts(latestCursor)} 
-              disabled={isLoading}
+              disabled={isLoading || isPaused} // Disabilitato quando in pausa
               size="small"
               startIcon={<RefreshIcon />}
             >
               Refresh
             </Button>
           </Box>
+
+          {/* Aggiungere un feedback visivo quando il sistema è in pausa */}
+          {isPaused && (
+            <Box sx={{ p: 1, bgcolor: 'warning.light', borderRadius: 1, mb: 2 }}>
+              <Typography variant="body2">
+                Sistema in pausa: gli aggiornamenti automatici sono disattivati. 
+                Clicca il pulsante play per riprendere.
+              </Typography>
+            </Box>
+          )}
           
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2">Current cursor: {latestCursor || 'None'}</Typography>
