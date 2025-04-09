@@ -400,7 +400,9 @@ const EventOddsChart = ({ eventId }) => {
         backgroundColor: '#fff',
         scale: 2, // Migliora la qualità dell'immagine
         logging: false,
-        useCORS: true
+        useCORS: true,
+        width: 400, // Assicura che la larghezza sia fissa
+        height: 400 // Assicura che l'altezza sia fissa
       });
       
       // Converti il canvas in un blob
@@ -509,7 +511,15 @@ const EventOddsChart = ({ eventId }) => {
         </Box>
       </Box>
       
-      <Box sx={{ height: 300, position: 'relative' }} ref={chartRef}>
+      <Box 
+        sx={{ 
+          height: 400, 
+          width: 400, 
+          position: 'relative',
+          margin: '0 auto' // Centra il grafico
+        }} 
+        ref={chartRef}
+      >
         {loading && (
           <Box sx={{ 
             position: 'absolute', 
