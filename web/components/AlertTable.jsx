@@ -509,31 +509,48 @@ const AlertTable = () => {
     }
   };
 
+  // Effetto per impostare lo stato iniziale di pausa
   useEffect(() => {
     // Sempre in pausa all'avvio, indipendentemente dal valore salvato
     setIsPaused(true);
     localStorage.setItem('alertTablePaused', 'true');
     
+    // Carica gli alert iniziali
     fetchAlerts();
-    
+  }, []);
+  
+  // Effetto separato per gestire l'intervallo di aggiornamento
+  useEffect(() => {
     // Set up auto-refresh every 5 seconds, but only if not paused
     let intervalId;
     if (!isPaused) {
+      console.log("Starting auto-refresh interval");
       intervalId = setInterval(() => {
+        console.log("Auto-refreshing alerts...");
         fetchAlerts(latestCursor);
       }, 5000);
+    } else {
+      console.log("Auto-refresh paused");
     }
     
-    // Clean up interval on component unmount
+    // Clean up interval on component unmount or when isPaused changes
     return () => {
-      if (intervalId) clearInterval(intervalId);
-      
+      if (intervalId) {
+        console.log("Clearing auto-refresh interval");
+        clearInterval(intervalId);
+      }
+    };
+  }, [isPaused, latestCursor]);
+  
+  // Effetto per la pulizia dei timer NVP quando il componente viene smontato
+  useEffect(() => {
+    return () => {
       // Clear all NVP refresh timers
       Object.values(nvpRefreshTimers).forEach(timer => {
         clearInterval(timer);
       });
     };
-  }, [latestCursor, isPaused]);
+  }, []);
 
   // Sempre collassato all'avvio, indipendentemente dal valore salvato
   useEffect(() => {
@@ -970,7 +987,12 @@ const AlertTable = () => {
               </IconButton>
               <Tooltip title={isPaused ? "Riprendi aggiornamenti" : "Metti in pausa"}>
                 <IconButton 
-                  onClick={() => setIsPaused(!isPaused)} 
+                  onClick={() => {
+                    const newPausedState = !isPaused;
+                    setIsPaused(newPausedState);
+                    localStorage.setItem('alertTablePaused', newPausedState.toString());
+                    console.log(`Auto-refresh ${newPausedState ? 'paused' : 'resumed'}`);
+                  }} 
                   color={isPaused ? "error" : "inherit"}
                   size="small"
                   sx={{ mr: 1 }}
