@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
   Tooltip, Legend, ResponsiveContainer 
@@ -6,9 +6,11 @@ import {
 import { 
   Box, Typography, Select, MenuItem, 
   FormControl, InputLabel, Paper, CircularProgress,
-  Button, Snackbar, Alert
+  Button, Snackbar, Alert, ButtonGroup
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import ImageIcon from '@mui/icons-material/Image';
+import html2canvas from 'html2canvas';
 import { getEventData, sendAlertNotification } from './AlertUtils';
 
 const EventOddsChart = ({ eventId }) => {
@@ -25,6 +27,8 @@ const EventOddsChart = ({ eventId }) => {
   const [sendingAlert, setSendingAlert] = useState(false);
   const [alertSent, setAlertSent] = useState(false);
   const [alertError, setAlertError] = useState(null);
+  const [sendingImage, setSendingImage] = useState(false);
+  const chartRef = useRef(null);
   const [availableMarkets, setAvailableMarkets] = useState([]);
   const [selectedMarket, setSelectedMarket] = useState('');
   const [selectedOption, setSelectedOption] = useState('');
@@ -380,6 +384,83 @@ const EventOddsChart = ({ eventId }) => {
     }
   };
   
+  const handleSendImage = async () => {
+    if (!chartRef.current || !marketInfo.hasData) {
+      setAlertError("Impossibile catturare il grafico");
+      return;
+    }
+    
+    setSendingImage(true);
+    setAlertError(null);
+    
+    try {
+      // Cattura il grafico come immagine
+      const chartElement = chartRef.current;
+      const canvas = await html2canvas(chartElement, {
+        backgroundColor: '#fff',
+        scale: 2, // Migliora la qualità dell'immagine
+        logging: false,
+        useCORS: true
+      });
+      
+      // Converti il canvas in un blob
+      const blob = await new Promise(resolve => {
+        canvas.toBlob(resolve, 'image/png');
+      });
+      
+      if (!blob) {
+        throw new Error("Impossibile convertire il grafico in immagine");
+      }
+      
+      // Crea un FormData per inviare l'immagine
+      const formData = new FormData();
+      formData.append('file', blob, `chart-${eventId}-${Date.now()}.png`);
+      
+      // Invia l'immagine alla chat
+      const chatId = "120363401713435750@g.us";
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error(`Errore nell'upload dell'immagine: ${uploadResponse.statusText}`);
+      }
+      
+      const uploadResult = await uploadResponse.json();
+      const imagePath = uploadResult.path;
+      
+      // Prepara il messaggio con le informazioni del grafico
+      const caption = `📈 *Grafico Quote*: ${marketInfo.homeTeam} vs ${marketInfo.awayTeam}\n` +
+                      `${getMarketTitle()}`;
+      
+      // Invia l'immagine alla chat
+      const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: caption,
+          attachment: imagePath
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Errore nell'invio dell'immagine: ${response.statusText}`);
+      }
+      
+      console.log('Immagine inviata con successo');
+      setAlertSent(true);
+      setTimeout(() => setAlertSent(false), 3000);
+    } catch (error) {
+      console.error("Errore nell'invio dell'immagine:", error);
+      setAlertError("Errore nell'invio dell'immagine: " + (error.message || "Errore sconosciuto"));
+    } finally {
+      setSendingImage(false);
+    }
+  };
+  
   if (loading && !data.length) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
@@ -444,7 +525,7 @@ const EventOddsChart = ({ eventId }) => {
         </Box>
       </Box>
       
-      <Box sx={{ height: 300, position: 'relative' }}>
+      <Box sx={{ height: 300, position: 'relative' }} ref={chartRef}>
         {loading && (
           <Box sx={{ 
             position: 'absolute', 
@@ -547,16 +628,24 @@ const EventOddsChart = ({ eventId }) => {
           </Box>
         </Box>
         
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<SendIcon />}
-          onClick={handleSendAlert}
-          disabled={sendingAlert || !marketInfo.hasData}
-          size="small"
-        >
-          {sendingAlert ? 'Invio...' : 'Invia Alert Manuale'}
-        </Button>
+        <ButtonGroup variant="contained" size="small">
+          <Button
+            color="primary"
+            startIcon={<SendIcon />}
+            onClick={handleSendAlert}
+            disabled={sendingAlert || sendingImage || !marketInfo.hasData}
+          >
+            {sendingAlert ? 'Invio...' : 'Testo'}
+          </Button>
+          <Button
+            color="secondary"
+            startIcon={<ImageIcon />}
+            onClick={handleSendImage}
+            disabled={sendingAlert || sendingImage || !marketInfo.hasData}
+          >
+            {sendingImage ? 'Invio...' : 'Immagine'}
+          </Button>
+        </ButtonGroup>
       </Box>
       
       {/* Feedback per l'utente */}
