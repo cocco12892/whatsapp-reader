@@ -737,9 +737,14 @@ const AlertTable = () => {
           </IconButton>
         </Box>
         <Box sx={{ p: 3, overflow: 'auto' }}>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            Match Time: {new Date(data.starts).toLocaleString()}
-          </Typography>
+          <Box sx={{ mb: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+              Match Time: {new Date(data.starts).toLocaleString()}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Event ID: {data.event_id}
+            </Typography>
+          </Box>
           
           {/* Mostra il valore NVP specifico per la linea selezionata */}
           {data.selectedLine && selectedNVP && (
