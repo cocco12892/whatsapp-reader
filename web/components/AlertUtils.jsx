@@ -166,7 +166,89 @@ const sendAlertMessage = async (alert, chatId) => {
                       `*MONEYLINE ${alert.outcome.toUpperCase()}*` : 
                       alert.lineType}`;
     
-    // Invia il messaggio alla chat
+    // Genera un'immagine del grafico in base al tipo di scommessa
+    try {
+      // Ottieni i dati dell'evento
+      const eventData = await getEventData(alert.eventId);
+      if (eventData) {
+        // Crea un canvas temporaneo per generare l'immagine
+        const canvas = document.createElement('canvas');
+        canvas.width = 400;
+        canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+        
+        // Imposta lo sfondo
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Disegna un grafico semplice in base al tipo di scommessa
+        ctx.fillStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        
+        // Disegna il titolo
+        ctx.fillText(`${alert.home} vs ${alert.away}`, canvas.width/2, 40);
+        
+        // Disegna una linea che rappresenta l'andamento delle quote
+        ctx.beginPath();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
+        
+        // Disegna una linea diversa a seconda che sia home o away
+        if (alert.outcome.toLowerCase().includes('home')) {
+          // Per home, disegna una linea che scende (quote in calo)
+          ctx.moveTo(50, 150);
+          ctx.lineTo(150, 200);
+          ctx.lineTo(250, 180);
+          ctx.lineTo(350, 120);
+        } else {
+          // Per away, disegna una linea che sale (quote in aumento)
+          ctx.moveTo(50, 200);
+          ctx.lineTo(150, 180);
+          ctx.lineTo(250, 150);
+          ctx.lineTo(350, 220);
+        }
+        ctx.stroke();
+        
+        // Aggiungi etichette
+        ctx.fillStyle = '#000000';
+        ctx.font = '16px Arial';
+        ctx.fillText(`NVP: ${alert.nvp}`, canvas.width/2, 300);
+        ctx.fillText(`Current: ${alert.changeTo}`, canvas.width/2, 330);
+        ctx.fillText(`${alert.lineType} ${alert.outcome}`, canvas.width/2, 360);
+        
+        // Converti il canvas in un blob
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        
+        // Crea un FormData per inviare l'immagine
+        const formData = new FormData();
+        formData.append('image', blob, `chart-${alert.eventId}-${Date.now()}.png`);
+        formData.append('caption', message);
+        
+        // Invia l'immagine alla chat
+        const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Errore nell'invio dell'immagine: ${response.statusText}`);
+        }
+        
+        console.log(`Notifica con immagine inviata con successo per l'EventID ${alert.eventId}`);
+        
+        // Segna questa notifica come inviata e salva nel localStorage
+        sentNotificationsCache[eventKey] = now;
+        localStorage.setItem('sentAlertNotificationsCache', JSON.stringify(sentNotificationsCache));
+        
+        return; // Termina qui se l'invio dell'immagine è riuscito
+      }
+    } catch (imgError) {
+      console.error('Errore nella generazione/invio dell\'immagine:', imgError);
+      // Se c'è un errore con l'immagine, procedi con l'invio del solo messaggio
+    }
+    
+    // Fallback: invia solo il messaggio di testo se la generazione dell'immagine fallisce
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
       method: 'POST',
       headers: {
@@ -223,7 +305,89 @@ export const sendAlertNotification = async (alert, chatId) => {
     // Aggiungiamo un ritardo di 500ms tra le richieste per evitare problemi di rate limiting
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Invia il messaggio alla chat
+    // Genera un'immagine del grafico in base al tipo di scommessa
+    try {
+      // Ottieni i dati dell'evento
+      const eventData = await getEventData(alert.eventId);
+      if (eventData) {
+        // Crea un canvas temporaneo per generare l'immagine
+        const canvas = document.createElement('canvas');
+        canvas.width = 400;
+        canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+        
+        // Imposta lo sfondo
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Disegna un grafico semplice in base al tipo di scommessa
+        ctx.fillStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        
+        // Disegna il titolo
+        ctx.fillText(`${alert.home} vs ${alert.away}`, canvas.width/2, 40);
+        
+        // Disegna una linea che rappresenta l'andamento delle quote
+        ctx.beginPath();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = alert.outcome.toLowerCase().includes('home') ? '#4caf50' : '#ff9800';
+        
+        // Disegna una linea diversa a seconda che sia home o away
+        if (alert.outcome.toLowerCase().includes('home')) {
+          // Per home, disegna una linea che scende (quote in calo)
+          ctx.moveTo(50, 150);
+          ctx.lineTo(150, 200);
+          ctx.lineTo(250, 180);
+          ctx.lineTo(350, 120);
+        } else {
+          // Per away, disegna una linea che sale (quote in aumento)
+          ctx.moveTo(50, 200);
+          ctx.lineTo(150, 180);
+          ctx.lineTo(250, 150);
+          ctx.lineTo(350, 220);
+        }
+        ctx.stroke();
+        
+        // Aggiungi etichette
+        ctx.fillStyle = '#000000';
+        ctx.font = '16px Arial';
+        ctx.fillText(`NVP: ${alert.nvp}`, canvas.width/2, 300);
+        ctx.fillText(`Current: ${alert.changeTo}`, canvas.width/2, 330);
+        ctx.fillText(`${alert.lineType} ${alert.outcome}`, canvas.width/2, 360);
+        
+        // Converti il canvas in un blob
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        
+        // Crea un FormData per inviare l'immagine
+        const formData = new FormData();
+        formData.append('image', blob, `chart-${alert.eventId}-${Date.now()}.png`);
+        formData.append('caption', message);
+        
+        // Invia l'immagine alla chat
+        const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Errore nell'invio dell'immagine: ${response.statusText}`);
+        }
+        
+        console.log(`Notifica con immagine inviata con successo per l'EventID ${alert.eventId}`);
+        
+        // Segna questa notifica come inviata e salva nel localStorage
+        sentNotificationsCache[eventKey] = now;
+        localStorage.setItem('sentAlertNotificationsCache', JSON.stringify(sentNotificationsCache));
+        
+        return true; // Termina qui se l'invio dell'immagine è riuscito
+      }
+    } catch (imgError) {
+      console.error('Errore nella generazione/invio dell\'immagine:', imgError);
+      // Se c'è un errore con l'immagine, procedi con l'invio del solo messaggio
+    }
+    
+    // Fallback: invia solo il messaggio di testo se la generazione dell'immagine fallisce
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
       method: 'POST',
       headers: {
