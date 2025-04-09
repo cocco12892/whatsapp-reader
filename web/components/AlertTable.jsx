@@ -123,7 +123,7 @@ const AlertTable = () => {
     // Only schedule refresh if the alert is less than 60 seconds old
     // e solo se non è già in corso un timer per questo alert
     if (alertAge < 60000 && !nvpRefreshTimers[alertId]) {
-      // Schedule a refresh every 20 seconds until the alert is 60 seconds old
+      // Schedule a refresh every 30 seconds until the alert is 60 seconds old
       const refreshTimer = setInterval(async () => {
         const newCurrentTime = Date.now();
         const newAlertAge = newCurrentTime - alertTimestamp;
@@ -141,7 +141,7 @@ const AlertTable = () => {
         
         // Recalculate NVP
         calculateNvpIfNeeded();
-      }, 20000); // Refresh every 20 seconds invece di 10
+      }, 30000); // Refresh every 30 seconds invece di 20
       
       // Save the timer reference
       setNvpRefreshTimers(prev => ({
@@ -262,8 +262,13 @@ const AlertTable = () => {
       // Aggiungi un timestamp casuale per evitare la cache del browser
       url += `&_t=${Date.now()}`;
       
-      fetch(url)
+      // Aggiungi un timeout per evitare che la richiesta rimanga in sospeso troppo a lungo
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 secondi di timeout
+      
+      fetch(url, { signal: controller.signal })
         .then(resp => {
+          clearTimeout(timeoutId);
           if (!resp.ok) throw new Error(`HTTP error! Status: ${resp.status}`);
           return resp.json();
         })
@@ -342,18 +347,34 @@ const AlertTable = () => {
     
     // Carica gli alert iniziali
     fetchAlerts();
-  }, [fetchAlerts]);
+    
+    // Imposta un indicatore visibile per l'utente quando si verificano errori di rete
+    window.addEventListener('offline', () => {
+      setError('Connessione di rete non disponibile');
+    });
+    
+    window.addEventListener('online', () => {
+      setError(null);
+      // Riprova a caricare i dati quando la connessione torna disponibile
+      fetchAlerts(latestCursor);
+    });
+    
+    return () => {
+      window.removeEventListener('offline', () => {});
+      window.removeEventListener('online', () => {});
+    };
+  }, [fetchAlerts, latestCursor]);
   
   // Effetto separato per gestire l'intervallo di aggiornamento con throttling
   useEffect(() => {
-    // Set up auto-refresh every 30 seconds, but only if not paused
+    // Set up auto-refresh every 60 seconds, but only if not paused
     let intervalId;
     if (!isPaused) {
-      console.log("Starting auto-refresh interval (throttled to 30s)");
+      console.log("Starting auto-refresh interval (throttled to 60s)");
       intervalId = setInterval(() => {
         console.log("Auto-refreshing alerts...");
         fetchAlerts(latestCursor);
-      }, 30000); // Aumentato a 30 secondi per ridurre il numero di chiamate
+      }, 60000); // Aumentato a 60 secondi per ridurre il numero di chiamate
     } else {
       console.log("Auto-refresh paused");
     }
@@ -467,16 +488,19 @@ const AlertTable = () => {
           <>
             <Typography variant="h6">Alerts - NoVig Price</Typography>
             <Box display="flex" alignItems="center">
-              <IconButton 
-                onClick={() => fetchAlerts(latestCursor)} 
-                color="inherit"
-                title="Aggiorna dati"
-                disabled={isLoading}
-                size="small"
-                sx={{ mr: 1 }}
-              >
-                <RefreshIcon />
-              </IconButton>
+              <Tooltip title="Aggiorna dati">
+                <span>
+                  <IconButton 
+                    onClick={() => fetchAlerts(latestCursor)} 
+                    color="inherit"
+                    disabled={isLoading}
+                    size="small"
+                    sx={{ mr: 1 }}
+                  >
+                    {isLoading ? <CircularProgress size={18} color="inherit" /> : <RefreshIcon />}
+                  </IconButton>
+                </span>
+              </Tooltip>
               <Tooltip title={isPaused ? "Riprendi aggiornamenti" : "Metti in pausa"}>
                 <IconButton 
                   onClick={() => {
@@ -774,7 +798,7 @@ const AlertTable = () => {
                   );
                 })}
                 
-                {isLoading && (
+                {isLoading && alerts.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
                       <CircularProgress size={24} sx={{ mr: 1 }} />
