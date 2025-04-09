@@ -1,5 +1,8 @@
 import React from 'react';
 
+// Cache per le notifiche inviate
+const sentNotificationsCache = {};
+
 // Utility functions for AlertTable component
 export const getDiffColor = (diffValue) => {
   if (!diffValue) return 'inherit';
@@ -92,6 +95,48 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
 const eventDataCache = {};
 const eventDataTimestamps = {};
 const pendingRequests = {};
+
+// Funzione per inviare una notifica di alert alla chat specificata
+export const sendAlertNotification = async (alert, chatId) => {
+  try {
+    // Verifica se abbiamo già inviato questa notifica specifica
+    const alertKey = `${alert.id}-${alert.eventId}`;
+    if (sentNotificationsCache[alertKey]) {
+      console.log(`Notifica già inviata per l'alert ${alertKey}`);
+      return;
+    }
+    
+    // Prepara il messaggio con le informazioni richieste
+    const message = `🚨 *ALERT NoVig*\n\n` +
+                    `📊 *MATCH*: ${alert.home} vs ${alert.away}\n` +
+                    `📈 *FROM*: ${alert.changeFrom}\n` +
+                    `📉 *TO*: ${alert.changeTo}\n` +
+                    `🔢 *NVP*: ${alert.nvp}\n` +
+                    `🆔 *EventID*: ${alert.eventId}`;
+    
+    // Invia il messaggio alla chat
+    const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: message
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Errore nell'invio della notifica: ${response.statusText}`);
+    }
+    
+    // Segna questa notifica come inviata
+    sentNotificationsCache[alertKey] = Date.now();
+    
+    console.log(`Notifica inviata con successo per l'alert ${alertKey}`);
+  } catch (error) {
+    console.error('Errore nell\'invio della notifica:', error);
+  }
+};
 
 // Funzione per ottenere i dati dell'evento con cache e deduplicazione delle richieste
 export const getEventData = async (eventId) => {

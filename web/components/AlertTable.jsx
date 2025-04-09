@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, useContext } from 'react';
 import { 
   Paper, 
   Typography, 
@@ -30,7 +30,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 // Import components and utilities
 import BettingMatrix from './BettingMatrix';
 import { calculateTwoWayNVP, calculateThreeWayNVP } from './NVPCalculations';
-import { getDiffColor, isWithin24Hours, isPositiveEV, calculateAlertNVP, addNVPToAlerts, getEventData } from './AlertUtils';
+import { getDiffColor, isWithin24Hours, isPositiveEV, calculateAlertNVP, addNVPToAlerts, getEventData, sendAlertNotification } from './AlertUtils';
 
 const AlertTable = () => {
   const [alerts, setAlerts] = useState([]);
@@ -53,6 +53,7 @@ const AlertTable = () => {
     return savedCursor || null;
   });
   const timeoutRef = useRef(null);
+  const [sentAlertNotifications, setSentAlertNotifications] = useState({});
 
   // Calculate NVP for a specific alert
   const calculateSingleAlertNVP = async (alert) => {
@@ -297,6 +298,29 @@ const AlertTable = () => {
                 const uniqueNewAlerts = newAlertsWithNVP.filter(a => !existingIds.has(a.id));
                 
                 if (uniqueNewAlerts.length === 0) return prev;
+                
+                // Controlla se ci sono alert di tipo money_line da notificare
+                uniqueNewAlerts.forEach(alert => {
+                  if ((alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') && 
+                      (alert.outcome.toLowerCase().includes('home') || alert.outcome.toLowerCase().includes('away')) &&
+                      alert.nvp) {
+                    
+                    // Controlla se abbiamo già inviato una notifica per questo EventID nell'ultima ora
+                    const now = Date.now();
+                    const lastSentTime = sentAlertNotifications[alert.eventId] || 0;
+                    
+                    if (now - lastSentTime > 3600000) { // 1 ora in millisecondi
+                      // Invia notifica e aggiorna lo stato
+                      sendAlertNotification(alert, "120363401713435750@g.us");
+                      
+                      // Aggiorna lo stato delle notifiche inviate
+                      setSentAlertNotifications(prev => ({
+                        ...prev,
+                        [alert.eventId]: now
+                      }));
+                    }
+                  }
+                });
                 
                 return sortAlerts([...prev, ...uniqueNewAlerts]);
               });
