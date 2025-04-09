@@ -30,7 +30,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 // Import components and utilities
 import BettingMatrix from './BettingMatrix';
 import { calculateTwoWayNVP, calculateThreeWayNVP } from './NVPCalculations';
-import { getDiffColor, isWithin24Hours, isPositiveEV, calculateAlertNVP, addNVPToAlerts } from './AlertUtils';
+import { getDiffColor, isWithin24Hours, isPositiveEV, calculateAlertNVP, addNVPToAlerts, getEventData } from './AlertUtils';
 
 
 const AlertTable = () => {
@@ -123,7 +123,7 @@ const AlertTable = () => {
     // Only schedule refresh if the alert is less than 60 seconds old
     // e solo se non è già in corso un timer per questo alert
     if (alertAge < 60000 && !nvpRefreshTimers[alertId]) {
-      // Schedule a refresh every 30 seconds until the alert is 60 seconds old
+      // Schedule a refresh every 60 seconds until the alert is 60 seconds old
       const refreshTimer = setInterval(async () => {
         const newCurrentTime = Date.now();
         const newAlertAge = newCurrentTime - alertTimestamp;
@@ -141,7 +141,7 @@ const AlertTable = () => {
         
         // Recalculate NVP
         calculateNvpIfNeeded();
-      }, 30000); // Refresh every 30 seconds invece di 20
+      }, 60000); // Aumentato a 60 secondi per ridurre ulteriormente le chiamate API
       
       // Save the timer reference
       setNvpRefreshTimers(prev => ({
@@ -193,15 +193,12 @@ const AlertTable = () => {
     setMatrixLoading(true);
     
     try {
-      const response = await fetch(`https://swordfish-production.up.railway.app/events/${eventId}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      const result = await response.json();
+      // Usa la funzione getEventData da AlertUtils
+      const data = await getEventData(eventId);
       
       // Aggiungi informazioni sulla linea selezionata
       setMatrixData({
-        ...result.data,
+        ...data,
         selectedLine: {
           lineType,
           outcome,
@@ -218,11 +215,14 @@ const AlertTable = () => {
     }
   };
 
-  // Fixed function declaration
-  const fetchMarketData = (eventId) => {
-    return fetch(`https://swordfish-production.up.railway.app/events/${eventId}`)
-      .then(resp => resp.ok ? resp.json() : null)
-      .catch(err => null);
+  // Funzione non più necessaria, usiamo getEventData
+  const fetchMarketData = async (eventId) => {
+    try {
+      return await getEventData(eventId);
+    } catch (err) {
+      console.error("Error fetching market data:", err);
+      return null;
+    }
   };
 
 

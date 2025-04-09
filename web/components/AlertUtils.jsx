@@ -32,13 +32,11 @@ export const isPositiveEV = (nvp, currentOdds) => {
 // Calculate NVP for a specific alert
 export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThreeWayNVP) => {
   try {
-    const response = await fetch(`https://swordfish-production.up.railway.app/events/${alert.eventId}`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+    // Usa la funzione getEventData per ottenere i dati dell'evento con cache
+    const data = await getEventData(alert.eventId);
+    if (!data) {
+      return null;
     }
-    
-    const result = await response.json();
-    const data = result.data;
     
     // Extract necessary data based on the line type
     const period0 = data.periods?.num_0;
@@ -90,6 +88,51 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
   }
 };
 
+// Cache globale per i dati degli eventi per evitare chiamate ripetute
+const eventDataCache = {};
+const eventDataTimestamps = {};
+const pendingRequests = {};
+
+// Funzione per ottenere i dati dell'evento con cache e deduplicazione delle richieste
+export const getEventData = async (eventId) => {
+  // Se abbiamo già una richiesta in corso per questo evento, attendiamo quella invece di farne una nuova
+  if (pendingRequests[eventId]) {
+    return pendingRequests[eventId];
+  }
+  
+  // Controlla se abbiamo dati in cache e se sono ancora validi (meno di 5 minuti)
+  const now = Date.now();
+  if (eventDataCache[eventId] && eventDataTimestamps[eventId] && 
+      (now - eventDataTimestamps[eventId] < 5 * 60 * 1000)) {
+    return eventDataCache[eventId];
+  }
+  
+  // Crea una nuova promessa per questa richiesta
+  pendingRequests[eventId] = new Promise(async (resolve, reject) => {
+    try {
+      console.log(`Fetching event data for ${eventId}`);
+      const response = await fetch(`https://swordfish-production.up.railway.app/events/${eventId}`);
+      if (response.ok) {
+        const result = await response.json();
+        // Salva i dati nella cache
+        eventDataCache[eventId] = result.data;
+        eventDataTimestamps[eventId] = now;
+        resolve(result.data);
+      } else {
+        reject(new Error(`HTTP error! Status: ${response.status}`));
+      }
+    } catch (err) {
+      console.error(`Error fetching data for event ${eventId}:`, err);
+      reject(err);
+    } finally {
+      // Rimuovi questa richiesta dall'elenco delle richieste in corso
+      delete pendingRequests[eventId];
+    }
+  });
+  
+  return pendingRequests[eventId];
+};
+
 // Add NVP values to alerts - ottimizzato per ridurre le chiamate API
 export const addNVPToAlerts = async (alertsList, nvpCache, calculateTwoWayNVP, calculateThreeWayNVP) => {
   // Filtra gli alert che non hanno già un valore NVP nella cache
@@ -113,13 +156,11 @@ export const addNVPToAlerts = async (alertsList, nvpCache, calculateTwoWayNVP, c
   const updatedNvpCache = { ...nvpCache };
   
   // Fetch all event data in parallel, ma solo per gli eventi necessari
+  // Usa la funzione getEventData per sfruttare la cache e deduplicare le richieste
   await Promise.all(uniqueEventIds.map(async (eventId) => {
     try {
-      const response = await fetch(`https://swordfish-production.up.railway.app/events/${eventId}`);
-      if (response.ok) {
-        const result = await response.json();
-        eventData[eventId] = result.data;
-      }
+      const data = await getEventData(eventId);
+      eventData[eventId] = data;
     } catch (err) {
       console.error(`Error fetching data for event ${eventId}:`, err);
     }
