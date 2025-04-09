@@ -70,7 +70,7 @@ const calculateNVPValues = (odds, tolerance = 0.0001, maxIterations = 100) => {
     }, {}),
     rawProbabilities: probabilities,
     margin: margin * 100 // Convert to percentage
-  }, [addNVPToAlerts]);
+  };
 };
 
 const powerMethod = (probabilities, tolerance, maxIterations) => {
@@ -108,7 +108,7 @@ const calculateTwoWayNVP = (home, away) => {
   const odds = {
     home: parseFloat(home),
     away: parseFloat(away)
-  }, [nvpCache, scheduleNvpRefresh]);
+  };
   
   const result = calculateNVPValues(odds);
   return {
@@ -761,7 +761,7 @@ const AlertTable = () => {
       console.error('Error calculating NVP for alert:', err);
       return null;
     }
-  };
+  }, [addNVPToAlerts]);
 
   // Schedule NVP refresh for a specific alert
   const scheduleNvpRefresh = (alert) => {
@@ -928,7 +928,7 @@ const AlertTable = () => {
     });
     
     return alertsWithNVP;
-  };
+  }, [nvpCache, scheduleNvpRefresh]);
 
   const handleSetCursor = () => {
     if (cursorInput && !isNaN(parseInt(cursorInput))) {
@@ -1099,7 +1099,7 @@ const AlertTable = () => {
         clearInterval(intervalId);
       }
     };
-  }, [isPaused, latestCursor]);
+  }, [isPaused, latestCursor, fetchAlerts]);
   
   // Effetto per la pulizia dei timer NVP quando il componente viene smontato
   useEffect(() => {
