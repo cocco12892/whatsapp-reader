@@ -70,7 +70,7 @@ const calculateNVPValues = (odds, tolerance = 0.0001, maxIterations = 100) => {
     }, {}),
     rawProbabilities: probabilities,
     margin: margin * 100 // Convert to percentage
-  };
+  }, [addNVPToAlerts]);
 };
 
 const powerMethod = (probabilities, tolerance, maxIterations) => {
@@ -108,7 +108,7 @@ const calculateTwoWayNVP = (home, away) => {
   const odds = {
     home: parseFloat(home),
     away: parseFloat(away)
-  };
+  }, [nvpCache, scheduleNvpRefresh]);
   
   const result = calculateNVPValues(odds);
   return {
@@ -834,7 +834,7 @@ const AlertTable = () => {
   };
 
   // New function to calculate and add NVP values to alerts
-  const addNVPToAlerts = async (alertsList) => {
+  const addNVPToAlerts = useCallback(async (alertsList) => {
     const uniqueEventIds = [...new Set(alertsList.map(alert => alert.eventId))];
     const eventData = {};
     const updatedNvpCache = { ...nvpCache };
@@ -1076,7 +1076,7 @@ const AlertTable = () => {
     
     // Carica gli alert iniziali
     fetchAlerts();
-  }, []);
+  }, [fetchAlerts]);
   
   // Effetto separato per gestire l'intervallo di aggiornamento
   useEffect(() => {
@@ -1099,7 +1099,7 @@ const AlertTable = () => {
         clearInterval(intervalId);
       }
     };
-  }, [isPaused, latestCursor, fetchAlerts]);
+  }, [isPaused, latestCursor]);
   
   // Effetto per la pulizia dei timer NVP quando il componente viene smontato
   useEffect(() => {
