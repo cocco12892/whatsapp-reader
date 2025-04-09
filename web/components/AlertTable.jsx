@@ -46,6 +46,7 @@ const AlertTable = () => {
   const [isPaused, setIsPaused] = useState(true);
   const [alertsWithNVP, setAlertsWithNVP] = useState([]);
   const [nvpCache, setNvpCache] = useState({});  // Cache for NVP values to avoid redundant calculations
+  const [nvpRefreshTimers, setNvpRefreshTimers] = useState({});  // Timers for refreshing NVP values
   const [latestCursor, setLatestCursor] = useState(() => {
     // Initialize latestCursor from localStorage if available
     const savedCursor = localStorage.getItem('alertCursor');
@@ -217,6 +218,68 @@ const AlertTable = () => {
     }
   };
 
+  // Schedule NVP refresh for a specific alert
+  const scheduleNvpRefresh = (alert) => {
+    const alertId = alert.id;
+    const alertTimestamp = parseInt(alertId.split('-')[0]);
+    const currentTime = Date.now();
+    
+    // Calculate how long ago the alert was created
+    const alertAge = currentTime - alertTimestamp;
+    
+    // Only schedule refresh if the alert is less than 60 seconds old
+    if (alertAge < 60000) {
+      // Clear any existing timer for this alert
+      if (nvpRefreshTimers[alertId]) {
+        clearTimeout(nvpRefreshTimers[alertId]);
+      }
+      
+      // Schedule a refresh every 10 seconds until the alert is 60 seconds old
+      const refreshTimer = setInterval(async () => {
+        const newCurrentTime = Date.now();
+        const newAlertAge = newCurrentTime - alertTimestamp;
+        
+        // Stop refreshing after 60 seconds
+        if (newAlertAge >= 60000) {
+          clearInterval(nvpRefreshTimers[alertId]);
+          setNvpRefreshTimers(prev => {
+            const newTimers = {...prev};
+            delete newTimers[alertId];
+            return newTimers;
+          });
+          return;
+        }
+        
+        // Recalculate NVP
+        const newNvpValue = await calculateAlertNVP(alert);
+        if (newNvpValue) {
+          // Update the cache with the new value
+          const cacheKey = `${alert.eventId}-${alert.lineType}-${alert.outcome}-${alert.points || ''}`;
+          setNvpCache(prev => ({
+            ...prev,
+            [cacheKey]: newNvpValue
+          }));
+          
+          // Update the alertsWithNVP state
+          setAlertsWithNVP(prev => {
+            return prev.map(a => {
+              if (a.id === alertId) {
+                return { ...a, nvp: newNvpValue };
+              }
+              return a;
+            });
+          });
+        }
+      }, 10000); // Refresh every 10 seconds
+      
+      // Save the timer reference
+      setNvpRefreshTimers(prev => ({
+        ...prev,
+        [alertId]: refreshTimer
+      }));
+    }
+  };
+
   // New function to calculate and add NVP values to alerts
   const addNVPToAlerts = async (alertsList) => {
     const uniqueEventIds = [...new Set(alertsList.map(alert => alert.eventId))];
@@ -299,6 +362,11 @@ const AlertTable = () => {
     
     // Update the NVP cache
     setNvpCache(updatedNvpCache);
+    
+    // Schedule NVP refresh for new alerts
+    alertsList.forEach(alert => {
+      scheduleNvpRefresh(alert);
+    });
     
     return alertsWithNVP;
   };
@@ -459,6 +527,11 @@ const AlertTable = () => {
     // Clean up interval on component unmount
     return () => {
       if (intervalId) clearInterval(intervalId);
+      
+      // Clear all NVP refresh timers
+      Object.values(nvpRefreshTimers).forEach(timer => {
+        clearInterval(timer);
+      });
     };
   }, [latestCursor, isPaused]);
 
