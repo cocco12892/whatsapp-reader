@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Paper, 
   Typography, 
@@ -70,7 +70,7 @@ const calculateNVPValues = (odds, tolerance = 0.0001, maxIterations = 100) => {
     }, {}),
     rawProbabilities: probabilities,
     margin: margin * 100 // Convert to percentage
-  };
+  }, [addNVPToAlerts]);
 };
 
 const powerMethod = (probabilities, tolerance, maxIterations) => {
@@ -985,8 +985,8 @@ const AlertTable = () => {
   };
 
 
-  // Changed to Promise-based approach
-  const fetchAlerts = (cursor = null) => {
+  // Changed to Promise-based approach with useCallback
+  const fetchAlerts = useCallback((cursor = null) => {
     setIsLoading(true);
     
     try {
@@ -1099,7 +1099,7 @@ const AlertTable = () => {
         clearInterval(intervalId);
       }
     };
-  }, [isPaused, latestCursor]);
+  }, [isPaused, latestCursor, fetchAlerts]);
   
   // Effetto per la pulizia dei timer NVP quando il componente viene smontato
   useEffect(() => {
@@ -1109,7 +1109,7 @@ const AlertTable = () => {
         clearInterval(timer);
       });
     };
-  }, []);
+  }, [nvpRefreshTimers]);
 
   // Sempre collassato all'avvio, indipendentemente dal valore salvato
   useEffect(() => {
@@ -1190,7 +1190,7 @@ const AlertTable = () => {
       const bLatest = Math.max(...b.alerts.map(alert => parseInt(alert.id.split('-')[0])));
       return bLatest - aLatest;
     });
-  }, [alerts]);
+  }, [alerts, alertsWithNVP]);
 
 
   return (
