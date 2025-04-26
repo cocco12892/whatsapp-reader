@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,21 +17,19 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-	"crypto/sha256"
-    "encoding/hex"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
+	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
-	waProto "go.mau.fi/whatsmeow/binary/proto"
-	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/mattn/go-sqlite3"
 	"whatsapp-reader/db"
 	"whatsapp-reader/utils"
 )
@@ -771,9 +772,48 @@ func main() {
 					content = "📍 Posizione in tempo reale"
 				} else if v.Message.GetReactionMessage() != nil {
 					messageType = "reazione"
+					reactionText := v.Message.GetReactionMessage().GetText()
+					targetMessageID := v.Message.GetReactionMessage().GetKey().GetId()
+					
 					content = fmt.Sprintf("👍 Reazione: %s (al messaggio: %s)", 
-							v.Message.GetReactionMessage().GetText(),
-							v.Message.GetReactionMessage().GetKey().GetId())
+							reactionText,
+							targetMessageID)
+					
+					// Verifica se è una reazione con fiamma 🔥
+					if reactionText == "🔥" {
+						fmt.Printf("Rilevata reazione 🔥 al messaggio %s da %s\n", targetMessageID, senderName)
+						
+						// Cerca il messaggio originale
+						var originalMessage *Message
+						mutex.RLock()
+						for _, msg := range messages {
+							if msg.ID == targetMessageID {
+								originalMessage = &msg
+								break
+							}
+						}
+						mutex.RUnlock()
+						
+						// Cerca la nota associata al messaggio
+						var noteContent string
+						if note, err := dbManager.LoadMessageNote(targetMessageID); err == nil {
+							noteContent = note.Note
+						}
+						
+						// Se il messaggio è stato trovato, crea il codice giocata
+						if originalMessage != nil {
+							go createCodiceGiocata(*originalMessage, noteContent)
+						}
+						
+						// Notifica i client WebSocket della reazione con fiamma
+						broadcastToClients("fire_reaction", map[string]interface{}{
+							"targetMessageId": targetMessageID,
+							"senderJid": v.Info.Sender.String(),
+							"senderName": senderName,
+							"chatId": chatJID,
+							"chatName": chatName,
+						})
+					}
 				} else if v.Message.GetPollCreationMessage() != nil {
 					messageType = "sondaggio"
 					content = "📊 Sondaggio: " + v.Message.GetPollCreationMessage().GetName()
