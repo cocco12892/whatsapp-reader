@@ -338,6 +338,119 @@ type CodiceGiocataResponse struct {
 	Errore  string `json:"errore,omitempty"`
 }
 
+// Funzione per inviare una richiesta di codice giocata direttamente
+func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest) {
+	fmt.Printf("Invio richiesta diretta per codice giocata (messageID: %s)\n", messageID)
+	
+	// Converti la richiesta in JSON
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		fmt.Printf("Errore nella serializzazione JSON: %v\n", err)
+		return
+	}
+	
+	// Log dettagliato della richiesta
+	fmt.Printf("DEBUG RICHIESTA API DIRETTA:\n")
+	fmt.Printf("- Evento: %s\n", requestData.Evento)
+	fmt.Printf("- Esito: %s\n", requestData.Esito)
+	fmt.Printf("- TipsterID: %d\n", requestData.TipsterID)
+	fmt.Printf("- Percentuale: %f\n", requestData.Percentuale)
+	fmt.Printf("- ImmagineURL: %s\n", requestData.ImmagineURL)
+	fmt.Printf("- ImmagineBase64 presente: %t (lunghezza: %d)\n", len(requestData.ImmagineBase64) > 0, len(requestData.ImmagineBase64))
+	fmt.Printf("- APIKey: %s\n", requestData.APIKey)
+	
+	// Stampa la richiesta JSON per debug (senza la parte base64 completa per leggibilità)
+	debugJSON := requestData
+	if len(debugJSON.ImmagineBase64) > 100 {
+		truncatedBase64 := debugJSON.ImmagineBase64[:100] + "..."
+		debugJSON.ImmagineBase64 = truncatedBase64
+	}
+	debugJSONBytes, _ := json.MarshalIndent(debugJSON, "", "  ")
+	fmt.Printf("Richiesta JSON diretta (troncata): %s\n", string(debugJSONBytes))
+	
+	// Crea la richiesta HTTP
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	
+	// Modifica l'URL per usare 127.0.0.1 invece di localhost
+	req, err := http.NewRequest("POST", "http://127.0.0.1:8000/api/v1/create-codice-giocata/", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Printf("Errore nella creazione della richiesta HTTP: %v\n", err)
+		return
+	}
+	
+	// Imposta gli header
+	req.Header.Set("Content-Type", "application/json")
+	
+	// Invia la richiesta
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Errore nell'invio della richiesta HTTP: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+	
+	// Leggi il corpo della risposta per il debug
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Errore nella lettura della risposta: %v\n", err)
+		return
+	}
+	
+	fmt.Printf("Risposta API diretta ricevuta (status: %d): %s\n", resp.StatusCode, string(respBody))
+	
+	// Log dettagliato in caso di errore
+	if resp.StatusCode >= 400 {
+		fmt.Printf("ERRORE API DIRETTA (status %d):\n", resp.StatusCode)
+		fmt.Printf("- URL: http://127.0.0.1:8000/api/v1/create-codice-giocata/\n")
+		fmt.Printf("- Metodo: POST\n")
+		fmt.Printf("- Headers: Content-Type: application/json\n")
+		fmt.Printf("- Payload JSON (lunghezza totale: %d bytes)\n", len(jsonData))
+		
+		// Stampa i primi e gli ultimi caratteri del payload completo
+		if len(jsonData) > 200 {
+			fmt.Printf("  Primi 100 caratteri: %s\n", string(jsonData[:100]))
+			fmt.Printf("  Ultimi 100 caratteri: %s\n", string(jsonData[len(jsonData)-100:]))
+		} else {
+			fmt.Printf("  Payload completo: %s\n", string(jsonData))
+		}
+		
+		// Stampa la risposta di errore
+		fmt.Printf("- Risposta di errore: %s\n", string(respBody))
+	}
+	
+	// Ricrea un nuovo reader per il corpo della risposta
+	resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
+	
+	// Leggi la risposta
+	var response CodiceGiocataResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		fmt.Printf("Errore nella decodifica della risposta JSON: %v\n", err)
+		return
+	}
+	
+	// Verifica il risultato
+	if response.Success {
+		fmt.Printf("Codice giocata creato con successo: %s\n", response.Codice)
+		
+		// Notifica i client WebSocket del codice creato
+		broadcastToClients("codice_giocata_created", map[string]interface{}{
+			"messageId": messageID,
+			"codice":    response.Codice,
+			"esito":     requestData.Esito,
+		})
+	} else {
+		fmt.Printf("Errore nella creazione del codice giocata: %s\n", response.Errore)
+		
+		// Notifica i client WebSocket dell'errore
+		broadcastToClients("codice_giocata_error", map[string]interface{}{
+			"messageId": messageID,
+			"errore":    response.Errore,
+		})
+	}
+}
+
 // Funzione per creare un codice giocata tramite API
 func createCodiceGiocata(message Message, nota string) {
 	fmt.Printf("Creazione automatica codice giocata per messaggio: %s\n", message.ID)
@@ -1089,8 +1202,105 @@ func main() {
 						if originalMessage != nil {
 							fmt.Printf("Avvio creazione codice giocata per messaggio %s (IsMedia: %v, MediaPath: %s)\n", 
 								targetMessageID, originalMessage.IsMedia, originalMessage.MediaPath)
-							// Esegui in modo sincrono per debug
-							createCodiceGiocata(*originalMessage, noteContent)
+							
+							// Se è un'immagine, crea una copia del messaggio con ImmagineBase64 preimpostato
+							if originalMessage.IsMedia && originalMessage.MediaPath != "" {
+								// Crea una copia del messaggio originale
+								messageCopy := *originalMessage
+								
+								// Ottieni il percorso completo dell'immagine
+								fullPath := "." + messageCopy.MediaPath
+								fmt.Printf("Tentativo di leggere l'immagine da: %s\n", fullPath)
+								
+								// Verifica se il file esiste
+								if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+									fmt.Printf("ERRORE: Il file immagine non esiste: %s\n", fullPath)
+									
+									// Prova percorsi alternativi
+									alternativePaths := []string{
+										messageCopy.MediaPath,                  // Prova senza il punto iniziale
+										strings.TrimPrefix(messageCopy.MediaPath, "/"), // Rimuovi lo slash iniziale
+										"Immagini" + messageCopy.MediaPath,     // Prova con il prefisso Immagini
+										"./Immagini" + strings.TrimPrefix(messageCopy.MediaPath, "/images"), // Converti il percorso web in percorso file
+									}
+									
+									var found bool
+									for _, altPath := range alternativePaths {
+										fmt.Printf("Provo percorso alternativo: %s\n", altPath)
+										if _, err := os.Stat(altPath); !os.IsNotExist(err) {
+											fullPath = altPath
+											found = true
+											fmt.Printf("Trovato file immagine in percorso alternativo: %s\n", fullPath)
+											break
+										}
+									}
+									
+									if !found {
+										fmt.Printf("Nessun percorso alternativo trovato, uso l'immagine hardcoded\n")
+										// Usa l'immagine hardcoded
+										createCodiceGiocata(messageCopy, noteContent)
+									} else {
+										// Leggi l'immagine dal percorso alternativo trovato
+										imgData, err := os.ReadFile(fullPath)
+										if err != nil {
+											fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
+											createCodiceGiocata(messageCopy, noteContent)
+										} else {
+											// Converti in base64
+											mimeType := "image/jpeg" // Assumiamo JPEG come default
+											if strings.HasSuffix(fullPath, ".png") {
+												mimeType = "image/png"
+											}
+											
+											base64Data := base64.StdEncoding.EncodeToString(imgData)
+											imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+											
+											// Crea una richiesta speciale solo con l'immagine base64
+											specialRequest := CodiceGiocataRequest{
+												Esito:          noteContent,
+												TipsterID:      1,
+												Percentuale:    0.3,
+												ImmagineBase64: imageBase64,
+												APIKey:         "betste_secret_key",
+											}
+											
+											// Invia direttamente la richiesta speciale
+											sendCodiceGiocataRequest(messageCopy.ID, specialRequest)
+										}
+									}
+								} else {
+									// Leggi l'immagine
+									imgData, err := os.ReadFile(fullPath)
+									if err != nil {
+										fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
+										createCodiceGiocata(messageCopy, noteContent)
+									} else {
+										// Converti in base64
+										mimeType := "image/jpeg" // Assumiamo JPEG come default
+										if strings.HasSuffix(fullPath, ".png") {
+											mimeType = "image/png"
+										}
+										
+										base64Data := base64.StdEncoding.EncodeToString(imgData)
+										imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+										
+										// Crea una richiesta speciale solo con l'immagine base64
+										specialRequest := CodiceGiocataRequest{
+											Esito:          noteContent,
+											TipsterID:      1,
+											Percentuale:    0.3,
+											ImmagineBase64: imageBase64,
+											APIKey:         "betste_secret_key",
+										}
+										
+										// Invia direttamente la richiesta speciale
+										sendCodiceGiocataRequest(messageCopy.ID, specialRequest)
+									}
+								}
+							} else {
+								// Se non è un'immagine, usa il metodo standard
+								createCodiceGiocata(*originalMessage, noteContent)
+							}
 						} else {
 							fmt.Printf("ERRORE: Impossibile creare codice giocata, messaggio %s non trovato\n", targetMessageID)
 						}
