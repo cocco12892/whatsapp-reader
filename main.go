@@ -397,13 +397,22 @@ func createCodiceGiocata(message Message, nota string) {
 		return
 	}
 	
+	// Stampa la richiesta JSON per debug (senza la parte base64 completa per leggibilità)
+	debugJSON := requestData
+	if len(debugJSON.ImmagineBase64) > 100 {
+		truncatedBase64 := debugJSON.ImmagineBase64[:100] + "..."
+		debugJSON.ImmagineBase64 = truncatedBase64
+	}
+	debugJSONBytes, _ := json.MarshalIndent(debugJSON, "", "  ")
+	fmt.Printf("Richiesta JSON (troncata): %s\n", string(debugJSONBytes))
+	
 	// Crea la richiesta HTTP
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 	
 	// Modifica l'URL per usare 127.0.0.1 invece di localhost
-	req, err := http.NewRequest("POST", "http://127.0.0.1:8000/api/v1/create-codice-giocata/", strings.NewReader(string(jsonData)))
+	req, err := http.NewRequest("POST", "http://127.0.0.1:8000/api/v1/create-codice-giocata/", bytes.NewBuffer(jsonData))
 	if err != nil {
 		fmt.Printf("Errore nella creazione della richiesta HTTP: %v\n", err)
 		return
@@ -411,8 +420,6 @@ func createCodiceGiocata(message Message, nota string) {
 	
 	// Imposta gli header
 	req.Header.Set("Content-Type", "application/json")
-	
-	fmt.Printf("Invio richiesta API a http://127.0.0.1:8000/api/v1/create-codice-giocata/ con dati: %s\n", string(jsonData))
 	
 	// Invia la richiesta
 	resp, err := client.Do(req)
