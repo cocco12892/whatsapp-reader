@@ -372,9 +372,9 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 	debugJSONBytes, _ := json.MarshalIndent(debugJSON, "", "  ")
 	fmt.Printf("Richiesta JSON diretta (troncata): %s\n", string(debugJSONBytes))
 	
-	// Crea la richiesta HTTP
+	// Crea la richiesta HTTP con timeout più lungo
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 	
 	// Modifica l'URL per usare 127.0.0.1 invece di localhost
@@ -391,6 +391,39 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Errore nell'invio della richiesta HTTP: %v\n", err)
+		
+		// Anche se la richiesta API fallisce, proviamo comunque a inviare la reazione verde
+		// per dare un feedback visivo all'utente
+		if requestData.ChatID != "" {
+			fmt.Printf("Tentativo di inviare comunque la reazione verde nonostante l'errore API\n")
+			
+			chatJID, parseErr := types.ParseJID(requestData.ChatID)
+			if parseErr == nil {
+				// Ottieni il JID del mittente originale (se disponibile)
+				var senderJID types.JID
+				senderJID = types.EmptyJID
+				
+				// Prima rimuovi qualsiasi reazione esistente
+				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, whatsmeow.RemoveReactionText)
+				_, removeErr := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
+				if removeErr != nil {
+					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", removeErr)
+				} else {
+					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", messageID)
+					time.Sleep(500 * time.Millisecond)
+				}
+				
+				// Invia la reazione verde
+				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, "🟢")
+				_, reactionErr := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+				if reactionErr != nil {
+					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", reactionErr)
+				} else {
+					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s (dopo errore API)\n", messageID)
+				}
+			}
+		}
+		
 		return
 	}
 	defer resp.Body.Close()
@@ -691,6 +724,48 @@ func createCodiceGiocata(message Message, nota string) {
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Errore nell'invio della richiesta HTTP: %v\n", err)
+		
+		// Anche se la richiesta API fallisce, proviamo comunque a inviare la reazione verde
+		// per dare un feedback visivo all'utente
+		if message.Chat != "" {
+			fmt.Printf("Tentativo di inviare comunque la reazione verde nonostante l'errore API\n")
+			
+			chatJID, parseErr := types.ParseJID(message.Chat)
+			if parseErr == nil {
+				// Estrai l'ID del messaggio dal message.ID (formato: chatJID_messageID)
+				parts := strings.Split(message.ID, "_")
+				var msgID string
+				if len(parts) >= 2 {
+					msgID = parts[len(parts)-1]
+				} else {
+					msgID = message.ID
+				}
+				
+				// Ottieni il JID del mittente originale (se disponibile)
+				var senderJID types.JID
+				senderJID = types.EmptyJID
+				
+				// Prima rimuovi qualsiasi reazione esistente
+				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, whatsmeow.RemoveReactionText)
+				_, removeErr := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
+				if removeErr != nil {
+					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", removeErr)
+				} else {
+					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", msgID)
+					time.Sleep(500 * time.Millisecond)
+				}
+				
+				// Invia la reazione verde
+				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
+				_, reactionErr := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+				if reactionErr != nil {
+					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", reactionErr)
+				} else {
+					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s (dopo errore API)\n", msgID)
+				}
+			}
+		}
+		
 		return
 	}
 	defer resp.Body.Close()
