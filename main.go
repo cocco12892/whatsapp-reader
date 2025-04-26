@@ -446,7 +446,6 @@ func createCodiceGiocata(message Message, nota string) {
 		broadcastToClients("codice_giocata_created", map[string]interface{}{
 			"messageId": message.ID,
 			"codice":    response.Codice,
-			"evento":    evento,
 			"esito":     esito,
 		})
 	} else {
