@@ -35,6 +35,9 @@ import (
 	"whatsapp-reader/utils"
 )
 
+// Variabile globale per il client WhatsApp
+var client *whatsmeow.Client
+
 // Struttura per memorizzare i messaggi
 type Message struct {
     ID              string    `json:"id"`
@@ -440,6 +443,42 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 			"codice":    response.Codice,
 			"esito":     requestData.Esito,
 		})
+		
+		// Aggiungi una reazione 🟢 al messaggio originale
+		// Estrai il JID della chat dal messageID (formato: chatJID_messageID)
+		parts := strings.Split(messageID, "_")
+		if len(parts) >= 2 {
+			chatJIDStr := parts[0]
+			msgID := parts[len(parts)-1]
+			
+			chatJID, err := types.ParseJID(chatJIDStr)
+			if err == nil {
+				// Crea il messaggio di reazione
+				reactionMsg := &waProto.Message{
+					ReactionMessage: &waProto.ReactionMessage{
+						Key: &waProto.MessageKey{
+							RemoteJid: proto.String(chatJID.String()),
+							FromMe:    proto.Bool(false),
+							Id:        proto.String(msgID),
+						},
+						Text:              proto.String("🟢"),
+						SenderTimestampMs: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
+					},
+				}
+				
+				// Invia la reazione
+				_, err := client.SendMessage(context.Background(), chatJID, reactionMsg)
+				if err != nil {
+					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
+				} else {
+					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s\n", messageID)
+				}
+			} else {
+				fmt.Printf("Errore nel parsing del JID della chat: %v\n", err)
+			}
+		} else {
+			fmt.Printf("Formato ID messaggio non valido per l'invio della reazione: %s\n", messageID)
+		}
 	} else {
 		fmt.Printf("Errore nella creazione del codice giocata: %s\n", response.Errore)
 		
@@ -665,6 +704,42 @@ func createCodiceGiocata(message Message, nota string) {
 			"codice":    response.Codice,
 			"esito":     esito,
 		})
+		
+		// Aggiungi una reazione 🟢 al messaggio originale
+		// Estrai il JID della chat dal message.ID (formato: chatJID_messageID)
+		parts := strings.Split(message.ID, "_")
+		if len(parts) >= 2 {
+			chatJIDStr := message.Chat
+			msgID := parts[len(parts)-1]
+			
+			chatJID, err := types.ParseJID(chatJIDStr)
+			if err == nil {
+				// Crea il messaggio di reazione
+				reactionMsg := &waProto.Message{
+					ReactionMessage: &waProto.ReactionMessage{
+						Key: &waProto.MessageKey{
+							RemoteJid: proto.String(chatJID.String()),
+							FromMe:    proto.Bool(false),
+							Id:        proto.String(msgID),
+						},
+						Text:              proto.String("🟢"),
+						SenderTimestampMs: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
+					},
+				}
+				
+				// Invia la reazione
+				_, err := client.SendMessage(context.Background(), chatJID, reactionMsg)
+				if err != nil {
+					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
+				} else {
+					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s\n", message.ID)
+				}
+			} else {
+				fmt.Printf("Errore nel parsing del JID della chat: %v\n", err)
+			}
+		} else {
+			fmt.Printf("Formato ID messaggio non valido per l'invio della reazione: %s\n", message.ID)
+		}
 	} else {
 		fmt.Printf("Errore nella creazione del codice giocata: %s\n", response.Errore)
 		
@@ -738,8 +813,8 @@ func main() {
 		return
 	}
 	
-	// Crea un client WhatsApp
-	client := whatsmeow.NewClient(deviceStore, logger)
+	// Crea un client WhatsApp e lo assegna alla variabile globale
+	client = whatsmeow.NewClient(deviceStore, logger)
 	
 	// Registra l'event handler principale
 	client.AddEventHandler(func(evt interface{}) {
