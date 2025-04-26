@@ -798,17 +798,7 @@ func createCodiceGiocata(message Message, nota string) {
 				// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
 				senderJID = types.EmptyJID
 				
-				// Prima rimuovi qualsiasi reazione esistente
-				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, whatsmeow.RemoveReactionText)
-				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
-				if err != nil {
-					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", err)
-					// Continua comunque con l'invio della nuova reazione
-				} else {
-					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", msgID)
-					// Piccola pausa per assicurarsi che la rimozione sia elaborata
-					time.Sleep(500 * time.Millisecond)
-				}
+				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
 				
 				// Ora invia la nuova reazione (🟢)
 				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
