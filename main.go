@@ -36,7 +36,7 @@ import (
 )
 
 // Variabile globale per il client WhatsApp
-var client *whatsmeow.Client
+var whatsmeowClient *whatsmeow.Client
 
 // Struttura per memorizzare i messaggi
 type Message struct {
@@ -457,17 +457,17 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 				reactionMsg := &waProto.Message{
 					ReactionMessage: &waProto.ReactionMessage{
 						Key: &waProto.MessageKey{
-							RemoteJid: proto.String(chatJID.String()),
+							RemoteJID: proto.String(chatJID.String()),
 							FromMe:    proto.Bool(false),
-							Id:        proto.String(msgID),
+							ID:        proto.String(msgID),
 						},
 						Text:              proto.String("🟢"),
-						SenderTimestampMs: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
+						SenderTimestampMS: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
 					},
 				}
-				
+						
 				// Invia la reazione
-				_, err := client.SendMessage(context.Background(), chatJID, reactionMsg)
+				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
 					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
 				} else {
@@ -718,17 +718,17 @@ func createCodiceGiocata(message Message, nota string) {
 				reactionMsg := &waProto.Message{
 					ReactionMessage: &waProto.ReactionMessage{
 						Key: &waProto.MessageKey{
-							RemoteJid: proto.String(chatJID.String()),
+							RemoteJID: proto.String(chatJID.String()),
 							FromMe:    proto.Bool(false),
-							Id:        proto.String(msgID),
+							ID:        proto.String(msgID),
 						},
 						Text:              proto.String("🟢"),
-						SenderTimestampMs: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
+						SenderTimestampMS: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
 					},
 				}
 				
 				// Invia la reazione
-				_, err := client.SendMessage(context.Background(), chatJID, reactionMsg)
+				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
 					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
 				} else {
@@ -814,7 +814,7 @@ func main() {
 	}
 	
 	// Crea un client WhatsApp e lo assegna alla variabile globale
-	client = whatsmeow.NewClient(deviceStore, logger)
+	whatsmeowClient = whatsmeow.NewClient(deviceStore, logger)
 	
 	// Registra l'event handler principale
 	client.AddEventHandler(func(evt interface{}) {
@@ -1548,14 +1548,14 @@ func main() {
 	})
 
 	// Connetti il client WhatsApp
-	if client.Store.ID == nil {
-		qrChan, err := client.GetQRChannel(context.Background())
+	if whatsmeowClient.Store.ID == nil {
+		qrChan, err := whatsmeowClient.GetQRChannel(context.Background())
 		if err != nil {
 			fmt.Println("Errore nell'ottenere il canale QR:", err)
 			return
 		}
 		
-		err = client.Connect()
+		err = whatsmeowClient.Connect()
 		if err != nil {
 			fmt.Println("Errore durante la connessione:", err)
 			return
@@ -1570,8 +1570,8 @@ func main() {
 			}
 		}
 	} else {
-		fmt.Println("Già registrato con JID:", client.Store.ID)
-		err = client.Connect()
+		fmt.Println("Già registrato con JID:", whatsmeowClient.Store.ID)
+		err = whatsmeowClient.Connect()
 		if err != nil {
 			fmt.Println("Errore durante la connessione:", err)
 			return
@@ -2754,5 +2754,5 @@ func main() {
 	<-c
 	
 	fmt.Println("Disconnessione...")
-	client.Disconnect()
+	whatsmeowClient.Disconnect()
 }
