@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -356,7 +357,6 @@ func createCodiceGiocata(message Message, nota string) {
 	}
 	
 	// Se il messaggio contiene un'immagine, ottieni il base64
-	var imageBase64 string
 	if message.IsMedia && message.MediaPath != "" {
 		// Ottieni il percorso completo dell'immagine
 		fullPath := "." + message.MediaPath
@@ -374,11 +374,14 @@ func createCodiceGiocata(message Message, nota string) {
 			}
 			
 			base64Data := base64.StdEncoding.EncodeToString(imgData)
-			imageBase64 = fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+			imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
 			fmt.Printf("Immagine convertita in base64 (primi 50 caratteri): %s...\n", imageBase64[:min(50, len(imageBase64))])
 			
 			// Imposta il campo immagine_base64 nella richiesta
 			requestData.ImmagineBase64 = imageBase64
+			
+			// Stampa la richiesta completa per debug
+			fmt.Printf("Invio richiesta con immagine base64 (lunghezza: %d)\n", len(imageBase64))
 		}
 	} else {
 		// Se non è un'immagine, usa il contenuto come evento
