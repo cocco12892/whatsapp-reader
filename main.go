@@ -332,6 +332,7 @@ type CodiceGiocataRequest struct {
 	ImmagineURL    string  `json:"immagine_url,omitempty"`
 	ImmagineBase64 string  `json:"immagine_base64,omitempty"`
 	APIKey         string  `json:"api_key"`
+	ChatID         string  `json:"chat_id,omitempty"` // Aggiunto per supportare l'invio di reazioni
 }
 
 // Struttura per la risposta dell'API
@@ -477,7 +478,34 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 				fmt.Printf("Errore nel parsing del JID della chat: %v\n", err)
 			}
 		} else {
-			fmt.Printf("Formato ID messaggio non valido per l'invio della reazione: %s\n", messageID)
+			fmt.Printf("Formato ID messaggio non standard, provo a inviare la reazione direttamente: %s\n", messageID)
+	
+			// Prova a inviare la reazione direttamente senza dividere l'ID
+			chatJID, err := types.ParseJID(requestData.ChatID)
+			if err == nil {
+				// Crea il messaggio di reazione
+				reactionMsg := &waProto.Message{
+					ReactionMessage: &waProto.ReactionMessage{
+						Key: &waProto.MessageKey{
+							RemoteJID: proto.String(chatJID.String()),
+							FromMe:    proto.Bool(false),
+							ID:        proto.String(messageID),
+						},
+						Text:              proto.String("🟢"),
+						SenderTimestampMS: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
+					},
+				}
+				
+				// Invia la reazione
+				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+				if err != nil {
+					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
+				} else {
+					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s\n", messageID)
+				}
+			} else {
+				fmt.Printf("Errore nel parsing del JID della chat: %v\n", err)
+			}
 		}
 	} else {
 		fmt.Printf("Errore nella creazione del codice giocata: %s\n", response.Errore)
@@ -1337,6 +1365,7 @@ func main() {
 												Percentuale:    0.3,
 												ImmagineBase64: imageBase64,
 												APIKey:         "betste_secret_key",
+												ChatID:         messageCopy.Chat, // Aggiungi l'ID della chat
 											}
 											
 											// Invia direttamente la richiesta speciale
@@ -1366,6 +1395,7 @@ func main() {
 											Percentuale:    0.3,
 											ImmagineBase64: imageBase64,
 											APIKey:         "betste_secret_key",
+											ChatID:         messageCopy.Chat, // Aggiungi l'ID della chat
 										}
 										
 										// Invia direttamente la richiesta speciale
