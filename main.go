@@ -403,15 +403,7 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 				var senderJID types.JID
 				senderJID = types.EmptyJID
 				
-				// Prima rimuovi qualsiasi reazione esistente
-				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, whatsmeow.RemoveReactionText)
-				_, removeErr := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
-				if removeErr != nil {
-					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", removeErr)
-				} else {
-					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", messageID)
-					time.Sleep(500 * time.Millisecond)
-				}
+				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
 				
 				// Invia la reazione verde
 				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, "🟢")
@@ -492,17 +484,7 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 				// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
 				senderJID = types.EmptyJID
 				
-				// Prima rimuovi qualsiasi reazione esistente
-				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, whatsmeow.RemoveReactionText)
-				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
-				if err != nil {
-					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", err)
-					// Continua comunque con l'invio della nuova reazione
-				} else {
-					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", msgID)
-					// Piccola pausa per assicurarsi che la rimozione sia elaborata
-					time.Sleep(500 * time.Millisecond)
-				}
+				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
 				
 				// Ora invia la nuova reazione (🟢)
 				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
@@ -528,17 +510,7 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 					senderJID = types.EmptyJID
 				}
 		
-				// Prima rimuovi la reazione esistente (🔥)
-				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, whatsmeow.RemoveReactionText)
-				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
-				if err != nil {
-					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", err)
-					// Continua comunque con l'invio della nuova reazione
-				} else {
-					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", messageID)
-					// Piccola pausa per assicurarsi che la rimozione sia elaborata
-					time.Sleep(500 * time.Millisecond)
-				}
+				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
 				
 				// Ora invia la nuova reazione (🟢)
 				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, "🟢")
@@ -745,15 +717,7 @@ func createCodiceGiocata(message Message, nota string) {
 				var senderJID types.JID
 				senderJID = types.EmptyJID
 				
-				// Prima rimuovi qualsiasi reazione esistente
-				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, whatsmeow.RemoveReactionText)
-				_, removeErr := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
-				if removeErr != nil {
-					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", removeErr)
-				} else {
-					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", msgID)
-					time.Sleep(500 * time.Millisecond)
-				}
+				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
 				
 				// Invia la reazione verde
 				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
@@ -1339,7 +1303,7 @@ func main() {
 							reactionText,
 							targetMessageID)
 					
-					// Verifica se è una reazione con fiamma 🔥
+					// Verifica se è una reazione con fiamma 🔥 o verde 🟢
 					if reactionText == "🔥" {
 						fmt.Printf("Rilevata reazione 🔥 al messaggio %s da %s\n", targetMessageID, senderName)
 						
