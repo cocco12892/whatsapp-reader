@@ -459,11 +459,21 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 				// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
 				senderJID = types.EmptyJID
 				
-				// Usa BuildReaction per creare il messaggio di reazione
-				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
+				// Prima rimuovi qualsiasi reazione esistente
+				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, whatsmeow.RemoveReactionText)
+				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
+				if err != nil {
+					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", err)
+					// Continua comunque con l'invio della nuova reazione
+				} else {
+					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", msgID)
+					// Piccola pausa per assicurarsi che la rimozione sia elaborata
+					time.Sleep(500 * time.Millisecond)
+				}
 				
-				// Invia la reazione
-				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+				// Ora invia la nuova reazione (🟢)
+				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
+				_, err = whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
 					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
 				} else {
@@ -485,11 +495,21 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 					senderJID = types.EmptyJID
 				}
 		
-				// Usa BuildReaction per creare il messaggio di reazione
+				// Prima rimuovi la reazione esistente (🔥)
+				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, whatsmeow.RemoveReactionText)
+				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
+				if err != nil {
+					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", err)
+					// Continua comunque con l'invio della nuova reazione
+				} else {
+					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", messageID)
+					// Piccola pausa per assicurarsi che la rimozione sia elaborata
+					time.Sleep(500 * time.Millisecond)
+				}
+				
+				// Ora invia la nuova reazione (🟢)
 				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, "🟢")
-		
-				// Invia la reazione
-				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+				_, err = whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
 					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
 				} else {
@@ -739,11 +759,21 @@ func createCodiceGiocata(message Message, nota string) {
 				// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
 				senderJID = types.EmptyJID
 				
-				// Usa BuildReaction per creare il messaggio di reazione
-				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
+				// Prima rimuovi qualsiasi reazione esistente
+				removeReactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, whatsmeow.RemoveReactionText)
+				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, removeReactionMsg)
+				if err != nil {
+					fmt.Printf("Errore nella rimozione della reazione esistente: %v\n", err)
+					// Continua comunque con l'invio della nuova reazione
+				} else {
+					fmt.Printf("Reazione esistente rimossa con successo dal messaggio %s\n", msgID)
+					// Piccola pausa per assicurarsi che la rimozione sia elaborata
+					time.Sleep(500 * time.Millisecond)
+				}
 				
-				// Invia la reazione
-				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+				// Ora invia la nuova reazione (🟢)
+				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
+				_, err = whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
 					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
 				} else {
