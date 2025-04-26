@@ -13,6 +13,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import DOMPurify from 'dompurify'; // A library to sanitize HTML
 import parse from 'html-react-parser'; // A library to parse HTML into React components
 
@@ -219,6 +220,13 @@ messages.forEach(message => {
           sender: message.senderName,
           timestamp: message.timestamp
         });
+        
+        // Verifica se è una reazione con fiamma 🔥 e attiva la creazione del codice giocata
+        if (emoji === "🔥") {
+          console.log(`Rilevata reazione 🔥 al messaggio ${targetMessageId} da ${message.senderName}`);
+          // Attiva la creazione del codice giocata con un piccolo ritardo per assicurarsi che il componente sia completamente caricato
+          setTimeout(() => handleCreateCodiceGiocata(targetMessageId), 500);
+        }
       }
     }
   }
@@ -932,6 +940,11 @@ const handleCreateCodiceGiocata = (messageId) => {
     api_key: "betste_secret_key"
   };
   
+  // Mostra un messaggio di caricamento
+  setSnackbarMessage('Creazione codice giocata in corso...');
+  setSnackbarSeverity('info');
+  setSnackbarOpen(true);
+  
   // Chiama l'API
   fetch('http://localhost:8000/api/v1/create-codice-giocata/', {
     method: 'POST',
@@ -964,6 +977,31 @@ const handleCreateCodiceGiocata = (messageId) => {
           console.error('Errore nella copia del codice:', err);
         });
     }
+    
+    // Aggiungi effetto visivo al messaggio
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (messageElement) {
+      messageElement.style.animation = 'fireCodePulse 1s';
+      
+      // Se l'animazione non esiste, aggiungila
+      if (!document.getElementById('fire-code-animation')) {
+        const styleTag = document.createElement('style');
+        styleTag.id = 'fire-code-animation';
+        styleTag.innerHTML = `
+          @keyframes fireCodePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); background-color: rgba(255, 143, 0, 0.2); }
+            100% { transform: scale(1); }
+          }
+        `;
+        document.head.appendChild(styleTag);
+      }
+      
+      // Rimuovi l'animazione dopo che è terminata
+      setTimeout(() => {
+        messageElement.style.animation = '';
+      }, 1000);
+    }
   })
   .catch(error => {
     console.error('Errore nella creazione del codice giocata:', error);
@@ -974,8 +1012,10 @@ const handleCreateCodiceGiocata = (messageId) => {
     setSnackbarOpen(true);
   });
   
-  // Chiudi il menu contestuale
-  closeContextMenu();
+  // Chiudi il menu contestuale se aperto
+  if (contextMenu.visible) {
+    closeContextMenu();
+  }
 };
 
 // Function to safely encode image paths
@@ -1300,20 +1340,24 @@ return (
               }}>
                 {reactions[message.id].map((reaction, index) => (
                     <Box 
+                      key={index}
                       sx={{ 
                         display: 'flex', 
                         alignItems: 'center',
-                        backgroundColor: 'rgba(255,255,255,0.8)',
+                        backgroundColor: reaction.emoji === "🔥" ? 'rgba(255,235,210,0.9)' : 'rgba(255,255,255,0.8)',
                         borderRadius: '12px',
                         padding: '3px 8px',
                         fontSize: '0.9rem',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                        border: '1px solid rgba(0,0,0,0.05)',
+                        boxShadow: reaction.emoji === "🔥" ? '0 1px 3px rgba(255,143,0,0.3)' : '0 1px 3px rgba(0,0,0,0.1)',
+                        border: '1px solid',
+                        borderColor: reaction.emoji === "🔥" ? 'rgba(255,143,0,0.2)' : 'rgba(0,0,0,0.05)',
                         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                         '&:hover': {
                           transform: 'translateY(-2px)',
-                          boxShadow: '0 3px 5px rgba(0,0,0,0.15)'
-                        }
+                          boxShadow: reaction.emoji === "🔥" ? '0 3px 5px rgba(255,143,0,0.4)' : '0 3px 5px rgba(0,0,0,0.15)'
+                        },
+                        position: 'relative',
+                        overflow: 'visible'
                       }}
                     >
                       <span style={{ fontSize: '1.0rem' }}>{reaction.emoji}</span>
@@ -1323,11 +1367,38 @@ return (
                           ml: 0.8, 
                           fontSize: '0.75rem',
                           fontWeight: 500,
-                          color: 'text.secondary'
+                          color: reaction.emoji === "🔥" ? 'rgba(230,81,0,0.9)' : 'text.secondary'
                         }}
                       >
                         {reaction.sender}
                       </Typography>
+                      {reaction.emoji === "🔥" && (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: -8,
+                            right: -8,
+                            width: 16,
+                            height: 16,
+                            borderRadius: '50%',
+                            bgcolor: 'error.main',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 10,
+                            color: 'white',
+                            animation: 'pulse 1.5s infinite',
+                            '@keyframes pulse': {
+                              '0%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(255, 82, 82, 0.7)' },
+                              '70%': { transform: 'scale(1.1)', boxShadow: '0 0 0 10px rgba(255, 82, 82, 0)' },
+                              '100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(255, 82, 82, 0)' }
+                            }
+                          }}
+                          title="Attiva creazione codice giocata"
+                        >
+                          <LocalFireDepartmentIcon sx={{ fontSize: 10 }} />
+                        </Box>
+                      )}
                     </Box>
                 ))}
               </Box>
