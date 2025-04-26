@@ -62,6 +62,9 @@ type Message struct {
     ProtocolMessageName string `json:"protocolMessageName,omitempty"`
 
 	ImageHash       string    `json:"imageHash"`
+	
+	// Campo per le reazioni
+	Reactions       []Reaction `json:"reactions,omitempty"`
 }
 
 
@@ -1636,9 +1639,7 @@ func main() {
 								// Reazione fiamma: crea codice giocata
 								fmt.Printf("Avvio creazione codice giocata per messaggio %s (IsMedia: %v, MediaPath: %s)\n", 
 									targetMessageID, originalMessage.IsMedia, originalMessage.MediaPath)
-							
-							// Reazione fiamma: crea codice giocata
-							if reactionText == "🔥" {
+								
 								// Se è un'immagine, crea una copia del messaggio con ImmagineBase64 preimpostato
 								if originalMessage.IsMedia && originalMessage.MediaPath != "" {
 									// Crea una copia del messaggio originale

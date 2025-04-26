@@ -60,6 +60,14 @@ func getContactName(client *whatsmeow.Client, jid types.JID) string {
 	return name
 }
 
+// Struttura per le reazioni ai messaggi
+type Reaction struct {
+	Emoji      string    `json:"emoji"`
+	Sender     string    `json:"sender"`
+	SenderName string    `json:"senderName"`
+	Timestamp  time.Time `json:"timestamp"`
+}
+
 // Aggiunge una reazione a un messaggio
 func addReactionToMessage(messageID string, reaction, sender, senderName string) {
 	mutex.Lock()
