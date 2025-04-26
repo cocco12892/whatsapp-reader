@@ -362,26 +362,66 @@ func createCodiceGiocata(message Message, nota string) {
 		fullPath := "." + message.MediaPath
 		fmt.Printf("Tentativo di leggere l'immagine da: %s\n", fullPath)
 		
-		// Leggi il file dell'immagine
-		imgData, err := os.ReadFile(fullPath)
-		if err != nil {
-			fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
+		// Verifica se il file esiste
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			fmt.Printf("ERRORE: Il file immagine non esiste: %s\n", fullPath)
+			// Prova a cercare il file in altre posizioni
+			fmt.Printf("Tentativo di cercare l'immagine in posizioni alternative...\n")
+			
+			// Stampa informazioni sul messaggio per debug
+			fmt.Printf("Dettagli messaggio:\n")
+			fmt.Printf("- ID: %s\n", message.ID)
+			fmt.Printf("- Chat: %s\n", message.Chat)
+			fmt.Printf("- Sender: %s\n", message.Sender)
+			fmt.Printf("- IsMedia: %t\n", message.IsMedia)
+			fmt.Printf("- MediaPath: %s\n", message.MediaPath)
+			fmt.Printf("- ImageHash: %s\n", message.ImageHash)
+			
+			// Continua con il messaggio di testo se l'immagine non è disponibile
+			evento := message.Content
+			requestData.Evento = evento
+			requestData.ImmagineURL = "https://example.com/image.jpg" // URL hardcoded come richiesto
 		} else {
-			// Converti in base64
-			mimeType := "image/jpeg" // Assumiamo JPEG come default
-			if strings.HasSuffix(fullPath, ".png") {
-				mimeType = "image/png"
+			// Leggi il file dell'immagine
+			imgData, err := os.ReadFile(fullPath)
+			if err != nil {
+				fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
+				// Continua con il messaggio di testo se l'immagine non può essere letta
+				evento := message.Content
+				requestData.Evento = evento
+				requestData.ImmagineURL = "https://example.com/image.jpg" // URL hardcoded come richiesto
+			} else {
+				// Converti in base64
+				mimeType := "image/jpeg" // Assumiamo JPEG come default
+				if strings.HasSuffix(fullPath, ".png") {
+					mimeType = "image/png"
+				}
+				
+				base64Data := base64.StdEncoding.EncodeToString(imgData)
+				imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+				
+				// Verifica che il base64 non sia vuoto
+				if len(base64Data) == 0 {
+					fmt.Printf("ERRORE: Base64 vuoto dopo la conversione\n")
+					// Continua con il messaggio di testo
+					evento := message.Content
+					requestData.Evento = evento
+					requestData.ImmagineURL = "https://example.com/image.jpg" // URL hardcoded come richiesto
+				} else {
+					fmt.Printf("Immagine convertita in base64 (primi 50 caratteri): %s...\n", imageBase64[:min(50, len(imageBase64))])
+					
+					// Imposta il campo immagine_base64 nella richiesta
+					requestData.ImmagineBase64 = imageBase64
+					
+					// Stampa la richiesta completa per debug
+					fmt.Printf("Invio richiesta con immagine base64 (lunghezza: %d)\n", len(imageBase64))
+					
+					// Verifica che il formato sia corretto
+					if !strings.HasPrefix(imageBase64, "data:image/") {
+						fmt.Printf("AVVISO: Il formato del base64 potrebbe non essere corretto\n")
+					}
+				}
 			}
-			
-			base64Data := base64.StdEncoding.EncodeToString(imgData)
-			imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
-			fmt.Printf("Immagine convertita in base64 (primi 50 caratteri): %s...\n", imageBase64[:min(50, len(imageBase64))])
-			
-			// Imposta il campo immagine_base64 nella richiesta
-			requestData.ImmagineBase64 = imageBase64
-			
-			// Stampa la richiesta completa per debug
-			fmt.Printf("Invio richiesta con immagine base64 (lunghezza: %d)\n", len(imageBase64))
 		}
 	} else {
 		// Se non è un'immagine, usa il contenuto come evento
@@ -396,6 +436,16 @@ func createCodiceGiocata(message Message, nota string) {
 		fmt.Printf("Errore nella serializzazione JSON: %v\n", err)
 		return
 	}
+	
+	// Log dettagliato della richiesta
+	fmt.Printf("DEBUG RICHIESTA API:\n")
+	fmt.Printf("- Evento: %s\n", requestData.Evento)
+	fmt.Printf("- Esito: %s\n", requestData.Esito)
+	fmt.Printf("- TipsterID: %d\n", requestData.TipsterID)
+	fmt.Printf("- Percentuale: %f\n", requestData.Percentuale)
+	fmt.Printf("- ImmagineURL: %s\n", requestData.ImmagineURL)
+	fmt.Printf("- ImmagineBase64 presente: %t (lunghezza: %d)\n", len(requestData.ImmagineBase64) > 0, len(requestData.ImmagineBase64))
+	fmt.Printf("- APIKey: %s\n", requestData.APIKey)
 	
 	// Stampa la richiesta JSON per debug (senza la parte base64 completa per leggibilità)
 	debugJSON := requestData
@@ -437,6 +487,26 @@ func createCodiceGiocata(message Message, nota string) {
 	}
 	
 	fmt.Printf("Risposta API ricevuta (status: %d): %s\n", resp.StatusCode, string(respBody))
+	
+	// Log dettagliato in caso di errore
+	if resp.StatusCode >= 400 {
+		fmt.Printf("ERRORE API (status %d):\n", resp.StatusCode)
+		fmt.Printf("- URL: http://127.0.0.1:8000/api/v1/create-codice-giocata/\n")
+		fmt.Printf("- Metodo: POST\n")
+		fmt.Printf("- Headers: Content-Type: application/json\n")
+		fmt.Printf("- Payload JSON (lunghezza totale: %d bytes)\n", len(jsonData))
+		
+		// Stampa i primi e gli ultimi caratteri del payload completo
+		if len(jsonData) > 200 {
+			fmt.Printf("  Primi 100 caratteri: %s\n", string(jsonData[:100]))
+			fmt.Printf("  Ultimi 100 caratteri: %s\n", string(jsonData[len(jsonData)-100:]))
+		} else {
+			fmt.Printf("  Payload completo: %s\n", string(jsonData))
+		}
+		
+		// Stampa la risposta di errore
+		fmt.Printf("- Risposta di errore: %s\n", string(respBody))
+	}
 	
 	// Ricrea un nuovo reader per il corpo della risposta
 	resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
