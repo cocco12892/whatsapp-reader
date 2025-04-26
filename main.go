@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -320,12 +321,13 @@ func broadcastToClients(messageType string, payload interface{}) {
 
 // Struttura per la richiesta di creazione del codice giocata
 type CodiceGiocataRequest struct {
-	Evento      string  `json:"evento"`
-	Esito       string  `json:"esito"`
-	TipsterID   int     `json:"tipster_id"`
-	Percentuale float64 `json:"percentuale"`
-	ImmagineURL string  `json:"immagine_url"`
-	APIKey      string  `json:"api_key"`
+	Evento         string  `json:"evento,omitempty"`
+	Esito          string  `json:"esito"`
+	TipsterID      int     `json:"tipster_id"`
+	Percentuale    float64 `json:"percentuale"`
+	ImmagineURL    string  `json:"immagine_url,omitempty"`
+	ImmagineBase64 string  `json:"immagine_base64,omitempty"`
+	APIKey         string  `json:"api_key"`
 }
 
 // Struttura per la risposta dell'API
@@ -340,20 +342,49 @@ func createCodiceGiocata(message Message, nota string) {
 	fmt.Printf("Creazione automatica codice giocata per messaggio: %s\n", message.ID)
 	
 	// Prepara i dati per l'API
-	evento := message.Content
 	esito := nota
 	if esito == "" {
-		esito = "Esito non specificato"
+		esito = "Pending"
 	}
 	
-	// Crea la richiesta
+	// Crea la richiesta base
 	requestData := CodiceGiocataRequest{
-		Evento:      evento,
 		Esito:       esito,
 		TipsterID:   1, // Valore predefinito
 		Percentuale: 0.3, // Valore predefinito
-		ImmagineURL: "https://example.com/image.jpg", // URL hardcoded come richiesto
 		APIKey:      "betste_secret_key",
+	}
+	
+	// Se il messaggio contiene un'immagine, ottieni il base64
+	var imageBase64 string
+	if message.IsMedia && message.MediaPath != "" {
+		// Ottieni il percorso completo dell'immagine
+		fullPath := "." + message.MediaPath
+		fmt.Printf("Tentativo di leggere l'immagine da: %s\n", fullPath)
+		
+		// Leggi il file dell'immagine
+		imgData, err := os.ReadFile(fullPath)
+		if err != nil {
+			fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
+		} else {
+			// Converti in base64
+			mimeType := "image/jpeg" // Assumiamo JPEG come default
+			if strings.HasSuffix(fullPath, ".png") {
+				mimeType = "image/png"
+			}
+			
+			base64Data := base64.StdEncoding.EncodeToString(imgData)
+			imageBase64 = fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+			fmt.Printf("Immagine convertita in base64 (primi 50 caratteri): %s...\n", imageBase64[:min(50, len(imageBase64))])
+			
+			// Imposta il campo immagine_base64 nella richiesta
+			requestData.ImmagineBase64 = imageBase64
+		}
+	} else {
+		// Se non è un'immagine, usa il contenuto come evento
+		evento := message.Content
+		requestData.Evento = evento
+		requestData.ImmagineURL = "https://example.com/image.jpg" // URL hardcoded come richiesto
 	}
 	
 	// Converti la richiesta in JSON
@@ -427,6 +458,14 @@ func createCodiceGiocata(message Message, nota string) {
 			"errore":    response.Errore,
 		})
 	}
+}
+
+// Funzione di utilità per trovare il minimo tra due interi
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func main() {
@@ -922,6 +961,7 @@ func main() {
 											Timestamp: dbMsg.Timestamp,
 											IsMedia:   dbMsg.IsMedia,
 											MediaPath: dbMsg.MediaPath,
+											ImageHash: dbMsg.ImageHash,
 										}
 										originalMessage = &convertedMsg
 										fmt.Printf("Messaggio %s trovato nel database\n", targetMessageID)
@@ -944,7 +984,8 @@ func main() {
 						
 						// Se il messaggio è stato trovato, crea il codice giocata
 						if originalMessage != nil {
-							fmt.Printf("Avvio creazione codice giocata per messaggio %s\n", targetMessageID)
+							fmt.Printf("Avvio creazione codice giocata per messaggio %s (IsMedia: %v, MediaPath: %s)\n", 
+								targetMessageID, originalMessage.IsMedia, originalMessage.MediaPath)
 							// Esegui in modo sincrono per debug
 							createCodiceGiocata(*originalMessage, noteContent)
 						} else {
