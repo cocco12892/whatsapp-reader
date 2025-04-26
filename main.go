@@ -39,6 +39,11 @@ import (
 var whatsmeowClient *whatsmeow.Client
 
 // Struttura per le reazioni
+type Reaction struct {
+	Emoji      string    `json:"emoji"`
+	Sender     string    `json:"sender"`
+	SenderName string    `json:"senderName"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 // Struttura per memorizzare i messaggi
