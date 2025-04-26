@@ -368,7 +368,8 @@ func createCodiceGiocata(message Message, nota string) {
 		Timeout: 10 * time.Second,
 	}
 	
-	req, err := http.NewRequest("POST", "http://localhost:8000/api/v1/create-codice-giocata/", strings.NewReader(string(jsonData)))
+	// Modifica l'URL per usare 127.0.0.1 invece di localhost
+	req, err := http.NewRequest("POST", "http://127.0.0.1:8000/api/v1/create-codice-giocata/", strings.NewReader(string(jsonData)))
 	if err != nil {
 		fmt.Printf("Errore nella creazione della richiesta HTTP: %v\n", err)
 		return
@@ -376,6 +377,8 @@ func createCodiceGiocata(message Message, nota string) {
 	
 	// Imposta gli header
 	req.Header.Set("Content-Type", "application/json")
+	
+	fmt.Printf("Invio richiesta API a http://127.0.0.1:8000/api/v1/create-codice-giocata/ con dati: %s\n", string(jsonData))
 	
 	// Invia la richiesta
 	resp, err := client.Do(req)
@@ -385,10 +388,22 @@ func createCodiceGiocata(message Message, nota string) {
 	}
 	defer resp.Body.Close()
 	
+	// Leggi il corpo della risposta per il debug
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Errore nella lettura della risposta: %v\n", err)
+		return
+	}
+	
+	fmt.Printf("Risposta API ricevuta (status: %d): %s\n", resp.StatusCode, string(respBody))
+	
+	// Ricrea un nuovo reader per il corpo della risposta
+	resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
+	
 	// Leggi la risposta
 	var response CodiceGiocataResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		fmt.Printf("Errore nella decodifica della risposta: %v\n", err)
+		fmt.Printf("Errore nella decodifica della risposta JSON: %v\n", err)
 		return
 	}
 	
@@ -889,15 +904,51 @@ func main() {
 						}
 						mutex.RUnlock()
 						
+						// Se il messaggio non è stato trovato in memoria, prova a cercarlo nel database
+						if originalMessage == nil {
+							fmt.Printf("Messaggio %s non trovato in memoria, cerco nel database\n", targetMessageID)
+							dbMessages, err := dbManager.LoadChatMessages(chatJID)
+							if err == nil {
+								for _, dbMsg := range dbMessages {
+									if dbMsg.ID == targetMessageID {
+										// Converti il messaggio dal formato DB al formato Message
+										convertedMsg := Message{
+											ID:        dbMsg.ID,
+											Chat:      dbMsg.Chat,
+											ChatName:  dbMsg.ChatName,
+											Sender:    dbMsg.Sender,
+											SenderName: dbMsg.SenderName,
+											Content:   dbMsg.Content,
+											Timestamp: dbMsg.Timestamp,
+											IsMedia:   dbMsg.IsMedia,
+											MediaPath: dbMsg.MediaPath,
+										}
+										originalMessage = &convertedMsg
+										fmt.Printf("Messaggio %s trovato nel database\n", targetMessageID)
+										break
+									}
+								}
+							} else {
+								fmt.Printf("Errore nel caricamento dei messaggi dal database: %v\n", err)
+							}
+						}
+						
 						// Cerca la nota associata al messaggio
 						var noteContent string
 						if note, err := dbManager.LoadMessageNote(targetMessageID); err == nil {
 							noteContent = note.Note
+							fmt.Printf("Nota trovata per il messaggio %s: %s\n", targetMessageID, noteContent)
+						} else {
+							fmt.Printf("Nessuna nota trovata per il messaggio %s: %v\n", targetMessageID, err)
 						}
 						
 						// Se il messaggio è stato trovato, crea il codice giocata
 						if originalMessage != nil {
-							go createCodiceGiocata(*originalMessage, noteContent)
+							fmt.Printf("Avvio creazione codice giocata per messaggio %s\n", targetMessageID)
+							// Esegui in modo sincrono per debug
+							createCodiceGiocata(*originalMessage, noteContent)
+						} else {
+							fmt.Printf("ERRORE: Impossibile creare codice giocata, messaggio %s non trovato\n", targetMessageID)
 						}
 						
 						// Notifica i client WebSocket della reazione con fiamma
