@@ -791,25 +791,45 @@ func createGiocataAI(message *Message, chatJID string, messageID string) {
 		})
 		
 		// Aggiungi una reazione 🧾 al messaggio originale
-		chatJID, err := types.ParseJID(chatJID)
+		chatJIDObj, err := types.ParseJID(chatJID)
 		if err == nil {
-			// Ottieni il JID del mittente originale (se disponibile)
-			var senderJID types.JID
-			// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
-			senderJID = types.EmptyJID
-			
 			// Estrai l'ID del messaggio dal messageID (formato: chatJID_messageID)
-			parts := strings.Split(messageID, "_")
 			var msgID string
+			parts := strings.Split(messageID, "_")
 			if len(parts) >= 2 {
 				msgID = parts[len(parts)-1]
 			} else {
 				msgID = messageID
 			}
 			
+			// Cerca il messaggio originale nel database per ottenere il mittente
+			var senderJID types.JID
+			dbMessages, err := dbManager.LoadChatMessages(chatJID)
+			if err == nil {
+				for _, dbMsg := range dbMessages {
+					if dbMsg.ID == messageID || dbMsg.ID == msgID {
+						// Trovato il messaggio, prova a ottenere il JID del mittente
+						senderJID, err = types.ParseJID(dbMsg.Sender)
+						if err != nil {
+							fmt.Printf("Errore nel parsing del JID del mittente originale: %v, uso JID vuoto\n", err)
+							senderJID = types.EmptyJID
+						} else {
+							fmt.Printf("Trovato mittente originale: %s per messaggio %s\n", dbMsg.Sender, messageID)
+						}
+						break
+					}
+				}
+			}
+			
+			// Se non abbiamo trovato il mittente, usiamo un JID vuoto
+			if senderJID.IsEmpty() {
+				senderJID = types.EmptyJID
+				fmt.Printf("Mittente non trovato, uso JID vuoto per la reazione\n")
+			}
+			
 			// Invia la reazione 🧾
-			reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🧾")
-			_, err = whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+			reactionMsg := whatsmeowClient.BuildReaction(chatJIDObj, senderJID, msgID, "🧾")
+			_, err = whatsmeowClient.SendMessage(context.Background(), chatJIDObj, reactionMsg)
 			if err != nil {
 				fmt.Printf("Errore nell'invio della reazione 🧾: %v\n", err)
 			} else {
@@ -1763,6 +1783,15 @@ func main() {
 								
 								// Crea la richiesta per l'API create-giocata-ai
 								createGiocataAI(originalMessage, chatJID, targetMessageID)
+								
+								// Notifica i client WebSocket della reazione blu
+								broadcastToClients("blue_reaction", map[string]interface{}{
+									"targetMessageId": targetMessageID,
+									"senderJid": v.Info.Sender.String(),
+									"senderName": senderName,
+									"chatId": chatJID,
+									"chatName": chatName,
+								})
 							}
 						} else {
 							fmt.Printf("ERRORE: Impossibile elaborare la reazione, messaggio %s non trovato\n", targetMessageID)
