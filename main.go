@@ -342,6 +342,35 @@ type CodiceGiocataResponse struct {
 	Errore  string `json:"errore,omitempty"`
 }
 
+// Struttura per la richiesta di creazione giocata AI
+type GiocataAIRequest struct {
+	Evento            string `json:"evento,omitempty"`
+	SaleRivenditoreID int    `json:"sale_rivenditore_id"`
+	ImmagineURL       string `json:"immagine_url,omitempty"`
+	ImmagineBase64    string `json:"immagine_base64,omitempty"`
+	APIKey            string `json:"api_key"`
+}
+
+// Struttura per la risposta dell'API create-giocata-ai
+type GiocataAIResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
+	Data    struct {
+		ID              int     `json:"id"`
+		CodiceGiocata   string  `json:"codice_giocata"`
+		Rivenditore     string  `json:"rivenditore"`
+		Quota           float64 `json:"quota"`
+		Stake           float64 `json:"stake"`
+		SheetsSaved     bool    `json:"sheets_saved"`
+		Analyzed        bool    `json:"analyzed"`
+		MatchConfidence string  `json:"match_confidence"`
+		MatchReason     string  `json:"match_reason"`
+		Evento          string  `json:"evento"`
+		ImageSource     string  `json:"image_source"`
+	} `json:"data,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
 // Funzione per inviare una richiesta di codice giocata direttamente
 func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest) {
 	fmt.Printf("Invio richiesta diretta per codice giocata (messageID: %s)\n", messageID)
@@ -555,6 +584,236 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 		broadcastToClients("codice_giocata_error", map[string]interface{}{
 			"messageId": messageID,
 			"errore":    response.Errore,
+		})
+	}
+}
+
+// Funzione per creare una giocata AI tramite API
+func createGiocataAI(message *Message, chatJID string, messageID string) {
+	fmt.Printf("Creazione giocata AI per messaggio: %s\n", messageID)
+	
+	// Prepara i dati per l'API
+	requestData := GiocataAIRequest{
+		SaleRivenditoreID: 456, // Valore predefinito
+		APIKey:            "betste_secret_key",
+	}
+	
+	// Se il messaggio contiene un'immagine, ottieni il base64
+	if message.IsMedia && message.MediaPath != "" {
+		// Ottieni il percorso completo dell'immagine
+		fullPath := "." + message.MediaPath
+		fmt.Printf("Tentativo di leggere l'immagine da: %s\n", fullPath)
+		
+		// Verifica se il file esiste
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			fmt.Printf("ERRORE: Il file immagine non esiste: %s\n", fullPath)
+			
+			// Prova percorsi alternativi
+			alternativePaths := []string{
+				message.MediaPath,                  // Prova senza il punto iniziale
+				strings.TrimPrefix(message.MediaPath, "/"), // Rimuovi lo slash iniziale
+				"Immagini" + message.MediaPath,     // Prova con il prefisso Immagini
+				"./Immagini" + strings.TrimPrefix(message.MediaPath, "/images"), // Converti il percorso web in percorso file
+			}
+			
+			var found bool
+			for _, altPath := range alternativePaths {
+				fmt.Printf("Provo percorso alternativo: %s\n", altPath)
+				if _, err := os.Stat(altPath); !os.IsNotExist(err) {
+					fullPath = altPath
+					found = true
+					fmt.Printf("Trovato file immagine in percorso alternativo: %s\n", fullPath)
+					break
+				}
+			}
+			
+			if !found {
+				fmt.Printf("Nessun percorso alternativo trovato, uso l'immagine hardcoded\n")
+				// Usa l'immagine hardcoded
+				hardcodedBase64 := "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAQDAwQDAwQEAwQFBAQFBgoHBgYGBg0JCggKDw0QEA8NDw4RExgUERIXEg4PFRwVFxkZGxsbEBQdHx0aHxgaGxr/U6fNIOr5hskiAICfARBIybXv1EJRyk3JYPV7RwHd4aoVQkB2AHx9Gtpbqn5SAcuAEq/yTvxfvV4E1RhckF4VV9gUwXgw6IBNfu7p2wXAU8jriTgFakIFXX729ymitSVCJR6n1Mc/H/epIMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMNIYYYYYYYYYYYYZ1C3gGikdP8X2TuCegv0Gl/a37/AKH6cDl9Toz4ZUec9M078PM38eMzeMN1Q5McKm7uOm/hjzJ96H9ghqCVwLgmPpPl/wA6NHOjRoxgAmROLjquAaME+8f2Q/an77//2Q=="
+				requestData.ImmagineBase64 = hardcodedBase64
+				fmt.Printf("Impostata immagine base64 hardcoded (lunghezza: %d)\n", len(hardcodedBase64))
+			} else {
+				// Leggi l'immagine dal percorso alternativo trovato
+				imgData, err := os.ReadFile(fullPath)
+				if err != nil {
+					fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
+					// Usa l'immagine hardcoded
+					hardcodedBase64 := "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAQDAwQDAwQEAwQFBAQFBgoHBgYGBg0JCggKDw0QEA8NDw4RExgUERIXEg4PFRwVFxkZGxsbEBQdHx0aHxgaGxr/U6fNIOr5hskiAICfARBIybXv1EJRyk3JYPV7RwHd4aoVQkB2AHx9Gtpbqn5SAcuAEq/yTvxfvV4E1RhckF4VV9gUwXgw6IBNfu7p2wXAU8jriTgFakIFXX729ymitSVCJR6n1Mc/H/epIMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMNIYYYYYYYYYYYYZ1C3gGikdP8X2TuCegv0Gl/a37/AKH6cDl9Toz4ZUec9M078PM38eMzeMN1Q5McKm7uOm/hjzJ96H9ghqCVwLgmPpPl/wA6NHOjRoxgAmROLjquAaME+8f2Q/an77//2Q=="
+					requestData.ImmagineBase64 = hardcodedBase64
+					fmt.Printf("Impostata immagine base64 hardcoded (lunghezza: %d)\n", len(hardcodedBase64))
+				} else {
+					// Converti in base64
+					mimeType := "image/jpeg" // Assumiamo JPEG come default
+					if strings.HasSuffix(fullPath, ".png") {
+						mimeType = "image/png"
+					}
+					
+					base64Data := base64.StdEncoding.EncodeToString(imgData)
+					imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+					
+					// Imposta il campo immagine_base64 nella richiesta
+					requestData.ImmagineBase64 = imageBase64
+					
+					fmt.Printf("Immagine convertita in base64 (primi 50 caratteri): %s...\n", imageBase64[:min(50, len(imageBase64))])
+				}
+			}
+		} else {
+			// Leggi il file dell'immagine
+			imgData, err := os.ReadFile(fullPath)
+			if err != nil {
+				fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
+				
+				// Usa l'immagine hardcoded
+				hardcodedBase64 := "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAQDAwQDAwQEAwQFBAQFBgoHBgYGBg0JCggKDw0QEA8NDw4RExgUERIXEg4PFRwVFxkZGxsbEBQdHx0aHxgaGxr/U6fNIOr5hskiAICfARBIybXv1EJRyk3JYPV7RwHd4aoVQkB2AHx9Gtpbqn5SAcuAEq/yTvxfvV4E1RhckF4VV9gUwXgw6IBNfu7p2wXAU8jriTgFakIFXX729ymitSVCJR6n1Mc/H/epIMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMNIYYYYYYYYYYYYZ1C3gGikdP8X2TuCegv0Gl/a37/AKH6cDl9Toz4ZUec9M078PM38eMzeMN1Q5McKm7uOm/hjzJ96H9ghqCVwLgmPpPl/wA6NHOjRoxgAmROLjquAaME+8f2Q/an77//2Q=="
+				requestData.ImmagineBase64 = hardcodedBase64
+				fmt.Printf("Impostata immagine base64 hardcoded (lunghezza: %d)\n", len(hardcodedBase64))
+			} else {
+				// Converti in base64
+				mimeType := "image/jpeg" // Assumiamo JPEG come default
+				if strings.HasSuffix(fullPath, ".png") {
+					mimeType = "image/png"
+				}
+				
+				base64Data := base64.StdEncoding.EncodeToString(imgData)
+				imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+				
+				// Verifica che il base64 non sia vuoto
+				if len(base64Data) == 0 {
+					fmt.Printf("ERRORE: Base64 vuoto dopo la conversione\n")
+					
+					// Usa l'immagine hardcoded
+					hardcodedBase64 := "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAQDAwQDAwQEAwQFBAQFBgoHBgYGBg0JCggKDw0QEA8NDw4RExgUERIXEg4PFRwVFxkZGxsbEBQdHx0aHxgaGxr/U6fNIOr5hskiAICfARBIybXv1EJRyk3JYPV7RwHd4aoVQkB2AHx9Gtpbqn5SAcuAEq/yTvxfvV4E1RhckF4VV9gUwXgw6IBNfu7p2wXAU8jriTgFakIFXX729ymitSVCJR6n1Mc/H/epIMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMNIYYYYYYYYYYYYZ1C3gGikdP8X2TuCegv0Gl/a37/AKH6cDl9Toz4ZUec9M078PM38eMzeMN1Q5McKm7uOm/hjzJ96H9ghqCVwLgmPpPl/wA6NHOjRoxgAmROLjquAaME+8f2Q/an77//2Q=="
+					requestData.ImmagineBase64 = hardcodedBase64
+					fmt.Printf("Impostata immagine base64 hardcoded (lunghezza: %d)\n", len(hardcodedBase64))
+				} else {
+					fmt.Printf("Immagine convertita in base64 (primi 50 caratteri): %s...\n", imageBase64[:min(50, len(imageBase64))])
+					
+					// Imposta il campo immagine_base64 nella richiesta
+					requestData.ImmagineBase64 = imageBase64
+				}
+			}
+		}
+	} else {
+		// Se non è un'immagine, usa il contenuto come evento
+		evento := message.Content
+		requestData.Evento = evento
+	}
+	
+	// Converti la richiesta in JSON
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		fmt.Printf("Errore nella serializzazione JSON: %v\n", err)
+		return
+	}
+	
+	// Log dettagliato della richiesta
+	fmt.Printf("DEBUG RICHIESTA API GIOCATA AI:\n")
+	fmt.Printf("- Evento: %s\n", requestData.Evento)
+	fmt.Printf("- SaleRivenditoreID: %d\n", requestData.SaleRivenditoreID)
+	fmt.Printf("- ImmagineURL: %s\n", requestData.ImmagineURL)
+	fmt.Printf("- ImmagineBase64 presente: %t (lunghezza: %d)\n", len(requestData.ImmagineBase64) > 0, len(requestData.ImmagineBase64))
+	fmt.Printf("- APIKey: %s\n", requestData.APIKey)
+	
+	// Stampa la richiesta JSON per debug (senza la parte base64 completa per leggibilità)
+	debugJSON := requestData
+	if len(debugJSON.ImmagineBase64) > 100 {
+		truncatedBase64 := debugJSON.ImmagineBase64[:100] + "..."
+		debugJSON.ImmagineBase64 = truncatedBase64
+	}
+	debugJSONBytes, _ := json.MarshalIndent(debugJSON, "", "  ")
+	fmt.Printf("Richiesta JSON (troncata): %s\n", string(debugJSONBytes))
+	
+	// Crea la richiesta HTTP con timeout più lungo
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+	
+	// Crea la richiesta HTTP
+	req, err := http.NewRequest("POST", "http://127.0.0.1:8000/api/v1/create-giocata-ai/", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Printf("Errore nella creazione della richiesta HTTP: %v\n", err)
+		return
+	}
+	
+	// Imposta gli header
+	req.Header.Set("Content-Type", "application/json")
+	
+	// Invia la richiesta
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Errore nell'invio della richiesta HTTP: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+	
+	// Leggi il corpo della risposta per il debug
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Errore nella lettura della risposta: %v\n", err)
+		return
+	}
+	
+	fmt.Printf("Risposta API ricevuta (status: %d): %s\n", resp.StatusCode, string(respBody))
+	
+	// Ricrea un nuovo reader per il corpo della risposta
+	resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
+	
+	// Leggi la risposta
+	var response GiocataAIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		fmt.Printf("Errore nella decodifica della risposta JSON: %v\n", err)
+		return
+	}
+	
+	// Verifica il risultato
+	if response.Success {
+		fmt.Printf("Giocata AI creata con successo: %s\n", response.Data.CodiceGiocata)
+		
+		// Notifica i client WebSocket della giocata creata
+		broadcastToClients("giocata_ai_created", map[string]interface{}{
+			"messageId": messageID,
+			"codice":    response.Data.CodiceGiocata,
+			"evento":    response.Data.Evento,
+			"quota":     response.Data.Quota,
+			"stake":     response.Data.Stake,
+		})
+		
+		// Aggiungi una reazione 🧾 al messaggio originale
+		chatJID, err := types.ParseJID(chatJID)
+		if err == nil {
+			// Ottieni il JID del mittente originale (se disponibile)
+			var senderJID types.JID
+			// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
+			senderJID = types.EmptyJID
+			
+			// Estrai l'ID del messaggio dal messageID (formato: chatJID_messageID)
+			parts := strings.Split(messageID, "_")
+			var msgID string
+			if len(parts) >= 2 {
+				msgID = parts[len(parts)-1]
+			} else {
+				msgID = messageID
+			}
+			
+			// Invia la reazione 🧾
+			reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🧾")
+			_, err = whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+			if err != nil {
+				fmt.Printf("Errore nell'invio della reazione 🧾: %v\n", err)
+			} else {
+				fmt.Printf("Reazione 🧾 inviata con successo al messaggio %s\n", messageID)
+			}
+		} else {
+			fmt.Printf("Errore nel parsing del JID della chat: %v\n", err)
+		}
+	} else {
+		fmt.Printf("Errore nella creazione della giocata AI: %s\n", response.Error)
+		
+		// Notifica i client WebSocket dell'errore
+		broadcastToClients("giocata_ai_error", map[string]interface{}{
+			"messageId": messageID,
+			"errore":    response.Error,
 		})
 	}
 }
@@ -1317,9 +1576,9 @@ func main() {
 							reactionText,
 							targetMessageID)
 					
-					// Verifica se è una reazione con fiamma 🔥 o verde 🟢
-					if reactionText == "🔥" {
-						fmt.Printf("Rilevata reazione 🔥 al messaggio %s da %s\n", targetMessageID, senderName)
+					// Verifica se è una reazione con fiamma 🔥, verde 🟢 o blu 🔵
+					if reactionText == "🔥" || reactionText == "🔵" {
+						fmt.Printf("Rilevata reazione %s al messaggio %s da %s\n", reactionText, targetMessageID, senderName)
 						
 						// Cerca il messaggio originale
 						var originalMessage *Message
@@ -1371,49 +1630,83 @@ func main() {
 							fmt.Printf("Nessuna nota trovata per il messaggio %s: %v\n", targetMessageID, err)
 						}
 						
-						// Se il messaggio è stato trovato, crea il codice giocata
+						// Se il messaggio è stato trovato, procedi in base al tipo di reazione
 						if originalMessage != nil {
-							fmt.Printf("Avvio creazione codice giocata per messaggio %s (IsMedia: %v, MediaPath: %s)\n", 
-								targetMessageID, originalMessage.IsMedia, originalMessage.MediaPath)
+							if reactionText == "🔥" {
+								// Reazione fiamma: crea codice giocata
+								fmt.Printf("Avvio creazione codice giocata per messaggio %s (IsMedia: %v, MediaPath: %s)\n", 
+									targetMessageID, originalMessage.IsMedia, originalMessage.MediaPath)
 							
-							// Se è un'immagine, crea una copia del messaggio con ImmagineBase64 preimpostato
-							if originalMessage.IsMedia && originalMessage.MediaPath != "" {
-								// Crea una copia del messaggio originale
-								messageCopy := *originalMessage
-								
-								// Ottieni il percorso completo dell'immagine
-								fullPath := "." + messageCopy.MediaPath
-								fmt.Printf("Tentativo di leggere l'immagine da: %s\n", fullPath)
-								
-								// Verifica se il file esiste
-								if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-									fmt.Printf("ERRORE: Il file immagine non esiste: %s\n", fullPath)
+							// Reazione fiamma: crea codice giocata
+							if reactionText == "🔥" {
+								// Se è un'immagine, crea una copia del messaggio con ImmagineBase64 preimpostato
+								if originalMessage.IsMedia && originalMessage.MediaPath != "" {
+									// Crea una copia del messaggio originale
+									messageCopy := *originalMessage
 									
-									// Prova percorsi alternativi
-									alternativePaths := []string{
-										messageCopy.MediaPath,                  // Prova senza il punto iniziale
-										strings.TrimPrefix(messageCopy.MediaPath, "/"), // Rimuovi lo slash iniziale
-										"Immagini" + messageCopy.MediaPath,     // Prova con il prefisso Immagini
-										"./Immagini" + strings.TrimPrefix(messageCopy.MediaPath, "/images"), // Converti il percorso web in percorso file
-									}
-									
-									var found bool
-									for _, altPath := range alternativePaths {
-										fmt.Printf("Provo percorso alternativo: %s\n", altPath)
-										if _, err := os.Stat(altPath); !os.IsNotExist(err) {
-											fullPath = altPath
-											found = true
-											fmt.Printf("Trovato file immagine in percorso alternativo: %s\n", fullPath)
-											break
+									// Ottieni il percorso completo dell'immagine
+									fullPath := "." + messageCopy.MediaPath
+									fmt.Printf("Tentativo di leggere l'immagine da: %s\n", fullPath)
+								
+									// Verifica se il file esiste
+									if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+										fmt.Printf("ERRORE: Il file immagine non esiste: %s\n", fullPath)
+										
+										// Prova percorsi alternativi
+										alternativePaths := []string{
+											messageCopy.MediaPath,                  // Prova senza il punto iniziale
+											strings.TrimPrefix(messageCopy.MediaPath, "/"), // Rimuovi lo slash iniziale
+											"Immagini" + messageCopy.MediaPath,     // Prova con il prefisso Immagini
+											"./Immagini" + strings.TrimPrefix(messageCopy.MediaPath, "/images"), // Converti il percorso web in percorso file
 										}
-									}
-									
-									if !found {
-										fmt.Printf("Nessun percorso alternativo trovato, uso l'immagine hardcoded\n")
-										// Usa l'immagine hardcoded
-										createCodiceGiocata(messageCopy, noteContent)
+										
+										var found bool
+										for _, altPath := range alternativePaths {
+											fmt.Printf("Provo percorso alternativo: %s\n", altPath)
+											if _, err := os.Stat(altPath); !os.IsNotExist(err) {
+												fullPath = altPath
+												found = true
+												fmt.Printf("Trovato file immagine in percorso alternativo: %s\n", fullPath)
+												break
+											}
+										}
+										
+										if !found {
+											fmt.Printf("Nessun percorso alternativo trovato, uso l'immagine hardcoded\n")
+											// Usa l'immagine hardcoded
+											createCodiceGiocata(messageCopy, noteContent)
+										} else {
+											// Leggi l'immagine dal percorso alternativo trovato
+											imgData, err := os.ReadFile(fullPath)
+											if err != nil {
+												fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
+												createCodiceGiocata(messageCopy, noteContent)
+											} else {
+												// Converti in base64
+												mimeType := "image/jpeg" // Assumiamo JPEG come default
+												if strings.HasSuffix(fullPath, ".png") {
+													mimeType = "image/png"
+												}
+												
+												base64Data := base64.StdEncoding.EncodeToString(imgData)
+												imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+												
+												// Crea una richiesta speciale solo con l'immagine base64
+												specialRequest := CodiceGiocataRequest{
+													Esito:          noteContent,
+													TipsterID:      1,
+													Percentuale:    0.3,
+													ImmagineBase64: imageBase64,
+													APIKey:         "betste_secret_key",
+													ChatID:         messageCopy.Chat, // Aggiungi l'ID della chat
+												}
+												
+												// Invia direttamente la richiesta speciale
+												sendCodiceGiocataRequest(messageCopy.ID, specialRequest)
+											}
+										}
 									} else {
-										// Leggi l'immagine dal percorso alternativo trovato
+										// Leggi l'immagine
 										imgData, err := os.ReadFile(fullPath)
 										if err != nil {
 											fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
@@ -1443,51 +1736,28 @@ func main() {
 										}
 									}
 								} else {
-									// Leggi l'immagine
-									imgData, err := os.ReadFile(fullPath)
-									if err != nil {
-										fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
-										createCodiceGiocata(messageCopy, noteContent)
-									} else {
-										// Converti in base64
-										mimeType := "image/jpeg" // Assumiamo JPEG come default
-										if strings.HasSuffix(fullPath, ".png") {
-											mimeType = "image/png"
-										}
-										
-										base64Data := base64.StdEncoding.EncodeToString(imgData)
-										imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
-										
-										// Crea una richiesta speciale solo con l'immagine base64
-										specialRequest := CodiceGiocataRequest{
-											Esito:          noteContent,
-											TipsterID:      1,
-											Percentuale:    0.3,
-											ImmagineBase64: imageBase64,
-											APIKey:         "betste_secret_key",
-											ChatID:         messageCopy.Chat, // Aggiungi l'ID della chat
-										}
-										
-										// Invia direttamente la richiesta speciale
-										sendCodiceGiocataRequest(messageCopy.ID, specialRequest)
-									}
+									// Se non è un'immagine, usa il metodo standard
+									createCodiceGiocata(*originalMessage, noteContent)
 								}
-							} else {
-								// Se non è un'immagine, usa il metodo standard
-								createCodiceGiocata(*originalMessage, noteContent)
+								
+								// Notifica i client WebSocket della reazione con fiamma
+								broadcastToClients("fire_reaction", map[string]interface{}{
+									"targetMessageId": targetMessageID,
+									"senderJid": v.Info.Sender.String(),
+									"senderName": senderName,
+									"chatId": chatJID,
+									"chatName": chatName,
+								})
+							} else if reactionText == "🔵" {
+								// Reazione pallino blu: crea giocata AI
+								fmt.Printf("Avvio creazione giocata AI per messaggio %s\n", targetMessageID)
+								
+								// Crea la richiesta per l'API create-giocata-ai
+								createGiocataAI(originalMessage, chatJID, targetMessageID)
 							}
 						} else {
-							fmt.Printf("ERRORE: Impossibile creare codice giocata, messaggio %s non trovato\n", targetMessageID)
+							fmt.Printf("ERRORE: Impossibile elaborare la reazione, messaggio %s non trovato\n", targetMessageID)
 						}
-						
-						// Notifica i client WebSocket della reazione con fiamma
-						broadcastToClients("fire_reaction", map[string]interface{}{
-							"targetMessageId": targetMessageID,
-							"senderJid": v.Info.Sender.String(),
-							"senderName": senderName,
-							"chatId": chatJID,
-							"chatName": chatName,
-						})
 					}
 				} else if v.Message.GetPollCreationMessage() != nil {
 					messageType = "sondaggio"
