@@ -365,61 +365,85 @@ func createCodiceGiocata(message Message, nota string) {
 		// Verifica se il file esiste
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			fmt.Printf("ERRORE: Il file immagine non esiste: %s\n", fullPath)
-			// Prova a cercare il file in altre posizioni
-			fmt.Printf("Tentativo di cercare l'immagine in posizioni alternative...\n")
 			
-			// Stampa informazioni sul messaggio per debug
-			fmt.Printf("Dettagli messaggio:\n")
-			fmt.Printf("- ID: %s\n", message.ID)
-			fmt.Printf("- Chat: %s\n", message.Chat)
-			fmt.Printf("- Sender: %s\n", message.Sender)
-			fmt.Printf("- IsMedia: %t\n", message.IsMedia)
-			fmt.Printf("- MediaPath: %s\n", message.MediaPath)
-			fmt.Printf("- ImageHash: %s\n", message.ImageHash)
+			// Prova percorsi alternativi
+			alternativePaths := []string{
+				message.MediaPath,                  // Prova senza il punto iniziale
+				strings.TrimPrefix(message.MediaPath, "/"), // Rimuovi lo slash iniziale
+				"Immagini" + message.MediaPath,     // Prova con il prefisso Immagini
+				"./Immagini" + strings.TrimPrefix(message.MediaPath, "/images"), // Converti il percorso web in percorso file
+			}
 			
-			// Continua con il messaggio di testo se l'immagine non è disponibile
-			evento := message.Content
-			requestData.Evento = evento
-			requestData.ImmagineURL = "https://example.com/image.jpg" // URL hardcoded come richiesto
-		} else {
-			// Leggi il file dell'immagine
-			imgData, err := os.ReadFile(fullPath)
-			if err != nil {
-				fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
-				// Continua con il messaggio di testo se l'immagine non può essere letta
-				evento := message.Content
-				requestData.Evento = evento
-				requestData.ImmagineURL = "https://example.com/image.jpg" // URL hardcoded come richiesto
-			} else {
-				// Converti in base64
-				mimeType := "image/jpeg" // Assumiamo JPEG come default
-				if strings.HasSuffix(fullPath, ".png") {
-					mimeType = "image/png"
+			var found bool
+			for _, altPath := range alternativePaths {
+				fmt.Printf("Provo percorso alternativo: %s\n", altPath)
+				if _, err := os.Stat(altPath); !os.IsNotExist(err) {
+					fullPath = altPath
+					found = true
+					fmt.Printf("Trovato file immagine in percorso alternativo: %s\n", fullPath)
+					break
 				}
+			}
+			
+			if !found {
+				fmt.Printf("Dettagli messaggio:\n")
+				fmt.Printf("- ID: %s\n", message.ID)
+				fmt.Printf("- Chat: %s\n", message.Chat)
+				fmt.Printf("- Sender: %s\n", message.Sender)
+				fmt.Printf("- IsMedia: %t\n", message.IsMedia)
+				fmt.Printf("- MediaPath: %s\n", message.MediaPath)
+				fmt.Printf("- ImageHash: %s\n", message.ImageHash)
 				
-				base64Data := base64.StdEncoding.EncodeToString(imgData)
-				imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+				// Usa l'immagine di esempio fornita dall'utente
+				fmt.Printf("Utilizzo immagine di esempio hardcoded\n")
+				hardcodedBase64 := "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAQDAwQDAwQEAwQFBAQFBgoHBgYGBg0JCggKDw0QEA8NDw4RExgUERIXEg4PFRwVFxkZGxsbEBQdHx0aHxgaGxr/U6fNIOr5hskiAICfARBIybXv1EJRyk3JYPV7RwHd4aoVQkB2AHx9Gtpbqn5SAcuAEq/yTvxfvV4E1RhckF4VV9gUwXgw6IBNfu7p2wXAU8jriTgFakIFXX729ymitSVCJR6n1Mc/H/epIMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMNIYYYYYYYYYYYYZ1C3gGikdP8X2TuCegv0Gl/a37/AKH6cDl9Toz4ZUec9M078PM38eMzeMN1Q5McKm7uOm/hjzJ96H9ghqCVwLgmPpPl/wA6NHOjRoxgAmROLjquAaME+8f2Q/an77//2Q=="
+				requestData.ImmagineBase64 = hardcodedBase64
+				fmt.Printf("Impostata immagine base64 hardcoded (lunghezza: %d)\n", len(hardcodedBase64))
+				return
+			}
+		}
+		
+		// Leggi il file dell'immagine
+		imgData, err := os.ReadFile(fullPath)
+		if err != nil {
+			fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
+			
+			// Usa l'immagine di esempio fornita dall'utente
+			fmt.Printf("Utilizzo immagine di esempio hardcoded dopo errore di lettura\n")
+			hardcodedBase64 := "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAQDAwQDAwQEAwQFBAQFBgoHBgYGBg0JCggKDw0QEA8NDw4RExgUERIXEg4PFRwVFxkZGxsbEBQdHx0aHxgaGxr/U6fNIOr5hskiAICfARBIybXv1EJRyk3JYPV7RwHd4aoVQkB2AHx9Gtpbqn5SAcuAEq/yTvxfvV4E1RhckF4VV9gUwXgw6IBNfu7p2wXAU8jriTgFakIFXX729ymitSVCJR6n1Mc/H/epIMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMNIYYYYYYYYYYYYZ1C3gGikdP8X2TuCegv0Gl/a37/AKH6cDl9Toz4ZUec9M078PM38eMzeMN1Q5McKm7uOm/hjzJ96H9ghqCVwLgmPpPl/wA6NHOjRoxgAmROLjquAaME+8f2Q/an77//2Q=="
+			requestData.ImmagineBase64 = hardcodedBase64
+			fmt.Printf("Impostata immagine base64 hardcoded (lunghezza: %d)\n", len(hardcodedBase64))
+		} else {
+			// Converti in base64
+			mimeType := "image/jpeg" // Assumiamo JPEG come default
+			if strings.HasSuffix(fullPath, ".png") {
+				mimeType = "image/png"
+			}
+			
+			base64Data := base64.StdEncoding.EncodeToString(imgData)
+			imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+			
+			// Verifica che il base64 non sia vuoto
+			if len(base64Data) == 0 {
+				fmt.Printf("ERRORE: Base64 vuoto dopo la conversione\n")
 				
-				// Verifica che il base64 non sia vuoto
-				if len(base64Data) == 0 {
-					fmt.Printf("ERRORE: Base64 vuoto dopo la conversione\n")
-					// Continua con il messaggio di testo
-					evento := message.Content
-					requestData.Evento = evento
-					requestData.ImmagineURL = "https://example.com/image.jpg" // URL hardcoded come richiesto
-				} else {
-					fmt.Printf("Immagine convertita in base64 (primi 50 caratteri): %s...\n", imageBase64[:min(50, len(imageBase64))])
-					
-					// Imposta il campo immagine_base64 nella richiesta
-					requestData.ImmagineBase64 = imageBase64
-					
-					// Stampa la richiesta completa per debug
-					fmt.Printf("Invio richiesta con immagine base64 (lunghezza: %d)\n", len(imageBase64))
-					
-					// Verifica che il formato sia corretto
-					if !strings.HasPrefix(imageBase64, "data:image/") {
-						fmt.Printf("AVVISO: Il formato del base64 potrebbe non essere corretto\n")
-					}
+				// Usa l'immagine di esempio fornita dall'utente
+				fmt.Printf("Utilizzo immagine di esempio hardcoded dopo base64 vuoto\n")
+				hardcodedBase64 := "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAQDAwQDAwQEAwQFBAQFBgoHBgYGBg0JCggKDw0QEA8NDw4RExgUERIXEg4PFRwVFxkZGxsbEBQdHx0aHxgaGxr/U6fNIOr5hskiAICfARBIybXv1EJRyk3JYPV7RwHd4aoVQkB2AHx9Gtpbqn5SAcuAEq/yTvxfvV4E1RhckF4VV9gUwXgw6IBNfu7p2wXAU8jriTgFakIFXX729ymitSVCJR6n1Mc/H/epIMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMNIYYYYYYYYYYYYZ1C3gGikdP8X2TuCegv0Gl/a37/AKH6cDl9Toz4ZUec9M078PM38eMzeMN1Q5McKm7uOm/hjzJ96H9ghqCVwLgmPpPl/wA6NHOjRoxgAmROLjquAaME+8f2Q/an77//2Q=="
+				requestData.ImmagineBase64 = hardcodedBase64
+				fmt.Printf("Impostata immagine base64 hardcoded (lunghezza: %d)\n", len(hardcodedBase64))
+			} else {
+				fmt.Printf("Immagine convertita in base64 (primi 50 caratteri): %s...\n", imageBase64[:min(50, len(imageBase64))])
+				
+				// Imposta il campo immagine_base64 nella richiesta
+				requestData.ImmagineBase64 = imageBase64
+				
+				// Stampa la richiesta completa per debug
+				fmt.Printf("Invio richiesta con immagine base64 (lunghezza: %d)\n", len(imageBase64))
+				
+				// Verifica che il formato sia corretto
+				if !strings.HasPrefix(imageBase64, "data:image/") {
+					fmt.Printf("AVVISO: Il formato del base64 potrebbe non essere corretto\n")
 				}
 			}
 		}
