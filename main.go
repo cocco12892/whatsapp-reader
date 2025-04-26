@@ -1039,7 +1039,7 @@ func main() {
 						parts := strings.Split(participant, "@")
 						if len(parts) == 2 {
 							userJID := types.NewJID(parts[0], parts[1])
-							replyToSender = getContactName(client, userJID)
+							replyToSender = getContactName(whatsmeowClient, userJID)
 						} else {
 							// Fallback to using the entire participant string
 							replyToSender = participant
@@ -1523,7 +1523,7 @@ func main() {
 			
 			// Prova a scaricare l'immagine del profilo
 			isGroup := v.Info.IsGroup
-			profilePath, err := downloadProfilePicture(client, v.Info.Chat, isGroup)
+			profilePath, err := downloadProfilePicture(whatsmeowClient, v.Info.Chat, isGroup)
 			if err == nil {
 				chat.ProfileImage = profilePath
 				
@@ -1789,7 +1789,7 @@ func main() {
 		}
 		
 		isGroup := jid.Server == "g.us"
-		profilePath, err := downloadProfilePicture(client, jid, isGroup)
+		profilePath, err := downloadProfilePicture(whatsmeowClient, jid, isGroup)
 		
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -1982,7 +1982,7 @@ func main() {
 		}
 		
 		// ID del mittente (te stesso)
-		selfJID := client.Store.ID
+		selfJID := whatsmeowClient.Store.ID
 		
 		// Verifica se la richiesta contiene un'immagine
 		file, header, err := c.Request.FormFile("image")
