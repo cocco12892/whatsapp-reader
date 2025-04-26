@@ -454,19 +454,14 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 			
 			chatJID, err := types.ParseJID(chatJIDStr)
 			if err == nil {
-				// Crea il messaggio di reazione
-				reactionMsg := &waProto.Message{
-					ReactionMessage: &waProto.ReactionMessage{
-						Key: &waProto.MessageKey{
-							RemoteJID: proto.String(chatJID.String()),
-							FromMe:    proto.Bool(false),
-							ID:        proto.String(msgID),
-						},
-						Text:              proto.String("🟢"),
-						SenderTimestampMS: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
-					},
-				}
-						
+				// Ottieni il JID del mittente originale (se disponibile)
+				var senderJID types.JID
+				// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
+				senderJID = types.EmptyJID
+				
+				// Usa BuildReaction per creare il messaggio di reazione
+				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
+				
 				// Invia la reazione
 				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
@@ -483,19 +478,16 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 			// Prova a inviare la reazione direttamente senza dividere l'ID
 			chatJID, err := types.ParseJID(requestData.ChatID)
 			if err == nil {
-				// Crea il messaggio di reazione
-				reactionMsg := &waProto.Message{
-					ReactionMessage: &waProto.ReactionMessage{
-						Key: &waProto.MessageKey{
-							RemoteJID: proto.String(chatJID.String()),
-							FromMe:    proto.Bool(false),
-							ID:        proto.String(messageID),
-						},
-						Text:              proto.String("🟢"),
-						SenderTimestampMS: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
-					},
+				// Ottieni il JID del mittente originale (se disponibile)
+				var senderJID types.JID
+				if requestData.ChatID != "" {
+					// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
+					senderJID = types.EmptyJID
 				}
-				
+		
+				// Usa BuildReaction per creare il messaggio di reazione
+				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, "🟢")
+		
 				// Invia la reazione
 				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
@@ -742,18 +734,13 @@ func createCodiceGiocata(message Message, nota string) {
 			
 			chatJID, err := types.ParseJID(chatJIDStr)
 			if err == nil {
-				// Crea il messaggio di reazione
-				reactionMsg := &waProto.Message{
-					ReactionMessage: &waProto.ReactionMessage{
-						Key: &waProto.MessageKey{
-							RemoteJID: proto.String(chatJID.String()),
-							FromMe:    proto.Bool(false),
-							ID:        proto.String(msgID),
-						},
-						Text:              proto.String("🟢"),
-						SenderTimestampMS: proto.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
-					},
-				}
+				// Ottieni il JID del mittente originale (se disponibile)
+				var senderJID types.JID
+				// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
+				senderJID = types.EmptyJID
+				
+				// Usa BuildReaction per creare il messaggio di reazione
+				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
 				
 				// Invia la reazione
 				_, err := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
