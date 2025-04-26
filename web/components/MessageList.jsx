@@ -1,6 +1,7 @@
 import AudioMessageWrapper from './AudioMessageWrapper';
-import { Box, Typography, Badge, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Radio, CircularProgress } from '@mui/material';
+import { Box, Typography, Badge, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Radio, CircularProgress, Snackbar, Alert } from '@mui/material';
 import NoteIcon from '@mui/icons-material/Note';
+import CodeIcon from '@mui/icons-material/Code';
 import NotesGroupView from './NotesGroupView';
 import ReplyContext from './ReplyContext';
 import NoteSelectionDialog from './NoteSelectionDialog';
@@ -299,6 +300,9 @@ const [selectedText, setSelectedText] = useState('');
 const [separateImporto, setSeparateImporto] = useState('');
 const [separateQuota, setSeparateQuota] = useState('');
 const [isEditMode, setIsEditMode] = useState(false);
+const [snackbarOpen, setSnackbarOpen] = useState(false);
+const [snackbarMessage, setSnackbarMessage] = useState('');
+const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
 
 // Funzione per caricare le note dal database
@@ -903,6 +907,77 @@ const closeContextMenu = () => {
   setSelectedText('');
 };
 
+// Funzione per creare un codice giocata
+const handleCreateCodiceGiocata = (messageId) => {
+  // Trova il messaggio corrente
+  const currentMessage = messages.find(m => m.id === messageId);
+  if (!currentMessage) {
+    console.error('Messaggio non trovato:', messageId);
+    return;
+  }
+  
+  // Estrai il contenuto del messaggio come evento
+  const evento = currentMessage.content || "Evento sconosciuto";
+  
+  // Verifica se il messaggio ha una nota associata
+  const nota = messageNotes[messageId]?.note || "";
+  
+  // Prepara i dati per l'API
+  const apiData = {
+    evento: evento,
+    esito: nota || "Esito non specificato",
+    tipster_id: 1, // Valore predefinito
+    percentuale: 0.3, // Valore predefinito
+    immagine_url: "https://example.com/image.jpg", // URL hardcoded come richiesto
+    api_key: "betste_secret_key"
+  };
+  
+  // Chiama l'API
+  fetch('http://localhost:8000/api/v1/create-codice-giocata/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(apiData),
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`Errore HTTP: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    console.log('Codice giocata creato con successo:', data);
+    
+    // Mostra un messaggio di successo
+    setSnackbarMessage(`Codice giocata creato: ${data.codice || 'Codice non disponibile'}`);
+    setSnackbarSeverity('success');
+    setSnackbarOpen(true);
+    
+    // Copia il codice negli appunti se disponibile
+    if (data.codice) {
+      navigator.clipboard.writeText(data.codice)
+        .then(() => {
+          console.log('Codice copiato negli appunti');
+        })
+        .catch(err => {
+          console.error('Errore nella copia del codice:', err);
+        });
+    }
+  })
+  .catch(error => {
+    console.error('Errore nella creazione del codice giocata:', error);
+    
+    // Mostra un messaggio di errore
+    setSnackbarMessage('Errore nella creazione del codice giocata');
+    setSnackbarSeverity('error');
+    setSnackbarOpen(true);
+  });
+  
+  // Chiudi il menu contestuale
+  closeContextMenu();
+};
+
 // Function to safely encode image paths
 const safeImagePath = (path) => {
   if (!path) return '';
@@ -1390,6 +1465,26 @@ return (
               <Typography variant="body2" fontWeight="500">Rispondi</Typography>
             </Box>
             
+            {/* Opzione Crea Codice Giocata */}
+            <Box
+              sx={{
+                px: 2.5,
+                py: 1.5,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                '&:hover': {
+                  bgcolor: 'rgba(76, 175, 80, 0.08)'
+                },
+                transition: 'background-color 0.15s'
+              }}
+              onClick={() => handleCreateCodiceGiocata(contextMenu.messageId)}
+            >
+              <CodeIcon sx={{ color: 'success.main' }} />
+              <Typography variant="body2" fontWeight="500">Crea Codice Giocata</Typography>
+            </Box>
+            
             {/* Opzione Copia testo selezionato - visibile solo se c'è testo selezionato */}
             {selectedText && (
               <Box
@@ -1524,6 +1619,22 @@ return (
       maxWidth="md"
       fullWidth
     >
+    
+    {/* Snackbar per notifiche */}
+    <Snackbar 
+      open={snackbarOpen} 
+      autoHideDuration={6000} 
+      onClose={() => setSnackbarOpen(false)}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+    >
+      <Alert 
+        onClose={() => setSnackbarOpen(false)} 
+        severity={snackbarSeverity} 
+        sx={{ width: '100%' }}
+      >
+        {snackbarMessage}
+      </Alert>
+    </Snackbar>
       <DialogTitle>
         {isEditMode ? "Modifica Importo e Quota" : "Inserisci Importo e Quota"}
       </DialogTitle>
