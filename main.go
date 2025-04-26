@@ -486,13 +486,13 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 				
 				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
 				
-				// Ora invia la nuova reazione (🟢)
-				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
+				// Ora invia la nuova reazione (🥳)
+				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🥳")
 				_, err = whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
-					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
+					fmt.Printf("Errore nell'invio della reazione 🥳: %v\n", err)
 				} else {
-					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s\n", messageID)
+					fmt.Printf("Reazione 🥳 inviata con successo al messaggio %s\n", messageID)
 				}
 			} else {
 				fmt.Printf("Errore nel parsing del JID della chat: %v\n", err)
@@ -503,22 +503,46 @@ func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest
 			// Prova a inviare la reazione direttamente senza dividere l'ID
 			chatJID, err := types.ParseJID(requestData.ChatID)
 			if err == nil {
-				// Ottieni il JID del mittente originale (se disponibile)
+				// Ottieni il JID del mittente originale del messaggio
 				var senderJID types.JID
-				if requestData.ChatID != "" {
-					// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
-					senderJID = types.EmptyJID
-				}
-		
-				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
 				
-				// Ora invia la nuova reazione (🟢)
+				// Carica i messaggi della chat dal database
+				dbMessages, err := dbManager.LoadChatMessages(requestData.ChatID)
+				if err != nil {
+					fmt.Printf("Errore nel caricare i messaggi della chat: %v\n", err)
+					senderJID = types.EmptyJID  // Fallback a JID vuoto
+				} else {
+					// Cerca il messaggio originale nel database
+					var originalMessage *db.Message
+					for _, msg := range dbMessages {
+						if msg.ID == messageID {
+							originalMessage = &msg
+							break
+						}
+					}
+					
+					if originalMessage != nil {
+						// Usa il JID del mittente originale
+						senderJID, err = types.ParseJID(originalMessage.Sender)
+						if err != nil {
+							fmt.Printf("Errore nel parsing del JID del mittente originale: %v\n", err)
+							senderJID = types.EmptyJID  // Fallback a JID vuoto
+						}
+						fmt.Printf("Trovato mittente originale: %s per messaggio %s\n", originalMessage.Sender, messageID)
+					} else {
+						fmt.Printf("Messaggio originale %s non trovato nel database\n", messageID)
+						senderJID = types.EmptyJID  // Fallback a JID vuoto
+					}
+				}
+				
+				// Ora invia la nuova reazione (🟢) utilizzando il JID del mittente originale
 				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, "🟢")
 				_, err = whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
 					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
 				} else {
-					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s\n", messageID)
+					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s (mittente originale: %s)\n", 
+						messageID, senderJID.String())
 				}
 			} else {
 				fmt.Printf("Errore nel parsing del JID della chat: %v\n", err)
@@ -679,7 +703,7 @@ func createCodiceGiocata(message Message, nota string) {
 	
 	// Crea la richiesta HTTP
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 	
 	// Modifica l'URL per usare 127.0.0.1 invece di localhost
