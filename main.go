@@ -38,6 +38,9 @@ import (
 // Variabile globale per il client WhatsApp
 var whatsmeowClient *whatsmeow.Client
 
+// Struttura per le reazioni
+}
+
 // Struttura per memorizzare i messaggi
 type Message struct {
     ID              string    `json:"id"`
