@@ -817,7 +817,7 @@ func main() {
 	whatsmeowClient = whatsmeow.NewClient(deviceStore, logger)
 	
 	// Registra l'event handler principale
-	client.AddEventHandler(func(evt interface{}) {
+	whatsmeowClient.AddEventHandler(func(evt interface{}) {
 		switch v := evt.(type) {
 		case *events.Message:
     		// Controlla se è un messaggio di tipo elimina
@@ -980,7 +980,7 @@ func main() {
 			
 			if v.Info.IsGroup {
 				chatJID = v.Info.Chat.String()
-				chatName = getGroupName(client, v.Info.Chat)
+				chatName = getGroupName(whatsmeowClient, v.Info.Chat)
 				
 				fmt.Printf("DEBUG GROUP MESSAGE:\n")
 				fmt.Printf("  Chat JID: %s\n", chatJID)
@@ -989,7 +989,7 @@ func main() {
 				chatJID = v.Info.Chat.String()
 				
 				// Usa sempre v.Info.Chat per ottenere il nome del contatto
-				chatName = getContactName(client, v.Info.Chat)
+				chatName = getContactName(whatsmeowClient, v.Info.Chat)
 				
 				
 				fmt.Printf("DEBUG PRIVATE MESSAGE:\n")
@@ -998,7 +998,7 @@ func main() {
 				fmt.Printf("  Message Content: %s\n\n", v.Message.GetConversation())
 			}
 			
-			senderName := getContactName(client, v.Info.Sender)
+			senderName := getContactName(whatsmeowClient, v.Info.Sender)
 			
 			// Determina il contenuto del messaggio in base al tipo
 			var (
@@ -1079,7 +1079,7 @@ func main() {
 				}
 				
 				// Salva l'immagine - mantenendo il codice originale che funzionava
-				imgData, err := client.Download(v.Message.GetImageMessage())
+				imgData, err := whatsmeowClient.Download(v.Message.GetImageMessage())
 				if err == nil {
 					// Calcola l'hash SHA-256 dell'immagine
 					imageHash := sha256.Sum256(imgData)
@@ -1129,7 +1129,7 @@ func main() {
 				content = "🔊 Messaggio vocale"
 
 				// Scarica il file audio
-				audioData, err := client.Download(audioMsg)
+				audioData, err := whatsmeowClient.Download(audioMsg)
 				if err == nil {
 					// Genera path per salvare il file
 					dataDir := v.Info.Timestamp.Format("2006-01-02")
@@ -1933,14 +1933,14 @@ func main() {
 		}
 		
 		// Imposta la presenza come disponibile (opzionale, ma consigliato per le ricevute di lettura)
-		err = client.SendPresence(types.PresenceAvailable)
+		err = whatsmeowClient.SendPresence(types.PresenceAvailable)
 		if err != nil {
 			fmt.Printf("Avviso: errore nell'impostare la presenza: %v\n", err)
 			// Continuiamo comunque, non è un errore critico
 		}
 		
 		// Marca i messaggi come letti
-		err = client.MarkRead(
+		err = whatsmeowClient.MarkRead(
 			messageIDs,
 			time.Now(),
 			chatJID,
@@ -1975,9 +1975,9 @@ func main() {
 			chatName = chat.Name
 		} else {
 			if chatJID.Server == "g.us" {
-				chatName = getGroupName(client, chatJID)
+				chatName = getGroupName(whatsmeowClient, chatJID)
 			} else {
-				chatName = getContactName(client, chatJID)
+				chatName = getContactName(whatsmeowClient, chatJID)
 			}
 		}
 		
@@ -2008,7 +2008,7 @@ func main() {
 			caption := c.PostForm("caption")
 			
 			// Crea il messaggio immagine
-			uploadedImage, err := client.Upload(context.Background(), imageData, whatsmeow.MediaImage)
+			uploadedImage, err := whatsmeowClient.Upload(context.Background(), imageData, whatsmeow.MediaImage)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'upload dell'immagine: %v", err)})
 				return
@@ -2031,10 +2031,10 @@ func main() {
 			}
 			
 			// Genera un ID per il messaggio
-			msgID := client.GenerateMessageID()
+			msgID := whatsmeowClient.GenerateMessageID()
 			
 			// Invia il messaggio
-			resp, err := client.SendMessage(context.Background(), chatJID, msg)
+			resp, err := whatsmeowClient.SendMessage(context.Background(), chatJID, msg)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'invio dell'immagine: %v", err)})
 				return
@@ -2210,7 +2210,7 @@ func main() {
 		}
     
 		// Invia il messaggio
-		resp, err := client.SendMessage(context.Background(), chatJID, msg)
+		resp, err := whatsmeowClient.SendMessage(context.Background(), chatJID, msg)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'invio del messaggio: %v", err)})
 			return
