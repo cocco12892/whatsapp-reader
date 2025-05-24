@@ -1,0 +1,94 @@
+package whatsapp
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types"
+)
+
+// WhatsmeowClient is the global WhatsApp client.
+var WhatsmeowClient *whatsmeow.Client
+
+// sanitizePathComponent sanitizes strings for use in file paths.
+func sanitizePathComponent(s string) string {
+	s = strings.ReplaceAll(s, "/", "_")
+	s = strings.ReplaceAll(s, "\\", "_")
+	s = strings.ReplaceAll(s, ":", "_")
+	s = strings.ReplaceAll(s, "*", "_")
+	s = strings.ReplaceAll(s, "?", "_")
+	s = strings.ReplaceAll(s, "\"", "_")
+	s = strings.ReplaceAll(s, "<", "_")
+	s = strings.ReplaceAll(s, ">", "_")
+	s = strings.ReplaceAll(s, "|", "_")
+	return s
+}
+
+// DownloadProfilePicture downloads the profile picture for a given JID.
+func DownloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup bool) (string, error) {
+	params := &whatsmeow.GetProfilePictureParams{
+		Preview: false,
+	}
+
+	pictureInfo, err := client.GetProfilePictureInfo(jid, params)
+	if err != nil {
+		if err == whatsmeow.ErrProfilePictureUnauthorized {
+			return "", fmt.Errorf("unauthorized to view profile picture")
+		}
+		if err == whatsmeow.ErrProfilePictureNotSet {
+			return "", fmt.Errorf("no profile picture set")
+		}
+		return "", err
+	}
+
+	if pictureInfo == nil || pictureInfo.URL == "" {
+		return "", fmt.Errorf("no profile picture available")
+	}
+
+	var basePath string
+	if isGroup {
+		basePath = "ProfileImages/Groups"
+	} else {
+		basePath = "ProfileImages/Users"
+	}
+
+	if err := os.MkdirAll(basePath, 0755); err != nil {
+		return "", fmt.Errorf("error creating directory: %v", err)
+	}
+
+	sanitizedJID := sanitizePathComponent(jid.String())
+	fileName := fmt.Sprintf("%s.jpg", sanitizedJID)
+	filePath := fmt.Sprintf("%s/%s", basePath, fileName)
+
+	resp, err := http.Get(pictureInfo.URL)
+	if err != nil {
+		return "", fmt.Errorf("error downloading image: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("error in HTTP response: %d", resp.StatusCode)
+	}
+
+	imgData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("error reading image data: %v", err)
+	}
+
+	if err := os.WriteFile(filePath, imgData, 0644); err != nil {
+		return "", fmt.Errorf("error saving image: %v", err)
+	}
+
+	var folderType string
+	if isGroup {
+		folderType = "groups"
+	} else {
+		folderType = "users"
+	}
+	webPath := fmt.Sprintf("/profile-images/%s/%s", folderType, fileName)
+	return webPath, nil
+} 
