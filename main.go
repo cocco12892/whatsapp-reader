@@ -831,8 +831,8 @@ func main() {
 						} else {
 							mediaPath = "/media/images/" + fileName
 							fmt.Printf("[MAIN HANDLER] Immagine salvata in %s\n", fullPath)
-							if img.GetFileSha256() != nil {
-								imageHash = hex.EncodeToString(img.GetFileSha256())
+							if img.GetFileSHA256() != nil {
+								imageHash = hex.EncodeToString(img.GetFileSHA256())
 							}
 						}
 					}
@@ -919,12 +919,23 @@ func main() {
 				IsMedia:             isMedia,
 				MediaPath:           mediaPath,
 				ImageHash:           imageHash, // Popolato sopra per le immagini
-				ProtocolMessageType: utils.GetProtocolMessageTypeName(int(evt.Info.Type)), // Salva il tipo di messaggio di protocollo
 				ProtocolMessageName: evt.Info.Category, // Salva la categoria del messaggio di protocollo
+			}
+
+			// Gestione specifica per ProtocolMessageType
+			if protocolMessage := evt.Message.GetProtocolMessage(); protocolMessage != nil {
+				dbMessage.ProtocolMessageType = utils.GetProtocolMessageTypeName(int(protocolMessage.GetType()))
+			} else {
+				// Se non è un messaggio di protocollo, evt.Info.Type (es. "text", "image")
+				// non corrisponde ai valori numerici attesi da GetProtocolMessageTypeName.
+				// Potremmo voler lasciare dbMessage.ProtocolMessageType vuoto o impostare un valore di default.
+				// Per ora lo lasciamo vuoto se non è un messaggio di protocollo specifico.
+				dbMessage.ProtocolMessageType = ""
 			}
 			
 			// Non salvare messaggi completamente vuoti a meno che non siano media (che potrebbero avere didascalia vuota)
-			if dbMessage.Content == "" && !dbMessage.IsMedia {
+			// o messaggi di protocollo che vogliamo registrare (es. revoca)
+			if dbMessage.Content == "" && !dbMessage.IsMedia && dbMessage.ProtocolMessageType == "" {
 				// Potrebbe essere un evento di protocollo che non vogliamo visualizzare come messaggio vuoto.
 				// Ad esempio, una notifica di "revoca messaggio" gestita da `events.MessageUpdate`.
 				// O un messaggio di tipo `ProtocolMessage` che non ha un contenuto testuale diretto.
