@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	_ "github.com/go-sql-driver/mysql"
+	"whatsapp-reader/models"
 )
 
 type MySQLManager struct {
@@ -128,7 +129,7 @@ func (m *MySQLManager) InitTables() error {
 }
 
 // Salva una chat nel database
-func (m *MySQLManager) SaveChat(chat *Chat) error {
+func (m *MySQLManager) SaveChat(chat *models.Chat) error {
 	_, err := m.db.Exec(
 		"INSERT INTO chats (id, name, profile_image) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name = ?, profile_image = ?",
 		chat.ID, chat.Name, chat.ProfileImage, chat.Name, chat.ProfileImage,
@@ -137,16 +138,16 @@ func (m *MySQLManager) SaveChat(chat *Chat) error {
 }
 
 // Carica tutte le chat dal database
-func (m *MySQLManager) LoadChats() ([]*Chat, error) {
+func (m *MySQLManager) LoadChats() ([]*models.Chat, error) {
 	rows, err := m.db.Query("SELECT id, name, profile_image FROM chats")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var chats []*Chat
+	var chats []*models.Chat
 	for rows.Next() {
-		var chat Chat
+		var chat models.Chat
 		if err := rows.Scan(&chat.ID, &chat.Name, &chat.ProfileImage); err != nil {
 			return nil, err
 		}
@@ -157,7 +158,7 @@ func (m *MySQLManager) LoadChats() ([]*Chat, error) {
 }
 
 // Salva un messaggio nel database
-func (m *MySQLManager) SaveMessage(message *Message) error {
+func (m *MySQLManager) SaveMessage(message *models.Message) error {
 	// Prima verifica se la chat esiste, se non esiste la crea
 	_, err := m.db.Exec(
 		"INSERT IGNORE INTO chats (id, name) VALUES (?, ?)",
@@ -203,7 +204,7 @@ func (m *MySQLManager) SaveMessage(message *Message) error {
 }
 
 // Carica i messaggi di una chat dal database
-func (m *MySQLManager) LoadChatMessages(chatID string) ([]Message, error) {
+func (m *MySQLManager) LoadChatMessages(chatID string) ([]models.Message, error) {
 	rows, err := m.db.Query(`
 		SELECT id, chat_id, chat_name, sender, sender_name, content, timestamp, 
 			is_media, media_path, is_edited, is_deleted, is_reply, 
@@ -218,9 +219,9 @@ func (m *MySQLManager) LoadChatMessages(chatID string) ([]Message, error) {
 	}
 	defer rows.Close()
 
-	var messages []Message
+	var messages []models.Message
 	for rows.Next() {
-		var msg Message
+		var msg models.Message
 		if err := rows.Scan(
 			&msg.ID, &msg.Chat, &msg.ChatName, &msg.Sender, &msg.SenderName,
 			&msg.Content, &msg.Timestamp, &msg.IsMedia, &msg.MediaPath,
@@ -266,7 +267,7 @@ func (m *MySQLManager) LoadChatSynonyms() (map[string]string, error) {
 }
 
 // Salva una nota per un messaggio
-func (m *MySQLManager) SaveMessageNote(messageID string, noteData *MessageNote) error {
+func (m *MySQLManager) SaveMessageNote(messageID string, noteData *models.MessageNote) error {
 	_, err := m.db.Exec(
 		"INSERT INTO message_notes (message_id, note, type, chat_id, chat_name, added_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, FALSE) ON DUPLICATE KEY UPDATE note = ?, type = ?, chat_id = ?, chat_name = ?, added_at = ?, is_deleted = FALSE",
 		messageID, noteData.Note, noteData.Type, noteData.ChatID, noteData.ChatName, noteData.AddedAt,
@@ -276,14 +277,14 @@ func (m *MySQLManager) SaveMessageNote(messageID string, noteData *MessageNote) 
 }
 
 // LoadMessageNote carica la nota per un messaggio specifico
-func (m *MySQLManager) LoadMessageNote(messageID string) (*MessageNote, error) {
+func (m *MySQLManager) LoadMessageNote(messageID string) (*models.MessageNote, error) {
 	query := `
 		SELECT message_id, note, type, chat_id, chat_name, added_at 
 		FROM message_notes 
 		WHERE message_id = ? AND is_deleted = FALSE
 	`
 	
-	var note MessageNote
+	var note models.MessageNote
 	var addedAtStr string
 	
 	err := m.db.QueryRow(query, messageID).Scan(
@@ -315,17 +316,17 @@ func (m *MySQLManager) LoadMessageNote(messageID string) (*MessageNote, error) {
 }
 
 // Carica tutte le note dei messaggi
-func (m *MySQLManager) LoadMessageNotes() (map[string]*MessageNote, error) {
+func (m *MySQLManager) LoadMessageNotes() (map[string]*models.MessageNote, error) {
 	rows, err := m.db.Query("SELECT message_id, note, type, chat_id, chat_name, added_at, is_deleted FROM message_notes WHERE is_deleted = FALSE")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	notes := make(map[string]*MessageNote)
+	notes := make(map[string]*models.MessageNote)
 	for rows.Next() {
 		var messageID string
-		var note MessageNote
+		var note models.MessageNote
 		var addedAtStr string
 		if err := rows.Scan(&messageID, &note.Note, &note.Type, &note.ChatID, &note.ChatName, &addedAtStr, &note.IsDeleted); err != nil {
 			return nil, err
@@ -360,7 +361,7 @@ func (m *MySQLManager) SoftDeleteMessageNote(messageID string) error {
 }
 
 // SaveRecordedData salva un dato registrato nel database
-func (m *MySQLManager) SaveRecordedData(data *RecordedData) error {
+func (m *MySQLManager) SaveRecordedData(data *models.RecordedData) error {
 	// Imposta il timestamp di registrazione se non è già impostato
 	if data.RecordedAt.IsZero() {
 		data.RecordedAt = time.Now()
@@ -379,7 +380,7 @@ func (m *MySQLManager) SaveRecordedData(data *RecordedData) error {
 }
 
 // UpdateRecordedData aggiorna un dato registrato esistente
-func (m *MySQLManager) UpdateRecordedData(data *RecordedData) error {
+func (m *MySQLManager) UpdateRecordedData(data *models.RecordedData) error {
 	// Imposta il timestamp di aggiornamento
 	data.UpdatedAt = time.Now()
 	
@@ -404,8 +405,8 @@ func (m *MySQLManager) UpdateRecordedData(data *RecordedData) error {
 }
 
 // LoadRecordedData carica un dato registrato specifico
-func (m *MySQLManager) LoadRecordedData(messageID string) (*RecordedData, error) {
-	var data RecordedData
+func (m *MySQLManager) LoadRecordedData(messageID string) (*models.RecordedData, error) {
+	var data models.RecordedData
 	var updatedAt sql.NullTime
 	var noteID sql.NullString
 	var note sql.NullString
@@ -444,7 +445,7 @@ func (m *MySQLManager) LoadRecordedData(messageID string) (*RecordedData, error)
 }
 
 // LoadChatRecordedData carica tutti i dati registrati per una chat specifica
-func (m *MySQLManager) LoadChatRecordedData(chatID string) ([]*RecordedData, error) {
+func (m *MySQLManager) LoadChatRecordedData(chatID string) ([]*models.RecordedData, error) {
 	rows, err := m.db.Query(`
 		SELECT 
 			message_id, data, chat_id, chat_name, sender_name, 
@@ -459,9 +460,9 @@ func (m *MySQLManager) LoadChatRecordedData(chatID string) ([]*RecordedData, err
 	}
 	defer rows.Close()
 	
-	var recordedData []*RecordedData
+	var recordedData []*models.RecordedData
 	for rows.Next() {
-		var data RecordedData
+		var data models.RecordedData
 		var updatedAt sql.NullTime
 		var noteID sql.NullString
 		var note sql.NullString
@@ -492,7 +493,7 @@ func (m *MySQLManager) LoadChatRecordedData(chatID string) ([]*RecordedData, err
 }
 
 // LoadAllRecordedData carica tutti i dati registrati
-func (m *MySQLManager) LoadAllRecordedData() ([]*RecordedData, error) {
+func (m *MySQLManager) LoadAllRecordedData() ([]*models.RecordedData, error) {
 	rows, err := m.db.Query(`
 		SELECT 
 			message_id, data, chat_id, chat_name, sender_name, 
@@ -506,9 +507,9 @@ func (m *MySQLManager) LoadAllRecordedData() ([]*RecordedData, error) {
 	}
 	defer rows.Close()
 	
-	var recordedData []*RecordedData
+	var recordedData []*models.RecordedData
 	for rows.Next() {
-		var data RecordedData
+		var data models.RecordedData
 		var updatedAt sql.NullTime
 		var noteID sql.NullString
 		var note sql.NullString
