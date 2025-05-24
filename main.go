@@ -1,25 +1,49 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gorilla/websocket"
 	_ "github.com/mattn/go-sqlite3"
+	"go.mau.fi/whatsmeow"
+	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
+	"google.golang.org/protobuf/proto"
 	"whatsapp-reader/db"
 	"whatsapp-reader/handlers"
+	"whatsapp-reader/models"
 	"whatsapp-reader/utils"
 	"whatsapp-reader/whatsapp"
 )
 
-// Variabile globale per il client WhatsApp
-var WhatsmeowClient *whatsmeow.Client
-
 var (
 	dbManager *db.MySQLManager
+	
+	// Cache per i nomi dei contatti e dei gruppi
+	contactNameCache sync.Map
+	groupNameCache   sync.Map
+	
+	// WebSocket clients
+	wsClients    = make(map[*websocket.Conn]bool)
+	wsClientsMux sync.Mutex
+	
+	// Contatore di client connessi
+	wsClientCount int32
 )
 
 func getProtocolMessageTypeName(typeNum int) string {
