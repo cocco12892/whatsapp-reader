@@ -77,30 +77,53 @@ func (c *Client) Connect() error {
 	return nil
 }
 
-// WaitForQRCode attende il QR code per l'autenticazione
+// WaitForQRCode gestisce il processo di login tramite QR code.
+// Questa funzione viene chiamata da main.go solo se c.Client.Store.ID è nil.
 func (c *Client) WaitForQRCode() error {
-	if c.Store.ID == nil {
-		// Nessun dispositivo registrato, mostra il QR code
-		ch, err := c.GetQRChannel(context.Background())
-		if err != nil {
-			return fmt.Errorf("errore nel recupero del canale QR: %v", err)
-		}
-		
-		qrChan := <-ch
-		qrterminal.GenerateHalfBlock(qrChan.Code, qrterminal.L, os.Stdout)
-		
-		// Attendi che il QR code venga scansionato e la connessione stabilita
-		select {
-		case evt := <-ch:
-			if evt.Event == "code" {
-				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+	// 1. Ottieni il canale per gli eventi QR
+	// c.Client è il client whatsmeow effettivo
+	qrChan, err := c.Client.GetQRChannel(context.Background())
+	if err != nil {
+		return fmt.Errorf("errore nel recupero del canale QR: %v", err)
+	}
+
+	// 2. Connetti il client. Questo include la registrazione dell'handler eventi
+	// e l'avvio della connessione websocket, che popolerà qrChan.
+	// Usiamo c.Connect() del nostro wrapper.
+	if err := c.Connect(); err != nil {
+		return fmt.Errorf("errore durante la connessione per il login QR: %v", err)
+	}
+
+	// 3. Itera sugli eventi del canale QR
+	fmt.Println("Scansiona il codice QR con WhatsApp (potrebbe richiedere qualche secondo per apparire)...")
+	for evt := range qrChan {
+		if evt.Event == "code" {
+			// Stampa il QR code sulla console
+			qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+			fmt.Println("Codice QR generato/aggiornato. Scansiona con WhatsApp.")
+		} else if evt.Event == "timeout" {
+			fmt.Println("Timeout durante la scansione del QR code.")
+			return fmt.Errorf("timeout scansione QR code")
+		} else if evt.Event == "success" {
+			fmt.Println("Login QR effettuato con successo!")
+			return nil // Login riuscito
+		} else if evt.Event == "error" {
+			// Questo evento potrebbe indicare che il login è fallito,
+			// ad esempio se il QR code è scaduto e ne viene generato uno nuovo (gestito da "code")
+			// o se c'è un problema più serio.
+			fmt.Printf("Errore evento login QR: %s\n", evt.Message)
+			// Non necessariamente fatale, il loop potrebbe continuare se viene emesso un nuovo "code"
+			// Ma se il canale si chiude dopo questo, l'errore sottostante lo indicherà.
+		} else {
+			// Altri eventi possibili: "pairing_code", "connecting", "close"
+			fmt.Printf("Evento Login: %s\n", evt.Event)
+			if evt.Message != "" {
+				fmt.Printf("  Messaggio evento: %s\n", evt.Message)
 			}
-		case <-time.After(5 * time.Minute):
-			return fmt.Errorf("timeout nell'attesa della scansione del QR code")
 		}
 	}
-	
-	return nil
+	// Se il canale qrChan si chiude prima che "success" sia ricevuto.
+	return fmt.Errorf("canale QR chiuso inaspettatamente prima del completamento del login")
 }
 
 // WaitForInterrupt attende l'interruzione del programma

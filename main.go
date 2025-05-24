@@ -792,23 +792,24 @@ func main() {
 	// 4. Assegna il client whatsmeow sottostante alla variabile globale, se usata altrove
 	whatsapp.WhatsmeowClient = whatsAppClientInstance.Client // .Client è il *whatsmeow.Client effettivo
 
-	// 5. Connetti il client (il metodo Connect del wrapper gestisce la registrazione dell'handler e la connessione)
-	if err := whatsAppClientInstance.Connect(); err != nil {
-		log.Fatalf("Errore nella connessione del client WhatsApp: %v", err)
-	}
-
-	// 6. Gestisci l'autenticazione QR Code
+	// 5. Gestisci l'autenticazione QR Code e la connessione
 	// Controlla se siamo già loggati (Store.ID non è nil)
 	if whatsAppClientInstance.Client.Store.ID == nil {
 		fmt.Println("Autenticazione richiesta. Scansiona il codice QR con WhatsApp.")
+		// WaitForQRCode ora gestirà internamente GetQRChannel e la chiamata a Connect()
 		if err := whatsAppClientInstance.WaitForQRCode(); err != nil {
-			// WaitForQRCode gestisce la stampa del QR e attende la scansione.
-			// Potrebbe restituire un errore se c'è un timeout o un problema.
-			log.Fatalf("Errore durante l'attesa della scansione del QR code: %v", err)
+			log.Fatalf("Errore durante l'autenticazione QR code: %v", err)
 		}
-		fmt.Println("Autenticazione QR completata o client già loggato.")
+		// Se WaitForQRCode ha successo, la connessione è stabilita e il login è completato.
+		fmt.Println("Autenticazione QR completata e client connesso.")
 	} else {
 		fmt.Printf("Client WhatsApp già loggato con ID: %s\n", whatsAppClientInstance.Client.Store.ID.String())
+		// Se già loggato, dobbiamo comunque connetterci.
+		// Il metodo Connect del wrapper registra l'handler e connette il client whatsmeow.
+		if err := whatsAppClientInstance.Connect(); err != nil {
+			log.Fatalf("Errore nella connessione del client WhatsApp (già loggato): %v", err)
+		}
+		fmt.Println("Client WhatsApp (già loggato) connesso.")
 	}
 	
 	// Configura il server API
