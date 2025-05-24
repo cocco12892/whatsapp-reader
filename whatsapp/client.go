@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"sync"
 	"time"
