@@ -66,19 +66,3 @@ func GetAudioExtension(mimetype string) string {
     }
 }
 
-// LoadConfig carica la configurazione da un file JSON
-func LoadConfig(filePath string) (*Config, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("errore nell'apertura del file di configurazione: %v", err)
-	}
-	defer file.Close()
-
-	var config Config
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
-		return nil, fmt.Errorf("errore nella decodifica del file di configurazione: %v", err)
-	}
-
-	return &config, nil
-}
