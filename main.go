@@ -481,8 +481,8 @@ func createGiocataAI(message *models.Message, chatJID string, messageID string) 
 			}
 			
 			// Invia la reazione 🧾
-			reactionMsg := WhatsmeowClient.BuildReaction(chatJIDObj, senderJID, msgID, "🧾")
-			_, err = WhatsmeowClient.SendMessage(context.Background(), chatJIDObj, reactionMsg)
+			reactionMsg := whatsapp.WhatsmeowClient.BuildReaction(chatJIDObj, senderJID, msgID, "🧾")
+			_, err = whatsapp.WhatsmeowClient.SendMessage(context.Background(), chatJIDObj, reactionMsg)
 			if err != nil {
 				fmt.Printf("Errore nell'invio della reazione 🧾: %v\n", err)
 			} else {
@@ -687,8 +687,8 @@ func createCodiceGiocata(message models.Message, nota string) {
 				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
 				
 				// Invia la reazione verde
-				reactionMsg := WhatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
-				_, reactionErr := WhatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+				reactionMsg := whatsapp.WhatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
+				_, reactionErr := whatsapp.WhatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if reactionErr != nil {
 					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", reactionErr)
 				} else {
@@ -768,8 +768,8 @@ func createCodiceGiocata(message models.Message, nota string) {
 				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
 				
 				// Ora invia la nuova reazione (🟢)
-				reactionMsg := WhatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
-				_, err = WhatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
+				reactionMsg := whatsapp.WhatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🟢")
+				_, err = whatsapp.WhatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
 				if err != nil {
 					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
 				} else {

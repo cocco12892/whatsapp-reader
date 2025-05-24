@@ -554,3 +554,50 @@ func (m *MySQLManager) GetDB() *sql.DB {
 func (m *MySQLManager) Close() error {
 	return m.db.Close()
 }
+
+// DeleteMessage elimina un messaggio dal database
+func (m *MySQLManager) DeleteMessage(messageID string) error {
+	_, err := m.db.Exec("UPDATE messages SET is_deleted = TRUE WHERE id = ?", messageID)
+	return err
+}
+
+// UpdateMessageStatus aggiorna lo stato di un messaggio
+func (m *MySQLManager) UpdateMessageStatus(messageID, status string) error {
+	_, err := m.db.Exec("UPDATE messages SET status = ? WHERE id = ?", status, messageID)
+	return err
+}
+
+// UpdateMessageContent aggiorna il contenuto di un messaggio
+func (m *MySQLManager) UpdateMessageContent(messageID, newText string, editedAt time.Time) error {
+	_, err := m.db.Exec("UPDATE messages SET content = ?, is_edited = TRUE, edited_at = ? WHERE id = ?", 
+		newText, editedAt, messageID)
+	return err
+}
+
+// GetMessageByID ottiene un messaggio specifico dal database
+func (m *MySQLManager) GetMessageByID(messageID string) (*models.Message, error) {
+	var msg models.Message
+	err := m.db.QueryRow(`
+		SELECT id, chat_id, chat_name, sender, sender_name, content, timestamp, 
+			is_media, media_path, is_edited, is_deleted, is_reply, 
+			reply_to_message_id, reply_to_sender, reply_to_content, 
+			protocol_message_type, protocol_message_name, image_hash
+		FROM messages
+		WHERE id = ?
+	`, messageID).Scan(
+		&msg.ID, &msg.Chat, &msg.ChatName, &msg.Sender, &msg.SenderName,
+		&msg.Content, &msg.Timestamp, &msg.IsMedia, &msg.MediaPath,
+		&msg.IsEdited, &msg.IsDeleted, &msg.IsReply, &msg.ReplyToMessageID,
+		&msg.ReplyToSender, &msg.ReplyToContent, &msg.ProtocolMessageType,
+		&msg.ProtocolMessageName, &msg.ImageHash,
+	)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("messaggio non trovato")
+		}
+		return nil, err
+	}
+	
+	return &msg, nil
+}
