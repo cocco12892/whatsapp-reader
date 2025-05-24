@@ -204,7 +204,7 @@ func (m *MySQLManager) SaveMessage(message *models.Message) error {
 }
 
 // Carica i messaggi di una chat dal database
-func (m *MySQLManager) LoadChatMessages(chatID string) ([]models.Message, error) {
+func (m *MySQLManager) LoadChatMessages(chatID string) ([]*models.Message, error) {
 	rows, err := m.db.Query(`
 		SELECT id, chat_id, chat_name, sender, sender_name, content, timestamp, 
 			is_media, media_path, is_edited, is_deleted, is_reply, 
@@ -219,7 +219,7 @@ func (m *MySQLManager) LoadChatMessages(chatID string) ([]models.Message, error)
 	}
 	defer rows.Close()
 
-	var messages []models.Message
+	var messages []*models.Message
 	for rows.Next() {
 		var msg models.Message
 		if err := rows.Scan(
@@ -231,7 +231,7 @@ func (m *MySQLManager) LoadChatMessages(chatID string) ([]models.Message, error)
 		); err != nil {
 			return nil, err
 		}
-		messages = append(messages, msg)
+		messages = append(messages, &msg)
 	}
 
 	return messages, nil

@@ -21,9 +21,7 @@ import (
 	"github.com/gorilla/websocket"
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
-	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-	"google.golang.org/protobuf/proto"
 	"whatsapp-reader/db"
 	"whatsapp-reader/handlers"
 	"whatsapp-reader/models"
@@ -861,8 +859,8 @@ func main() {
 	// Configura le rotte API
 	handlers.SetupAPIRoutes(router, dbManager)
 	
-	// Configura le rotte WebSocket
-	handlers.SetupWebSocketRoutes(router)
+	// Configura le rotte HTTP e WebSocket
+	handlers.SetupRoutes(router)
 	
 	// Avvia il server HTTP in una goroutine
 	go func() {
