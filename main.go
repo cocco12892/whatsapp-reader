@@ -922,20 +922,19 @@ func main() {
 				ProtocolMessageName: evt.Info.Category, // Salva la categoria del messaggio di protocollo
 			}
 
-			// Gestione specifica per ProtocolMessageType
+			// Gestione specifica per ProtocolMessageType e ProtocolMessageName
 			if protocolMessage := evt.Message.GetProtocolMessage(); protocolMessage != nil {
-				dbMessage.ProtocolMessageType = utils.GetProtocolMessageTypeName(int(protocolMessage.GetType()))
+				dbMessage.ProtocolMessageType = int(protocolMessage.GetType())
+				dbMessage.ProtocolMessageName = utils.GetProtocolMessageTypeName(int(protocolMessage.GetType())) // Aggiorna anche il nome
 			} else {
-				// Se non è un messaggio di protocollo, evt.Info.Type (es. "text", "image")
-				// non corrisponde ai valori numerici attesi da GetProtocolMessageTypeName.
-				// Potremmo voler lasciare dbMessage.ProtocolMessageType vuoto o impostare un valore di default.
-				// Per ora lo lasciamo vuoto se non è un messaggio di protocollo specifico.
-				dbMessage.ProtocolMessageType = ""
+				// Se non è un messaggio di protocollo specifico, ProtocolMessageType rimane 0 (default int value).
+				// ProtocolMessageName è già impostato a evt.Info.Category durante l'inizializzazione di dbMessage.
+				// Nessuna azione necessaria qui per questi due campi.
 			}
 			
 			// Non salvare messaggi completamente vuoti a meno che non siano media (che potrebbero avere didascalia vuota)
 			// o messaggi di protocollo che vogliamo registrare (es. revoca)
-			if dbMessage.Content == "" && !dbMessage.IsMedia && dbMessage.ProtocolMessageType == "" {
+			if dbMessage.Content == "" && !dbMessage.IsMedia && dbMessage.ProtocolMessageType == 0 {
 				// Potrebbe essere un evento di protocollo che non vogliamo visualizzare come messaggio vuoto.
 				// Ad esempio, una notifica di "revoca messaggio" gestita da `events.MessageUpdate`.
 				// O un messaggio di tipo `ProtocolMessage` che non ha un contenuto testuale diretto.
