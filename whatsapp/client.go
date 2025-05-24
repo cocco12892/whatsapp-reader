@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 	"sync"
-	"time"
+	// "time" // Rimosso perché non utilizzato
 
 	"whatsapp-reader/utils"
 
@@ -111,15 +111,14 @@ func (c *Client) WaitForQRCode() error {
 			// Questo evento potrebbe indicare che il login è fallito,
 			// ad esempio se il QR code è scaduto e ne viene generato uno nuovo (gestito da "code")
 			// o se c'è un problema più serio.
-			fmt.Printf("Errore evento login QR: %s\n", evt.Message)
+			fmt.Printf("Errore evento login QR. Evento: %s\n", evt.Event) // Modificato per rimuovere evt.Message se problematico
 			// Non necessariamente fatale, il loop potrebbe continuare se viene emesso un nuovo "code"
 			// Ma se il canale si chiude dopo questo, l'errore sottostante lo indicherà.
 		} else {
 			// Altri eventi possibili: "pairing_code", "connecting", "close"
 			fmt.Printf("Evento Login: %s\n", evt.Event)
-			if evt.Message != "" {
-				fmt.Printf("  Messaggio evento: %s\n", evt.Message)
-			}
+			// Rimosso il controllo e la stampa di evt.Message per evitare errori di compilazione
+			// se il campo non è riconosciuto dal compilatore.
 		}
 	}
 	// Se il canale qrChan si chiude prima che "success" sia ricevuto.
