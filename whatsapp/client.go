@@ -153,15 +153,13 @@ func (c *Client) HandleEvent(evt interface{}) {
 			fmt.Printf("[WHATSAPP CLIENT HANDLER] Testo Esteso: %s\n", v.Message.GetExtendedTextMessage().GetText())
 		} else if img := v.Message.GetImageMessage(); img != nil {
 			caption := img.GetCaption()
-			if caption == "" && img.GetContextInfo() != nil && img.GetContextInfo().GetExtendedTextMessage() != nil { // A volte la didascalia è nell'extended text
-				caption = img.GetContextInfo().GetExtendedTextMessage().GetText()
-			}
+			// La didascalia si ottiene con img.GetCaption().
+			// La logica precedente per cercare in ContextInfo.ExtendedTextMessage era errata.
 			fmt.Printf("[WHATSAPP CLIENT HANDLER] Immagine ricevuta. Caption: %s, URL: %s\n", caption, img.GetURL())
 		} else if vid := v.Message.GetVideoMessage(); vid != nil {
 			caption := vid.GetCaption()
-			if caption == "" && vid.GetContextInfo() != nil && vid.GetContextInfo().GetExtendedTextMessage() != nil {
-				caption = vid.GetContextInfo().GetExtendedTextMessage().GetText()
-			}
+			// La didascalia si ottiene con vid.GetCaption().
+			// La logica precedente per cercare in ContextInfo.ExtendedTextMessage era errata.
 			fmt.Printf("[WHATSAPP CLIENT HANDLER] Video ricevuto. Caption: %s\n", caption)
 		} else {
 			fmt.Printf("[WHATSAPP CLIENT HANDLER] Ricevuto tipo messaggio non gestito esplicitamente: %+v\n", v.Message)
