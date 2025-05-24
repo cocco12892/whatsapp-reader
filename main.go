@@ -32,10 +32,6 @@ import (
 var (
 	dbManager *db.MySQLManager
 	
-	// Cache per i nomi dei contatti e dei gruppi
-	contactNameCache sync.Map
-	groupNameCache   sync.Map
-	
 	// WebSocket clients
 	wsClients    = make(map[*websocket.Conn]bool)
 	wsClientsMux sync.Mutex
@@ -43,98 +39,6 @@ var (
 	// Contatore di client connessi
 	wsClientCount int32
 )
-
-func getProtocolMessageTypeName(typeNum int) string {
-    switch typeNum {
-    case 0:
-        return "revoke"
-    case 2:
-        return "app_state_sync_key_share"
-    case 4:
-        return "history_sync_notification"
-    case 5:
-        return "initial_security_notification"
-    case 7:
-        return "app_state_fatal_exception_notification"
-    case 10:
-        return "sync_message"
-    case 11:
-        return "peer_data_operation_request"
-    case 12:
-        return "peer_data_operation_response"
-    case 13:
-        return "placeholder_cleanup"
-    case 14:
-        return "edit"
-    default:
-        return "unknown"
-    }
-}
-
-func getAudioExtension(mimetype string) string {
-    switch mimetype {
-    case "audio/ogg":
-        return "ogg"
-    case "audio/mp4":
-        return "m4a"
-    case "audio/wav":
-        return "wav"
-    case "audio/mpeg":
-        return "mp3"
-    default:
-        return "audio"
-    }
-}
-
-// Funzione per sanitizzare stringhe per uso nei percorsi dei file
-func sanitizePathComponent(s string) string {
-    // Rimuovi caratteri non sicuri per i percorsi dei file
-    s = strings.ReplaceAll(s, "/", "_")
-    s = strings.ReplaceAll(s, "\\", "_")
-    s = strings.ReplaceAll(s, ":", "_")
-    s = strings.ReplaceAll(s, "*", "_")
-    s = strings.ReplaceAll(s, "?", "_")
-    s = strings.ReplaceAll(s, "\"", "_")
-    s = strings.ReplaceAll(s, "<", "_")
-    s = strings.ReplaceAll(s, ">", "_")
-    s = strings.ReplaceAll(s, "|", "_")
-    return s
-}
-
-// Funzione per ottenere il nome del gruppo
-func getGroupName(client *whatsmeow.Client, jid types.JID) string {
-	if cachedName, ok := groupNameCache.Load(jid.String()); ok {
-		return cachedName.(string)
-	}
-	
-	groupInfo, err := client.GetGroupInfo(jid)
-	if err != nil {
-		return jid.String()
-	}
-	
-	groupNameCache.Store(jid.String(), groupInfo.Name)
-	return groupInfo.Name
-}
-
-// Funzione per ottenere il nome del contatto
-func getContactName(client *whatsmeow.Client, jid types.JID) string {
-	userJID := types.NewJID(jid.User, jid.Server)
-	
-	if cachedName, ok := contactNameCache.Load(userJID.String()); ok {
-		return cachedName.(string)
-	}
-	
-	contactInfo, err := client.Store.Contacts.GetContact(userJID)
-	var name string
-	if err != nil || contactInfo.PushName == "" {
-		name = userJID.User
-	} else {
-		name = contactInfo.PushName
-	}
-	
-	contactNameCache.Store(userJID.String(), name)
-	return name
-}
 
 func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup bool) (string, error) {
 	// Crea i parametri per il download dell'immagine del profilo
@@ -173,7 +77,7 @@ func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup boo
 	}
 	
 	// Sanitizza l'ID per il nome del file
-	sanitizedJID := sanitizePathComponent(jid.String())
+	sanitizedJID := utils.SanitizePathComponent(jid.String())
 	fileName := fmt.Sprintf("%s.jpg", sanitizedJID)
 	filePath := fmt.Sprintf("%s/%s", basePath, fileName)
 	

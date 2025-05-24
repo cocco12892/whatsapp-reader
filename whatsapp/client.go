@@ -11,7 +11,9 @@ import (
 	"syscall"
 	"sync"
 	"time"
-	
+
+	"whatsapp-reader/utils"
+
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
@@ -255,7 +257,7 @@ func DownloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup boo
 		return "", fmt.Errorf("errore nella creazione della directory: %v", err)
 	}
 	
-	sanitizedJID := SanitizePathComponent(jid.String())
+	sanitizedJID := utils.SanitizePathComponent(jid.String())
 	fileName := fmt.Sprintf("%s.jpg", sanitizedJID)
 	filePath := fmt.Sprintf("%s/%s", basePath, fileName)
 	
@@ -288,46 +290,3 @@ func DownloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup boo
 	return webPath, nil
 }
 
-// GetAudioExtension restituisce l'estensione corretta per un file audio basata sul MIME type
-func GetAudioExtension(mimetype string) string {
-	switch mimetype {
-	case "audio/ogg":
-		return "ogg"
-	case "audio/mp4":
-		return "m4a"
-	case "audio/wav":
-		return "wav"
-	case "audio/mpeg":
-		return "mp3"
-	default:
-		return "audio"
-	}
-}
-
-// GetProtocolMessageTypeName restituisce il nome del tipo di messaggio di protocollo
-func GetProtocolMessageTypeName(typeNum int) string {
-	switch typeNum {
-	case 0:
-		return "revoke"
-	case 2:
-		return "app_state_sync_key_share"
-	case 4:
-		return "history_sync_notification"
-	case 5:
-		return "initial_security_notification"
-	case 7:
-		return "app_state_fatal_exception_notification"
-	case 10:
-		return "sync_message"
-	case 11:
-		return "peer_data_operation_request"
-	case 12:
-		return "peer_data_operation_response"
-	case 13:
-		return "placeholder_cleanup"
-	case 14:
-		return "edit"
-	default:
-		return "unknown"
-	}
-} 

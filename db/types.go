@@ -2,6 +2,7 @@ package db
 
 import (
 	"time"
+	"whatsapp-reader/models"
 )
 
 // Chat rappresenta una chat di WhatsApp
@@ -27,21 +28,13 @@ type Message struct {
 	IsEdited            bool       `json:"isEdited"`
 	IsDeleted           bool       `json:"isDeleted"`
 	IsReply             bool       `json:"isReply"`
-	ReplyToMessageID    string     `json:"replyToMessageId,omitempty"`
-	ReplyToSender       string     `json:"replyToSender,omitempty"`
-	ReplyToContent      string     `json:"replyToContent,omitempty"`
-	Reactions           []Reaction `json:"reactions,omitempty"`
-	ProtocolMessageType int        `json:"protocolMessageType,omitempty"`
-	ProtocolMessageName string     `json:"protocolMessageName,omitempty"`
-	ImageHash           string     `json:"imageHash,omitempty"`
-}
-
-// Reaction rappresenta una reazione a un messaggio
-type Reaction struct {
-	Emoji      string    `json:"emoji"`
-	Sender     string    `json:"sender"`
-	SenderName string    `json:"senderName"`
-	Timestamp  time.Time `json:"timestamp"`
+	ReplyToMessageID    string            `json:"replyToMessageId,omitempty"`
+	ReplyToSender       string            `json:"replyToSender,omitempty"`
+	ReplyToContent      string            `json:"replyToContent,omitempty"`
+	Reactions           []models.Reaction `json:"reactions,omitempty"`
+	ProtocolMessageType int               `json:"protocolMessageType,omitempty"`
+	ProtocolMessageName string            `json:"protocolMessageName,omitempty"`
+	ImageHash           string `json:"imageHash,omitempty"`
 }
 
 // Struttura per le note dei messaggi
