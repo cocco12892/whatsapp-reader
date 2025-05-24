@@ -29,22 +29,34 @@ var (
 	// Cache per i nomi
 	groupNameCache   sync.Map
 	contactNameCache sync.Map
+	// La variabile globale WhatsmeowClient è definita e impostata in main.go
 )
 
 // Client rappresenta il client WhatsApp
 type Client struct {
-	*whatsmeow.Client
+	*whatsmeow.Client // Client whatsmeow effettivo
 	eventHandler func(interface{})
 }
 
 // NewClient crea un nuovo client WhatsApp
+// dbStore è sqlstore.Container, eventHandler è la funzione che gestirà gli eventi
 func NewClient(dbStore *sqlstore.Container, eventHandler func(interface{})) (*Client, error) {
 	deviceStore, err := dbStore.GetFirstDevice()
-	if err != nil {
+	if err != nil { // Errore durante il tentativo di recuperare il device
 		return nil, fmt.Errorf("errore nel recupero del device: %v", err)
 	}
+	if deviceStore == nil { // Nessun device trovato (GetFirstDevice restituisce (nil, nil) in questo caso)
+		fmt.Println("Nessun device memorizzato trovato, ne creo uno nuovo.")
+		deviceStore = dbStore.NewDevice() // Crea un nuovo device
+		if deviceStore == nil { // Ulteriore controllo, anche se NewDevice non dovrebbe restituire nil senza errore
+			return nil, fmt.Errorf("impossibile creare un nuovo device store")
+		}
+	}
 	
-	client := whatsmeow.NewClient(deviceStore, waLog.Stdout("Client", "DEBUG", true))
+	// Configura il logger per il client whatsmeow
+	clientLog := waLog.Stdout("Client", "DEBUG", true) 
+	
+	client := whatsmeow.NewClient(deviceStore, clientLog)
 	return &Client{
 		Client:       client,
 		eventHandler: eventHandler,
@@ -52,11 +64,15 @@ func NewClient(dbStore *sqlstore.Container, eventHandler func(interface{})) (*Cl
 }
 
 // Connect connette il client a WhatsApp
+// Questo è il metodo del nostro tipo Client wrapper.
 func (c *Client) Connect() error {
-	c.AddEventHandler(c.eventHandler)
+	if c.eventHandler != nil {
+		c.AddEventHandler(c.eventHandler) // Registra l'handler fornito
+	}
 	
-	if err := c.Connect(); err != nil {
-		return fmt.Errorf("errore nella connessione: %v", err)
+	// Chiama il metodo Connect del client whatsmeow embeddato
+	if err := c.Client.Connect(); err != nil {
+		return fmt.Errorf("errore nella connessione del client whatsmeow: %v", err)
 	}
 	
 	return nil
