@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
-	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -19,7 +17,6 @@ import (
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
-	"whatsapp-reader/db"
 	"whatsapp-reader/models"
 	"whatsapp-reader/whatsapp"
 )
@@ -279,13 +276,13 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 			caption := c.PostForm("text")
 			msg := &waE2E.Message{
 				ImageMessage: &waE2E.ImageMessage{
-					Url:           proto.String(resp.URL),
+					URL:           proto.String(resp.URL),
 					DirectPath:    proto.String(resp.DirectPath),
 					MediaKey:      resp.MediaKey,
 					Mimetype:      proto.String(mimeType),
 					Caption:       proto.String(caption),
-					FileEncSha256: resp.FileEncSHA256,
-					FileSha256:    resp.FileSHA256,
+					FileEncSHA256: resp.FileEncSHA256,
+					FileSHA256:    resp.FileSHA256,
 					FileLength:    proto.Uint64(resp.FileLength),
 				},
 			}
