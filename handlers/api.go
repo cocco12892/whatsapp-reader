@@ -98,8 +98,13 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 					return dbMessages[i].Timestamp.After(dbMessages[j].Timestamp)
 				})
 
-				chat.LastMessage = dbMessages[0]
-				chat.Messages = dbMessages
+				chat.LastMessage = *dbMessages[0]
+				// Converti []*models.Message in []models.Message
+				messages := make([]models.Message, len(dbMessages))
+				for i, msg := range dbMessages {
+					messages[i] = *msg
+				}
+				chat.Messages = messages
 			}
 		}
 

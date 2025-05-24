@@ -1,20 +1,12 @@
 package handlers
 
 import (
-	"sync"
-	"github.com/gorilla/websocket"
 	"net/http"
+	"github.com/gorilla/websocket"
 	"whatsapp-reader/models"
 )
 
 var (
-	// WebSocket clients
-	wsClients    = make(map[*websocket.Conn]bool)
-	wsClientsMux sync.Mutex
-	
-	// Contatore di client connessi
-	wsClientCount int32
-	
 	// WebSocket upgrader
 	wsUpgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
