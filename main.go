@@ -856,10 +856,10 @@ func main() {
 	// Configura il server API
 	router := gin.Default()
 	
-	// Configura le rotte API
+	// Configura le rotte API (include anche la route WebSocket)
 	handlers.SetupAPIRoutes(router, dbManager)
 	
-	// Configura le rotte HTTP e WebSocket
+	// Configura le rotte HTTP aggiuntive
 	handlers.SetupRoutes(router)
 	
 	// Avvia il server HTTP in una goroutine

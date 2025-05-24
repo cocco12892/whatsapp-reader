@@ -30,17 +30,5 @@ func ServeProfileImage(c *gin.Context) {
 func SetupRoutes(router *gin.Engine) {
 	// Route per servire le immagini del profilo
 	router.GET("/profile-images/:type/*file", ServeProfileImage)
-	
-	// Route per la connessione WebSocket
-	router.GET("/ws", func(c *gin.Context) {
-		HandleWebSocket(c.Writer, c.Request)
-	})
 }
 
-// SetupWebSocketRoutes configura le route WebSocket
-func SetupWebSocketRoutes(router *gin.Engine) {
-	// Route per la connessione WebSocket
-	router.GET("/ws", func(c *gin.Context) {
-		HandleWebSocket(c.Writer, c.Request)
-	})
-}
