@@ -16,6 +16,8 @@ import (
 	"log"
 	"syscall"
 	"time"
+	"encoding/hex" // Per ImageHash
+	"path/filepath" // Per gestire i percorsi dei file media
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
@@ -769,8 +771,175 @@ func main() {
 				logMsg += " | Tipo messaggio non testuale"
 			}
 			fmt.Println(logMsg)
-			// Qui puoi chiamare dbManager.SaveMessage(convertedMessage)
-			// e broadcastToClients(...)
+			// --- Inizio Logica di Salvataggio Messaggio e Chat ---
+			chatJID := evt.Info.Chat
+			var chatName string
+			var profilePicPath string
+			var errProfilePic error
+
+			if evt.Info.IsGroup {
+				chatName = whatsapp.GetGroupName(whatsAppClientInstance.Client, chatJID)
+				profilePicPath, errProfilePic = downloadProfilePicture(whatsAppClientInstance.Client, chatJID, true)
+				if errProfilePic != nil {
+					fmt.Printf("[MAIN HANDLER] Errore download immagine profilo gruppo %s: %v\n", chatJID.String(), errProfilePic)
+				}
+			} else {
+				chatName = whatsapp.GetContactName(whatsAppClientInstance.Client, chatJID)
+				profilePicPath, errProfilePic = downloadProfilePicture(whatsAppClientInstance.Client, chatJID, false)
+				if errProfilePic != nil {
+					fmt.Printf("[MAIN HANDLER] Errore download immagine profilo contatto %s: %v\n", chatJID.String(), errProfilePic)
+				}
+			}
+
+			chatToSave := &models.Chat{
+				ID:           chatJID.String(),
+				Name:         chatName,
+				ProfileImage: profilePicPath,
+			}
+			if err := dbManager.SaveChat(chatToSave); err != nil {
+				fmt.Printf("[MAIN HANDLER] Errore salvataggio chat %s nel DB: %v\n", chatJID.String(), err)
+			} else {
+				// fmt.Printf("[MAIN HANDLER] Chat %s (%s) salvata/aggiornata nel DB.\n", chatName, chatJID.String())
+			}
+
+			messageContent := ""
+			isMedia := false
+			mediaPath := ""
+			imageHash := ""
+
+			if conv := evt.Message.GetConversation(); conv != "" {
+				messageContent = conv
+			} else if extText := evt.Message.GetExtendedTextMessage(); extText != nil && extText.GetText() != "" {
+				messageContent = extText.GetText()
+			} else if img := evt.Message.GetImageMessage(); img != nil {
+				isMedia = true
+				messageContent = img.GetCaption()
+				imgData, err := whatsAppClientInstance.Client.Download(img)
+				if err != nil {
+					fmt.Printf("[MAIN HANDLER] Errore download immagine %s: %v\n", evt.Info.ID, err)
+				} else {
+					// Assumiamo che utils.GetImageExtension esista e restituisca es. ".jpg"
+					ext := utils.GetImageExtension(img.GetMimetype())
+					fileName := fmt.Sprintf("%s%s", evt.Info.ID, ext) // ext dovrebbe includere il punto
+					basePath := "MediaFiles/Images"
+					if err := os.MkdirAll(basePath, 0755); err != nil {
+						fmt.Printf("[MAIN HANDLER] Errore creazione directory media %s: %v\n", basePath, err)
+					} else {
+						fullPath := filepath.Join(basePath, fileName)
+						if err := os.WriteFile(fullPath, imgData, 0644); err != nil {
+							fmt.Printf("[MAIN HANDLER] Errore salvataggio immagine %s: %v\n", fullPath, err)
+						} else {
+							mediaPath = "/media/images/" + fileName
+							fmt.Printf("[MAIN HANDLER] Immagine salvata in %s\n", fullPath)
+							if img.GetFileSha256() != nil {
+								imageHash = hex.EncodeToString(img.GetFileSha256())
+							}
+						}
+					}
+				}
+			} else if vid := evt.Message.GetVideoMessage(); vid != nil {
+				isMedia = true
+				messageContent = vid.GetCaption()
+				videoData, err := whatsAppClientInstance.Client.Download(vid)
+				if err != nil {
+					fmt.Printf("[MAIN HANDLER] Errore download video %s: %v\n", evt.Info.ID, err)
+				} else {
+					ext := utils.GetVideoExtension(vid.GetMimetype())
+					fileName := fmt.Sprintf("%s%s", evt.Info.ID, ext)
+					basePath := "MediaFiles/Videos"
+					if err := os.MkdirAll(basePath, 0755); err != nil {
+						fmt.Printf("[MAIN HANDLER] Errore creazione directory media %s: %v\n", basePath, err)
+					} else {
+						fullPath := filepath.Join(basePath, fileName)
+						if err := os.WriteFile(fullPath, videoData, 0644); err != nil {
+							fmt.Printf("[MAIN HANDLER] Errore salvataggio video %s: %v\n", fullPath, err)
+						} else {
+							mediaPath = "/media/videos/" + fileName
+							fmt.Printf("[MAIN HANDLER] Video salvato in %s\n", fullPath)
+						}
+					}
+				}
+			} else if aud := evt.Message.GetAudioMessage(); aud != nil {
+				isMedia = true
+				audioData, err := whatsAppClientInstance.Client.Download(aud)
+				if err != nil {
+					fmt.Printf("[MAIN HANDLER] Errore download audio %s: %v\n", evt.Info.ID, err)
+				} else {
+					ext := utils.GetAudioExtension(aud.GetMimetype())
+					fileName := fmt.Sprintf("%s%s", evt.Info.ID, ext)
+					basePath := "MediaFiles/Audio"
+					if err := os.MkdirAll(basePath, 0755); err != nil {
+						fmt.Printf("[MAIN HANDLER] Errore creazione directory media %s: %v\n", basePath, err)
+					} else {
+						fullPath := filepath.Join(basePath, fileName)
+						if err := os.WriteFile(fullPath, audioData, 0644); err != nil {
+							fmt.Printf("[MAIN HANDLER] Errore salvataggio audio %s: %v\n", fullPath, err)
+						} else {
+							mediaPath = "/media/audio/" + fileName
+							fmt.Printf("[MAIN HANDLER] Audio salvato in %s\n", fullPath)
+						}
+					}
+				}
+			} else if doc := evt.Message.GetDocumentMessage(); doc != nil {
+				isMedia = true
+				messageContent = doc.GetCaption()
+				if messageContent == "" {
+					messageContent = doc.GetTitle()
+				}
+				docData, err := whatsAppClientInstance.Client.Download(doc)
+				if err != nil {
+					fmt.Printf("[MAIN HANDLER] Errore download documento %s: %v\n", evt.Info.ID, err)
+				} else {
+					ext := utils.GetDocumentExtension(doc.GetMimetype(), doc.GetFileName())
+					fileName := fmt.Sprintf("%s%s", evt.Info.ID, ext)
+					basePath := "MediaFiles/Documents"
+					if err := os.MkdirAll(basePath, 0755); err != nil {
+						fmt.Printf("[MAIN HANDLER] Errore creazione directory media %s: %v\n", basePath, err)
+					} else {
+						fullPath := filepath.Join(basePath, fileName)
+						if err := os.WriteFile(fullPath, docData, 0644); err != nil {
+							fmt.Printf("[MAIN HANDLER] Errore salvataggio documento %s: %v\n", fullPath, err)
+						} else {
+							mediaPath = "/media/documents/" + fileName
+							fmt.Printf("[MAIN HANDLER] Documento salvato in %s\n", fullPath)
+						}
+					}
+				}
+			}
+
+			// Costruisci l'oggetto messaggio per il DB
+			dbMessage := &models.Message{
+				ID:                  evt.Info.ID,
+				Chat:                chatJID.String(),
+				ChatName:            chatName,
+				Sender:              evt.Info.Sender.String(),
+				SenderName:          senderName,
+				Content:             messageContent,
+				Timestamp:           evt.Info.Timestamp,
+				IsMedia:             isMedia,
+				MediaPath:           mediaPath,
+				ImageHash:           imageHash, // Popolato sopra per le immagini
+				ProtocolMessageType: utils.GetProtocolMessageTypeName(int(evt.Info.Type)), // Salva il tipo di messaggio di protocollo
+				ProtocolMessageName: evt.Info.Category, // Salva la categoria del messaggio di protocollo
+			}
+			
+			// Non salvare messaggi completamente vuoti a meno che non siano media (che potrebbero avere didascalia vuota)
+			if dbMessage.Content == "" && !dbMessage.IsMedia {
+				// Potrebbe essere un evento di protocollo che non vogliamo visualizzare come messaggio vuoto.
+				// Ad esempio, una notifica di "revoca messaggio" gestita da `events.MessageUpdate`.
+				// O un messaggio di tipo `ProtocolMessage` che non ha un contenuto testuale diretto.
+				fmt.Printf("[MAIN HANDLER] Messaggio %s (tipo: %s, categoria: %s) scartato (contenuto vuoto e non media).\n", dbMessage.ID, dbMessage.ProtocolMessageType, dbMessage.ProtocolMessageName)
+				return // Non salvare e non fare broadcast
+			}
+
+			if err := dbManager.SaveMessage(dbMessage); err != nil {
+				fmt.Printf("[MAIN HANDLER] Errore salvataggio messaggio %s nel DB: %v\n", dbMessage.ID, err)
+			} else {
+				fmt.Printf("[MAIN HANDLER] Messaggio %s salvato nel DB.\n", dbMessage.ID)
+				broadcastToClients("new_message", dbMessage)
+			}
+			// --- Fine Logica di Salvataggio Messaggio e Chat ---
+
 		case *events.Connected:
 			fmt.Println("[MAIN HANDLER] Client WhatsApp connesso")
 		case *events.Disconnected:
