@@ -32,66 +32,20 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
 	"whatsapp-reader/db"
+	"whatsapp-reader/models"
 	"whatsapp-reader/utils"
 )
 
 // Variabile globale per il client WhatsApp
 var whatsmeowClient *whatsmeow.Client
 
-// Struttura per le reazioni
-type Reaction struct {
-	Emoji      string    `json:"emoji"`
-	Sender     string    `json:"sender"`
-	SenderName string    `json:"senderName"`
-	Timestamp  time.Time `json:"timestamp"`
-}
-
-// Struttura per memorizzare i messaggi
-type Message struct {
-    ID              string    `json:"id"`
-    Chat            string    `json:"chat"`
-    ChatName        string    `json:"chatName"`
-    Sender          string    `json:"sender"`
-    SenderName      string    `json:"senderName"`
-    Content         string    `json:"content"`
-    Timestamp       time.Time `json:"timestamp"`
-    IsMedia         bool      `json:"isMedia"`
-    MediaPath       string    `json:"mediaPath,omitempty"`
-	IsEdited        bool      `json:"isEdited"`
-	IsDeleted       bool      `json:"isDeleted"` 
-
-    // Nuovi campi per i messaggi di risposta
-    IsReply         bool      `json:"isReply"`
-    ReplyToMessageID string   `json:"replyToMessageId,omitempty"`
-    ReplyToSender   string    `json:"replyToSender,omitempty"`
-    ReplyToContent  string    `json:"replyToContent,omitempty"`
-
-	ProtocolMessageType int    `json:"protocolMessageType,omitempty"`
-    ProtocolMessageName string `json:"protocolMessageName,omitempty"`
-
-	ImageHash       string    `json:"imageHash"`
-	
-	// Campo per le reazioni
-	Reactions       []Reaction `json:"reactions,omitempty"`
-}
-
-
-// Struttura per la chat
-type Chat struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	LastMessage  Message   `json:"lastMessage"`
-	Messages     []Message `json:"messages"`
-	ProfileImage string    `json:"profileImage,omitempty"` // Percorso all'immagine del profilo
-}
-
 var (
 	dbManager *db.MySQLManager
 	mutex     sync.RWMutex
 	
 	// Manteniamo queste variabili per compatibilità con il codice esistente
-	messages []Message
-	chats    map[string]*Chat
+	messages []models.Message
+	chats    map[string]*models.Chat
 	
 	// Cache per i nomi
 	groupNameCache   sync.Map
@@ -279,20 +233,6 @@ func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup boo
 	return webPath, nil
 }
 
-// Struttura per i messaggi WebSocket
-type WSMessage struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
-}
-
-// Tipi di messaggi WebSocket
-const (
-	WSTypeNewMessage     = "new_message"
-	WSTypeChatUpdated    = "chat_updated"
-	WSTypeMessageEdited  = "message_edited"
-	WSTypeMessageDeleted = "message_deleted"
-)
-
 // Funzione per inviare un messaggio a tutti i client WebSocket
 func broadcastToClients(messageType string, payload interface{}) {
 	wsClientsMux.Lock()
@@ -303,12 +243,12 @@ func broadcastToClients(messageType string, payload interface{}) {
 		return
 	}
 	
-	message := WSMessage{
+	wsMessage := models.WSMessage{
 		Type:    messageType,
 		Payload: payload,
 	}
 	
-	messageJSON, err := json.Marshal(message)
+	messageJSON, err := json.Marshal(wsMessage)
 	if err != nil {
 		fmt.Println("Errore nella serializzazione del messaggio WebSocket:", err)
 		return
@@ -334,277 +274,12 @@ func broadcastToClients(messageType string, payload interface{}) {
 	}
 }
 
-// Struttura per la richiesta di creazione del codice giocata
-type CodiceGiocataRequest struct {
-	Evento         string  `json:"evento,omitempty"`
-	Esito          string  `json:"esito"`
-	TipsterID      int     `json:"tipster_id"`
-	Percentuale    float64 `json:"percentuale"`
-	ImmagineURL    string  `json:"immagine_url,omitempty"`
-	ImmagineBase64 string  `json:"immagine_base64,omitempty"`
-	APIKey         string  `json:"api_key"`
-	ChatID         string  `json:"chat_id,omitempty"` // Aggiunto per supportare l'invio di reazioni
-}
-
-// Struttura per la risposta dell'API
-type CodiceGiocataResponse struct {
-	Success bool   `json:"success"`
-	Codice  string `json:"codice,omitempty"`
-	Errore  string `json:"errore,omitempty"`
-}
-
-// Struttura per la richiesta di creazione giocata AI
-type GiocataAIRequest struct {
-	Evento            string `json:"evento,omitempty"`
-	SaleRivenditoreID int    `json:"sale_rivenditore_id"`
-	ImmagineURL       string `json:"immagine_url,omitempty"`
-	ImmagineBase64    string `json:"immagine_base64,omitempty"`
-	APIKey            string `json:"api_key"`
-}
-
-// Struttura per la risposta dell'API create-giocata-ai
-type GiocataAIResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message,omitempty"`
-	Data    struct {
-		ID              int     `json:"id"`
-		CodiceGiocata   string  `json:"codice_giocata"`
-		Rivenditore     string  `json:"rivenditore"`
-		Quota           float64 `json:"quota"`
-		Stake           float64 `json:"stake"`
-		SheetsSaved     bool    `json:"sheets_saved"`
-		Analyzed        bool    `json:"analyzed"`
-		MatchConfidence string  `json:"match_confidence"`
-		MatchReason     string  `json:"match_reason"`
-		Evento          string  `json:"evento"`
-		ImageSource     string  `json:"image_source"`
-	} `json:"data,omitempty"`
-	Error string `json:"error,omitempty"`
-}
-
-// Funzione per inviare una richiesta di codice giocata direttamente
-func sendCodiceGiocataRequest(messageID string, requestData CodiceGiocataRequest) {
-	fmt.Printf("Invio richiesta diretta per codice giocata (messageID: %s)\n", messageID)
-	
-	// Converti la richiesta in JSON
-	jsonData, err := json.Marshal(requestData)
-	if err != nil {
-		fmt.Printf("Errore nella serializzazione JSON: %v\n", err)
-		return
-	}
-	
-	// Log dettagliato della richiesta
-	fmt.Printf("DEBUG RICHIESTA API DIRETTA:\n")
-	fmt.Printf("- Evento: %s\n", requestData.Evento)
-	fmt.Printf("- Esito: %s\n", requestData.Esito)
-	fmt.Printf("- TipsterID: %d\n", requestData.TipsterID)
-	fmt.Printf("- Percentuale: %f\n", requestData.Percentuale)
-	fmt.Printf("- ImmagineURL: %s\n", requestData.ImmagineURL)
-	fmt.Printf("- ImmagineBase64 presente: %t (lunghezza: %d)\n", len(requestData.ImmagineBase64) > 0, len(requestData.ImmagineBase64))
-	fmt.Printf("- APIKey: %s\n", requestData.APIKey)
-	
-	// Stampa la richiesta JSON per debug (senza la parte base64 completa per leggibilità)
-	debugJSON := requestData
-	if len(debugJSON.ImmagineBase64) > 100 {
-		truncatedBase64 := debugJSON.ImmagineBase64[:100] + "..."
-		debugJSON.ImmagineBase64 = truncatedBase64
-	}
-	debugJSONBytes, _ := json.MarshalIndent(debugJSON, "", "  ")
-	fmt.Printf("Richiesta JSON diretta (troncata): %s\n", string(debugJSONBytes))
-	
-	// Crea la richiesta HTTP con timeout più lungo
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-	
-	// Modifica l'URL per usare 127.0.0.1 invece di localhost
-	req, err := http.NewRequest("POST", "http://127.0.0.1:8000/api/v1/create-codice-giocata/", bytes.NewBuffer(jsonData))
-	if err != nil {
-		fmt.Printf("Errore nella creazione della richiesta HTTP: %v\n", err)
-		return
-	}
-	
-	// Imposta gli header
-	req.Header.Set("Content-Type", "application/json")
-	
-	// Invia la richiesta
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("Errore nell'invio della richiesta HTTP: %v\n", err)
-		
-		// Anche se la richiesta API fallisce, proviamo comunque a inviare la reazione verde
-		// per dare un feedback visivo all'utente
-		if requestData.ChatID != "" {
-			fmt.Printf("Tentativo di inviare comunque la reazione verde nonostante l'errore API\n")
-			
-			chatJID, parseErr := types.ParseJID(requestData.ChatID)
-			if parseErr == nil {
-				// Ottieni il JID del mittente originale (se disponibile)
-				var senderJID types.JID
-				senderJID = types.EmptyJID
-				
-				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
-				
-				// Invia la reazione verde
-				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, "🟢")
-				_, reactionErr := whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
-				if reactionErr != nil {
-					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", reactionErr)
-				} else {
-					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s (dopo errore API)\n", messageID)
-				}
-			}
-		}
-		
-		return
-	}
-	defer resp.Body.Close()
-	
-	// Leggi il corpo della risposta per il debug
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("Errore nella lettura della risposta: %v\n", err)
-		return
-	}
-	
-	fmt.Printf("Risposta API diretta ricevuta (status: %d): %s\n", resp.StatusCode, string(respBody))
-	
-	// Log dettagliato in caso di errore
-	if resp.StatusCode >= 400 {
-		fmt.Printf("ERRORE API DIRETTA (status %d):\n", resp.StatusCode)
-		fmt.Printf("- URL: http://127.0.0.1:8000/api/v1/create-codice-giocata/\n")
-		fmt.Printf("- Metodo: POST\n")
-		fmt.Printf("- Headers: Content-Type: application/json\n")
-		fmt.Printf("- Payload JSON (lunghezza totale: %d bytes)\n", len(jsonData))
-		
-		// Stampa i primi e gli ultimi caratteri del payload completo
-		if len(jsonData) > 200 {
-			fmt.Printf("  Primi 100 caratteri: %s\n", string(jsonData[:100]))
-			fmt.Printf("  Ultimi 100 caratteri: %s\n", string(jsonData[len(jsonData)-100:]))
-		} else {
-			fmt.Printf("  Payload completo: %s\n", string(jsonData))
-		}
-		
-		// Stampa la risposta di errore
-		fmt.Printf("- Risposta di errore: %s\n", string(respBody))
-	}
-	
-	// Ricrea un nuovo reader per il corpo della risposta
-	resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
-	
-	// Leggi la risposta
-	var response CodiceGiocataResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		fmt.Printf("Errore nella decodifica della risposta JSON: %v\n", err)
-		return
-	}
-	
-	// Verifica il risultato
-	if response.Success {
-		fmt.Printf("Codice giocata creato con successo: %s\n", response.Codice)
-		
-		// Notifica i client WebSocket del codice creato
-		broadcastToClients("codice_giocata_created", map[string]interface{}{
-			"messageId": messageID,
-			"codice":    response.Codice,
-			"esito":     requestData.Esito,
-		})
-		
-		// Aggiungi una reazione 🟢 al messaggio originale
-		// Estrai il JID della chat dal messageID (formato: chatJID_messageID)
-		parts := strings.Split(messageID, "_")
-		if len(parts) >= 2 {
-			chatJIDStr := parts[0]
-			msgID := parts[len(parts)-1]
-			
-			chatJID, err := types.ParseJID(chatJIDStr)
-			if err == nil {
-				// Ottieni il JID del mittente originale (se disponibile)
-				var senderJID types.JID
-				// Se non abbiamo informazioni sul mittente, usiamo un JID vuoto
-				senderJID = types.EmptyJID
-				
-				// Non rimuoviamo più le reazioni esistenti, permettiamo a più utenti di reagire allo stesso messaggio
-				
-				// Ora invia la nuova reazione (🥳)
-				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, msgID, "🥳")
-				_, err = whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
-				if err != nil {
-					fmt.Printf("Errore nell'invio della reazione 🥳: %v\n", err)
-				} else {
-					fmt.Printf("Reazione 🥳 inviata con successo al messaggio %s\n", messageID)
-				}
-			} else {
-				fmt.Printf("Errore nel parsing del JID della chat: %v\n", err)
-			}
-		} else {
-			fmt.Printf("Formato ID messaggio non standard, provo a inviare la reazione direttamente: %s\n", messageID)
-	
-			// Prova a inviare la reazione direttamente senza dividere l'ID
-			chatJID, err := types.ParseJID(requestData.ChatID)
-			if err == nil {
-				// Ottieni il JID del mittente originale del messaggio
-				var senderJID types.JID
-				
-				// Carica i messaggi della chat dal database
-				dbMessages, err := dbManager.LoadChatMessages(requestData.ChatID)
-				if err != nil {
-					fmt.Printf("Errore nel caricare i messaggi della chat: %v\n", err)
-					senderJID = types.EmptyJID  // Fallback a JID vuoto
-				} else {
-					// Cerca il messaggio originale nel database
-					var originalMessage *db.Message
-					for _, msg := range dbMessages {
-						if msg.ID == messageID {
-							originalMessage = &msg
-							break
-						}
-					}
-					
-					if originalMessage != nil {
-						// Usa il JID del mittente originale
-						senderJID, err = types.ParseJID(originalMessage.Sender)
-						if err != nil {
-							fmt.Printf("Errore nel parsing del JID del mittente originale: %v\n", err)
-							senderJID = types.EmptyJID  // Fallback a JID vuoto
-						}
-						fmt.Printf("Trovato mittente originale: %s per messaggio %s\n", originalMessage.Sender, messageID)
-					} else {
-						fmt.Printf("Messaggio originale %s non trovato nel database\n", messageID)
-						senderJID = types.EmptyJID  // Fallback a JID vuoto
-					}
-				}
-				
-				// Ora invia la nuova reazione (🟢) utilizzando il JID del mittente originale
-				reactionMsg := whatsmeowClient.BuildReaction(chatJID, senderJID, messageID, "🟢")
-				_, err = whatsmeowClient.SendMessage(context.Background(), chatJID, reactionMsg)
-				if err != nil {
-					fmt.Printf("Errore nell'invio della reazione 🟢: %v\n", err)
-				} else {
-					fmt.Printf("Reazione 🟢 inviata con successo al messaggio %s (mittente originale: %s)\n", 
-						messageID, senderJID.String())
-				}
-			} else {
-				fmt.Printf("Errore nel parsing del JID della chat: %v\n", err)
-			}
-		}
-	} else {
-		fmt.Printf("Errore nella creazione del codice giocata: %s\n", response.Errore)
-		
-		// Notifica i client WebSocket dell'errore
-		broadcastToClients("codice_giocata_error", map[string]interface{}{
-			"messageId": messageID,
-			"errore":    response.Errore,
-		})
-	}
-}
-
 // Funzione per creare una giocata AI tramite API
-func createGiocataAI(message *Message, chatJID string, messageID string) {
+func createGiocataAI(message *models.Message, chatJID string, messageID string) {
 	fmt.Printf("Creazione giocata AI per messaggio: %s\n", messageID)
 	
 	// Prepara i dati per l'API
-	requestData := GiocataAIRequest{
+	requestData := models.GiocataAIRequest{
 		SaleRivenditoreID: 456, // Valore predefinito
 		APIKey:            "betste_secret_key",
 	}
@@ -771,7 +446,7 @@ func createGiocataAI(message *Message, chatJID string, messageID string) {
 	resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
 	
 	// Leggi la risposta
-	var response GiocataAIResponse
+	var response models.GiocataAIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		fmt.Printf("Errore nella decodifica della risposta JSON: %v\n", err)
 		return
@@ -850,7 +525,7 @@ func createGiocataAI(message *Message, chatJID string, messageID string) {
 }
 
 // Funzione per creare un codice giocata tramite API
-func createCodiceGiocata(message Message, nota string) {
+func createCodiceGiocata(message models.Message, nota string) {
 	fmt.Printf("Creazione automatica codice giocata per messaggio: %s\n", message.ID)
 	
 	// Prepara i dati per l'API
@@ -860,7 +535,7 @@ func createCodiceGiocata(message Message, nota string) {
 	}
 	
 	// Crea la richiesta base
-	requestData := CodiceGiocataRequest{
+	requestData := models.CodiceGiocataRequest{
 		Esito:       esito,
 		TipsterID:   1, // Valore predefinito
 		Percentuale: 0.3, // Valore predefinito
@@ -1081,7 +756,7 @@ func createCodiceGiocata(message Message, nota string) {
 	resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
 	
 	// Leggi la risposta
-	var response CodiceGiocataResponse
+	var response models.CodiceGiocataResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		fmt.Printf("Errore nella decodifica della risposta JSON: %v\n", err)
 		return
@@ -1149,7 +824,7 @@ func min(a, b int) int {
 
 func main() {
 	// Inizializza la mappa delle chat
-	chats = make(map[string]*Chat)
+	chats = make(map[string]*models.Chat)
 	
 	// Carica la configurazione
 	config, err := utils.LoadConfig("config.json")
@@ -1252,7 +927,7 @@ func main() {
 				
 				if messageFound {
 					// Aggiorna il messaggio nel database
-					dbMessage := db.Message{
+					dbMessage := models.Message{
 						ID:        revokedMessageID,
 						IsDeleted: true,
 						Content:   "(Questo messaggio è stato eliminato)",
@@ -1337,7 +1012,7 @@ func main() {
 				
 				if messageFound && content != "" {
 					// Aggiorna il messaggio nel database
-					dbMessage := db.Message{
+					dbMessage := models.Message{
 						ID:         editedMessageID,
 						Content:    content,
 						IsEdited:   true,
@@ -1404,7 +1079,7 @@ func main() {
 				protocolMessageType int
         		protocolMessageName string
 
-				imageHashString string 
+				imageHashString string
 			)
 			
 			// Sostituisci la parte di gestione dei tipi di messaggio nel tuo event handler case *events.Message:
@@ -1612,7 +1287,7 @@ func main() {
 						fmt.Printf("Rilevata reazione %s al messaggio %s da %s\n", reactionText, targetMessageID, senderName)
 						
 						// Cerca il messaggio originale
-						var originalMessage *Message
+						var originalMessage *models.Message
 						mutex.RLock()
 						for _, msg := range messages {
 							if msg.ID == targetMessageID {
@@ -1630,14 +1305,16 @@ func main() {
 								for _, dbMsg := range dbMessages {
 									if dbMsg.ID == targetMessageID {
 										// Converti il messaggio dal formato DB al formato Message
-										convertedMsg := Message{
+										convertedMsg := models.Message{
 											ID:        dbMsg.ID,
 											Chat:      dbMsg.Chat,
 											ChatName:  dbMsg.ChatName,
 											Sender:    dbMsg.Sender,
+											
 											SenderName: dbMsg.SenderName,
 											Content:   dbMsg.Content,
 											Timestamp: dbMsg.Timestamp,
+											
 											IsMedia:   dbMsg.IsMedia,
 											MediaPath: dbMsg.MediaPath,
 											ImageHash: dbMsg.ImageHash,
@@ -1702,67 +1379,12 @@ func main() {
 										
 										if !found {
 											fmt.Printf("Nessun percorso alternativo trovato, uso l'immagine hardcoded\n")
-											// Usa l'immagine hardcoded
 											createCodiceGiocata(messageCopy, noteContent)
 										} else {
-											// Leggi l'immagine dal percorso alternativo trovato
-											imgData, err := os.ReadFile(fullPath)
-											if err != nil {
-												fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
-												createCodiceGiocata(messageCopy, noteContent)
-											} else {
-												// Converti in base64
-												mimeType := "image/jpeg" // Assumiamo JPEG come default
-												if strings.HasSuffix(fullPath, ".png") {
-													mimeType = "image/png"
-												}
-												
-												base64Data := base64.StdEncoding.EncodeToString(imgData)
-												imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
-												
-												// Crea una richiesta speciale solo con l'immagine base64
-												specialRequest := CodiceGiocataRequest{
-													Esito:          noteContent,
-													TipsterID:      1,
-													Percentuale:    0.3,
-													ImmagineBase64: imageBase64,
-													APIKey:         "betste_secret_key",
-													ChatID:         messageCopy.Chat, // Aggiungi l'ID della chat
-												}
-												
-												// Invia direttamente la richiesta speciale
-												sendCodiceGiocataRequest(messageCopy.ID, specialRequest)
-											}
+											createCodiceGiocata(messageCopy, noteContent)
 										}
 									} else {
-										// Leggi l'immagine
-										imgData, err := os.ReadFile(fullPath)
-										if err != nil {
-											fmt.Printf("Errore nella lettura dell'immagine: %v\n", err)
-											createCodiceGiocata(messageCopy, noteContent)
-										} else {
-											// Converti in base64
-											mimeType := "image/jpeg" // Assumiamo JPEG come default
-											if strings.HasSuffix(fullPath, ".png") {
-												mimeType = "image/png"
-											}
-											
-											base64Data := base64.StdEncoding.EncodeToString(imgData)
-											imageBase64 := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
-											
-											// Crea una richiesta speciale solo con l'immagine base64
-											specialRequest := CodiceGiocataRequest{
-												Esito:          noteContent,
-												TipsterID:      1,
-												Percentuale:    0.3,
-												ImmagineBase64: imageBase64,
-												APIKey:         "betste_secret_key",
-												ChatID:         messageCopy.Chat, // Aggiungi l'ID della chat
-											}
-											
-											// Invia direttamente la richiesta speciale
-											sendCodiceGiocataRequest(messageCopy.ID, specialRequest)
-										}
+
 									}
 								} else {
 									// Se non è un'immagine, usa il metodo standard
@@ -1854,7 +1476,7 @@ func main() {
 			}
 			
 			// Crea il messaggio
-			message := Message{
+			message := models.Message{
 				ID:        v.Info.ID,
 				Chat:      chatJID,
 				ChatName:  chatName,
@@ -1880,7 +1502,7 @@ func main() {
 			}
 			
 			// Converti il messaggio nel tipo db.Message
-			dbMessage := db.Message{
+			dbMessage := models.Message{
 				ID:                  message.ID,
 				Chat:                message.Chat,
 				ChatName:            message.ChatName,
@@ -1902,7 +1524,7 @@ func main() {
 			}
 
 			// Salva la chat nel database prima del messaggio per rispettare il vincolo di chiave esterna
-			chat := &db.Chat{
+			chat := &models.Chat{
 				ID:           chatJID,
 				Name:         chatName,
 				LastMessage:  dbMessage,
@@ -2068,7 +1690,7 @@ func main() {
 		wsClientsMux.Unlock()
 		
 		// Invia un messaggio di benvenuto al client
-		welcomeMsg := WSMessage{
+		welcomeMsg := models.WSMessage{
 			Type: "connection_established",
 			Payload: map[string]interface{}{
 				"message": "Connessione WebSocket stabilita",
@@ -2177,7 +1799,7 @@ func main() {
 			return
 		}
 		
-		var chat *db.Chat
+		var chat *models.Chat
 		for _, ch := range chats {
 			if ch.ID == chatID {
 				chat = ch
@@ -2286,19 +1908,20 @@ func main() {
 			}
 			
 			// Crea una chat temporanea con i messaggi caricati
-			tempChat := &Chat{
+			tempChat := &models.Chat{
 				ID:      chatID,
 				Name:    dbMessages[0].ChatName,
-				Messages: []Message{},
+				Messages: []models.Message{},
 			}
 			
 			// Converti i messaggi dal formato DB al formato Message
 			for _, dbMsg := range dbMessages {
-				tempChat.Messages = append(tempChat.Messages, Message{
+				tempChat.Messages = append(tempChat.Messages, models.Message{
 					ID:        dbMsg.ID,
 					Chat:      dbMsg.Chat,
 					ChatName:  dbMsg.ChatName,
 					Sender:    dbMsg.Sender,
+					
 					SenderName: dbMsg.SenderName,
 					Content:   dbMsg.Content,
 					Timestamp: dbMsg.Timestamp,
@@ -2489,7 +2112,7 @@ func main() {
 			}
 			
 			// Crea un messaggio locale che rappresenta quello appena inviato
-			newMessage := Message{
+			newMessage := models.Message{
 				ID:        msgID,
 				Chat:      chatID,
 				ChatName:  chatName,
@@ -2505,7 +2128,7 @@ func main() {
 			}
 			
 			// Converti il messaggio nel tipo db.Message per salvarlo nel database
-			dbMessage := db.Message{
+			dbMessage := models.Message{
 				ID:                  newMessage.ID,
 				Chat:                newMessage.Chat,
 				ChatName:            newMessage.ChatName,
@@ -2534,11 +2157,11 @@ func main() {
 				chat.LastMessage = newMessage
 				chat.Messages = append(chat.Messages, newMessage)
 			} else {
-				chats[chatID] = &Chat{
+				chats[chatID] = &models.Chat{
 					ID:          chatID,
 					Name:        chatName,
 					LastMessage: newMessage,
-					Messages:    []Message{newMessage},
+					Messages:    []models.Message{newMessage},
 				}
 			}
 			mutex.Unlock()
@@ -2581,7 +2204,7 @@ func main() {
 		if requestData.IsReply && requestData.ReplyToMessageID != "" {
 			mutex.RLock()
 			// Cerca il messaggio originale a cui rispondere
-			var originalMessage *Message
+			var originalMessage *models.Message
 			for _, message := range messages {
 				if message.ID == requestData.ReplyToMessageID && message.Chat == chatID {
 					originalMessage = &message
@@ -2629,7 +2252,7 @@ func main() {
 		timestamp := resp.Timestamp
 		
 		// Crea l'oggetto messaggio con le informazioni di risposta
-		newMessage := Message{
+		newMessage := models.Message{
 			ID:        msgID,
 			Chat:      chatID,
 			ChatName:  chatName,
@@ -2666,7 +2289,7 @@ func main() {
 			msgID, chatID, requestData.Content)
 		
 		// Converti il messaggio nel tipo db.Message per salvarlo nel database
-		dbMessage := db.Message{
+		dbMessage := models.Message{
 			ID:                  newMessage.ID,
 			Chat:                newMessage.Chat,
 			ChatName:            newMessage.ChatName,
@@ -2685,7 +2308,7 @@ func main() {
 		}
 		
 		// Salva la chat nel database prima del messaggio per rispettare il vincolo di chiave esterna
-		dbChat := &db.Chat{
+		dbChat := &models.Chat{
 			ID:           chatID,
 			Name:         chatName,
 			LastMessage:  dbMessage,
@@ -2778,11 +2401,11 @@ func main() {
 			chat.Messages = append(chat.Messages, newMessage)
 		} else {
 			// Questo caso dovrebbe essere raro, poiché stai inviando un messaggio a una chat esistente
-			chats[chatID] = &Chat{
+			chats[chatID] = &models.Chat{
 				ID:          chatID,
 				Name:        chatName,
 				LastMessage: newMessage,
-				Messages:    []Message{newMessage},
+				Messages:    []models.Message{newMessage},
 			}
 		}
 		mutex.Unlock()
