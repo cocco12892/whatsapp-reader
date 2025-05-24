@@ -35,7 +35,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.mau.fi/whatsmeow/waproto"
-	"google.golang.org/protobuf/proto as protoV2"
+	protoV2 "google.golang.org/protobuf/proto"
 	"whatsapp-reader/db"
 	"whatsapp-reader/handlers"
 	"whatsapp-reader/models"
