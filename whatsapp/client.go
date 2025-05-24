@@ -21,8 +21,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
-	
-	"whatsapp-reader/db"
+	// "whatsapp-reader/db" // Rimosso perché non utilizzato
 )
 
 var (
@@ -154,14 +153,14 @@ func (c *Client) HandleEvent(evt interface{}) {
 			fmt.Printf("[WHATSAPP CLIENT HANDLER] Testo Esteso: %s\n", v.Message.GetExtendedTextMessage().GetText())
 		} else if img := v.Message.GetImageMessage(); img != nil {
 			caption := img.GetCaption()
-			if caption == "" && img.ExtendedTextMessage != nil { // A volte la didascalia è nell'extended text
-				caption = img.ExtendedTextMessage.GetText()
+			if caption == "" && img.GetContextInfo() != nil && img.GetContextInfo().GetExtendedTextMessage() != nil { // A volte la didascalia è nell'extended text
+				caption = img.GetContextInfo().GetExtendedTextMessage().GetText()
 			}
-			fmt.Printf("[WHATSAPP CLIENT HANDLER] Immagine ricevuta. Caption: %s, URL: %s\n", caption, img.GetUrl())
+			fmt.Printf("[WHATSAPP CLIENT HANDLER] Immagine ricevuta. Caption: %s, URL: %s\n", caption, img.GetURL())
 		} else if vid := v.Message.GetVideoMessage(); vid != nil {
 			caption := vid.GetCaption()
-			if caption == "" && vid.ExtendedTextMessage != nil {
-				caption = vid.ExtendedTextMessage.GetText()
+			if caption == "" && vid.GetContextInfo() != nil && vid.GetContextInfo().GetExtendedTextMessage() != nil {
+				caption = vid.GetContextInfo().GetExtendedTextMessage().GetText()
 			}
 			fmt.Printf("[WHATSAPP CLIENT HANDLER] Video ricevuto. Caption: %s\n", caption)
 		} else {
