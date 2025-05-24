@@ -211,20 +211,6 @@ func GetContactName(client *whatsmeow.Client, jid types.JID) string {
 	return name
 }
 
-// SanitizePathComponent sanitizza una stringa per uso nei percorsi dei file
-func SanitizePathComponent(s string) string {
-	s = strings.ReplaceAll(s, "/", "_")
-	s = strings.ReplaceAll(s, "\\", "_")
-	s = strings.ReplaceAll(s, ":", "_")
-	s = strings.ReplaceAll(s, "*", "_")
-	s = strings.ReplaceAll(s, "?", "_")
-	s = strings.ReplaceAll(s, "\"", "_")
-	s = strings.ReplaceAll(s, "<", "_")
-	s = strings.ReplaceAll(s, ">", "_")
-	s = strings.ReplaceAll(s, "|", "_")
-	return s
-}
-
 // DownloadProfilePicture scarica l'immagine del profilo di un contatto o gruppo
 func DownloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup bool) (string, error) {
 	params := &whatsmeow.GetProfilePictureParams{
