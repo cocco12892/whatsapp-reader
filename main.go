@@ -2581,7 +2581,7 @@ func main() {
 		}
 		
 		// Crea l'oggetto nota
-		noteData := &db.MessageNote{
+		noteData := &models.MessageNote{
 			MessageID: messageID,
 			Note:      requestData.Note,
 			Type:      requestData.Type,
@@ -2626,7 +2626,7 @@ func main() {
 		}
 		
 		// Crea l'oggetto nota
-		noteData := &db.MessageNote{
+		noteData := &models.MessageNote{
 			MessageID: messageID,
 			Note:      requestData.Note,
 			Type:      requestData.Type,
@@ -2712,7 +2712,7 @@ func main() {
 	router.POST("/api/recorded-data/:id", func(c *gin.Context) {
 		messageID := c.Param("id")
 		
-		var requestData db.RecordedData
+		var requestData models.RecordedData
 		if err := c.BindJSON(&requestData); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
 			return
@@ -2734,7 +2734,7 @@ func main() {
 	router.PUT("/api/recorded-data/:id", func(c *gin.Context) {
 		messageID := c.Param("id")
 		
-		var requestData db.RecordedData
+		var requestData models.RecordedData
 		if err := c.BindJSON(&requestData); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
 			return
