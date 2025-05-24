@@ -13,15 +13,19 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"log"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // Driver SQLite per sqlstore
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store/sqlstore" // Per memorizzare lo stato del dispositivo
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events" // Per l'handler degli eventi
+	waLog "go.mau.fi/whatsmeow/util/log" // Per il logger di whatsmeow
 	"whatsapp-reader/db"
 	"whatsapp-reader/handlers"
 	"whatsapp-reader/models"
@@ -38,6 +42,9 @@ var (
 	
 	// Contatore di client connessi
 	wsClientCount int32
+	
+	// Istanza del client WhatsApp wrapper
+	whatsAppClientInstance *whatsapp.Client
 )
 
 func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup bool) (string, error) {
@@ -737,24 +744,71 @@ func main() {
 	}
 	
 	// Inizializza il client WhatsApp
-	if err := whatsapp.InitClient(dbManager); err != nil {
-		fmt.Println("Errore nell'inizializzazione del client WhatsApp:", err)
-		return
-	}
-	
-	// Registra l'event handler
-	whatsapp.RegisterEventHandler(dbManager)
-	
-	// Connetti il client WhatsApp
-	qrCode, err := whatsapp.Connect()
+	// 1. Crea il container per lo store (useremo SQLite)
+	dbLog := waLog.Stdout("Database", "DEBUG", true)
+	storeContainer, err := sqlstore.New("sqlite3", "file:whatsmeow_store.db?_foreign_keys=on", dbLog)
 	if err != nil {
-		fmt.Println("Errore nella connessione del client WhatsApp:", err)
-		return
+		log.Fatalf("Errore nella creazione del container SQL per Whatsmeow: %v", err)
 	}
-	
-	if qrCode != nil {
-		fmt.Println("Scansiona questo codice QR con WhatsApp:")
-		fmt.Println(*qrCode)
+
+	// 2. Definisci l'handler degli eventi qui in main.go
+	eventHandler := func(rawEvt interface{}) {
+		// Puoi accedere a dbManager, broadcastToClients, ecc. da qui se necessario
+		switch evt := rawEvt.(type) {
+		case *events.Message:
+			senderName := evt.Info.PushName
+			if senderName == "" {
+				senderName = evt.Info.Sender.User
+			}
+			logMsg := fmt.Sprintf("[MAIN HANDLER] Messaggio da %s (%s) in chat %s", senderName, evt.Info.Sender.String(), evt.Info.Chat.String())
+			if evt.Message.GetConversation() != "" {
+				logMsg += fmt.Sprintf(" | Testo: %s", evt.Message.GetConversation())
+			} else if img := evt.Message.GetImageMessage(); img != nil {
+				logMsg += fmt.Sprintf(" | Immagine: %s", img.GetCaption())
+			} else {
+				logMsg += " | Tipo messaggio non testuale"
+			}
+			fmt.Println(logMsg)
+			// Qui puoi chiamare dbManager.SaveMessage(convertedMessage)
+			// e broadcastToClients(...)
+		case *events.Connected:
+			fmt.Println("[MAIN HANDLER] Client WhatsApp connesso")
+		case *events.Disconnected:
+			fmt.Println("[MAIN HANDLER] Client WhatsApp disconnesso")
+		case *events.LoggedOut:
+			fmt.Println("[MAIN HANDLER] Client WhatsApp sloggato")
+		// Aggiungi altri casi di eventi se necessario
+		default:
+			// fmt.Printf("[MAIN HANDLER] Evento WhatsApp ricevuto: %T\n", rawEvt)
+		}
+	}
+
+	// 3. Crea una nuova istanza del client WhatsApp wrapper
+	whatsAppClientInstance, err = whatsapp.NewClient(storeContainer, eventHandler)
+	if err != nil {
+		log.Fatalf("Errore nella creazione del client WhatsApp: %v", err)
+	}
+
+	// 4. Assegna il client whatsmeow sottostante alla variabile globale, se usata altrove
+	whatsapp.WhatsmeowClient = whatsAppClientInstance.Client // .Client è il *whatsmeow.Client effettivo
+
+	// 5. Connetti il client (il metodo Connect del wrapper gestisce la registrazione dell'handler e la connessione)
+	if err := whatsAppClientInstance.Connect(); err != nil {
+		log.Fatalf("Errore nella connessione del client WhatsApp: %v", err)
+	}
+
+	// 6. Gestisci l'autenticazione QR Code
+	// Controlla se siamo già loggati (Store.ID non è nil)
+	if whatsAppClientInstance.Client.Store.ID == nil {
+		fmt.Println("Autenticazione richiesta. Scansiona il codice QR con WhatsApp.")
+		if err := whatsAppClientInstance.WaitForQRCode(); err != nil {
+			// WaitForQRCode gestisce la stampa del QR e attende la scansione.
+			// Potrebbe restituire un errore se c'è un timeout o un problema.
+			log.Fatalf("Errore durante l'attesa della scansione del QR code: %v", err)
+		}
+		fmt.Println("Autenticazione QR completata o client già loggato.")
+	} else {
+		fmt.Printf("Client WhatsApp già loggato con ID: %s\n", whatsAppClientInstance.Client.Store.ID.String())
 	}
 	
 	// Configura il server API
@@ -785,6 +839,9 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 	
-	fmt.Println("Disconnessione...")
-	whatsapp.Disconnect()
+	fmt.Println("Disconnessione del client WhatsApp...")
+	if whatsAppClientInstance != nil {
+		whatsAppClientInstance.Disconnect() // Usa il metodo Disconnect del client wrapper (che chiama quello sottostante)
+	}
+	fmt.Println("Client WhatsApp disconnesso.")
 }

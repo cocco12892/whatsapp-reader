@@ -99,34 +99,6 @@ func (c *Client) WaitForInterrupt() {
 	c.Disconnect()
 }
 
-// InitClient inizializza il client WhatsApp
-func InitClient(dbManager *db.MySQLManager) error {
-	// Qui implementiamo la logica per inizializzare il client WhatsApp
-	// Per ora, creiamo un client vuoto
-	WhatsmeowClient = &whatsmeow.Client{}
-	return nil
-}
-
-// RegisterEventHandler registra l'handler degli eventi
-func RegisterEventHandler(dbManager *db.MySQLManager) {
-	// Qui implementiamo la logica per registrare l'handler degli eventi
-}
-
-// Connect connette il client WhatsApp e restituisce un QR code se necessario
-func Connect() (*string, error) {
-	// Qui implementiamo la logica per connettere il client
-	// Per ora, restituiamo nil per indicare che non è necessario un QR code
-	return nil, nil
-}
-
-// Disconnect disconnette il client WhatsApp
-func Disconnect() {
-	// Qui implementiamo la logica per disconnettere il client
-	if WhatsmeowClient != nil {
-		WhatsmeowClient.Disconnect()
-	}
-}
-
 // SendMessage invia un messaggio
 func (c *Client) SendMessage(to types.JID, text string) error {
 	msg := &waProto.Message{
@@ -159,19 +131,41 @@ func (c *Client) HandleEvent(evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
 		// Gestisci il messaggio
-		fmt.Printf("Ricevuto messaggio da %s\n", v.Info.Sender.String())
-		
+		fmt.Printf("[WHATSAPP CLIENT HANDLER] Ricevuto messaggio da %s (%s)\n", v.Info.Sender.String(), v.Info.PushName)
+		if v.Message.GetConversation() != "" {
+			fmt.Printf("[WHATSAPP CLIENT HANDLER] Testo: %s\n", v.Message.GetConversation())
+		} else if v.Message.GetExtendedTextMessage() != nil && v.Message.GetExtendedTextMessage().GetText() != "" {
+			fmt.Printf("[WHATSAPP CLIENT HANDLER] Testo Esteso: %s\n", v.Message.GetExtendedTextMessage().GetText())
+		} else if img := v.Message.GetImageMessage(); img != nil {
+			caption := img.GetCaption()
+			if caption == "" && img.ExtendedTextMessage != nil { // A volte la didascalia è nell'extended text
+				caption = img.ExtendedTextMessage.GetText()
+			}
+			fmt.Printf("[WHATSAPP CLIENT HANDLER] Immagine ricevuta. Caption: %s, URL: %s\n", caption, img.GetUrl())
+		} else if vid := v.Message.GetVideoMessage(); vid != nil {
+			caption := vid.GetCaption()
+			if caption == "" && vid.ExtendedTextMessage != nil {
+				caption = vid.ExtendedTextMessage.GetText()
+			}
+			fmt.Printf("[WHATSAPP CLIENT HANDLER] Video ricevuto. Caption: %s\n", caption)
+		} else {
+			fmt.Printf("[WHATSAPP CLIENT HANDLER] Ricevuto tipo messaggio non gestito esplicitamente: %+v\n", v.Message)
+		}
+		fmt.Printf("[WHATSAPP CLIENT HANDLER] Info complete messaggio: %+v\n", v.Info)
+
 	case *events.Connected:
 		// Gestisci la connessione
-		fmt.Println("Client connesso")
+		fmt.Println("[WHATSAPP CLIENT HANDLER] Client connesso")
 		
 	case *events.Disconnected:
 		// Gestisci la disconnessione
-		fmt.Println("Client disconnesso")
+		fmt.Println("[WHATSAPP CLIENT HANDLER] Client disconnesso")
 		
 	case *events.LoggedOut:
 		// Gestisci il logout
-		fmt.Println("Client disconnesso (logout)")
+		fmt.Println("[WHATSAPP CLIENT HANDLER] Client disconnesso (logout)")
+	default:
+		// fmt.Printf("[WHATSAPP CLIENT HANDLER] Evento ricevuto: %T\n", v)
 	}
 }
 
