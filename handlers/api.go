@@ -82,13 +82,12 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 			return
 		}
 
-		// Per ogni chat, carica l'ultimo messaggio delle ultime 2 ore
-		twoHoursAgo := time.Now().Add(-2 * time.Hour)
+		// Per ogni chat, carica tutti i messaggi
 		for _, chat := range chatList {
-			dbMessages, err := dbManager.LoadRecentChatMessages(chat.ID, twoHoursAgo)
+			dbMessages, err := dbManager.LoadChatMessages(chat.ID)
 			if err != nil {
 				// Logga l'errore ma continua, così la chat viene comunque listata
-				fmt.Printf("Errore nel caricamento dei messaggi recenti per la chat %s: %v\n", chat.ID, err)
+				fmt.Printf("Errore nel caricamento dei messaggi per la chat %s: %v\n", chat.ID, err)
 				// Assicurati che chat.Messages sia vuoto se ci sono stati errori o non ci sono messaggi
 				chat.Messages = []models.Message{} 
 				continue
