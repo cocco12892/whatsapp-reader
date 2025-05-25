@@ -116,12 +116,14 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 				})
 
 				chat.LastMessage = *dbMessages[0]
-				// Converti []*models.Message in []models.Message
-				messages := make([]models.Message, len(dbMessages))
-				for i, msg := range dbMessages {
-					messages[i] = *msg
-				}
-				chat.Messages = messages
+				// Il campo Messages non viene popolato qui per ridurre il payload della risposta /api/chats.
+				// I messaggi completi verranno caricati dal frontend on-demand 
+				// utilizzando l'endpoint /api/chats/:id/messages.
+				chat.Messages = []models.Message{}
+			} else {
+				// Anche se non ci sono messaggi recenti, assicurati che il campo Messages sia un array vuoto.
+				// LastMessage rimarrà il suo valore zero (o quello precedentemente caricato se applicabile).
+				chat.Messages = []models.Message{}
 			}
 		}
 
