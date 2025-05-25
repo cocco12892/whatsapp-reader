@@ -1,9 +1,16 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
+	
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
+	"google.golang.org/protobuf/proto"
+	"whatsapp-reader/models"
+	"whatsapp-reader/whatsapp"
 )
 
 // ReminderService gestisce il controllo periodico dei reminder
@@ -76,29 +83,79 @@ func (rs *ReminderService) checkReminders() {
 
 	log.Printf("Trovati %d reminder da inviare\n", len(dueReminders))
 
-	// Invia ciascun reminder via WebSocket
+	// Invia ciascun reminder
 	for _, reminder := range dueReminders {
-		// Crea un payload per il reminder
-		payload := map[string]interface{}{
-			"chatId":      reminder.ChatID,
-			"reminderMessage": map[string]interface{}{
-				"id":        fmt.Sprintf("reminder_%s", reminder.ID),
-				"message":   reminder.Message,
-				"timestamp": time.Now(),
-				"senderName": "Sistema",
-				"isSystemMessage": true,
-				"isReminder": true,
-				"scheduledTime": reminder.ScheduledTime,
-				"createdBy": reminder.CreatedBy,
-			},
-		}
+		// Invia il reminder via WhatsApp (messaggio reale)
+		sent := rs.sendWhatsAppMessage(reminder)
+		
+		// Invia anche la notifica via WebSocket per aggiornare l'interfaccia
+		if sent {
+			// Crea un payload per il reminder
+			payload := map[string]interface{}{
+				"chatId":      reminder.ChatID,
+				"reminderMessage": map[string]interface{}{
+					"id":        fmt.Sprintf("reminder_%s", reminder.ID),
+					"message":   reminder.Message,
+					"timestamp": time.Now(),
+					"senderName": "Sistema",
+					"isSystemMessage": true,
+					"isReminder": true,
+					"scheduledTime": reminder.ScheduledTime,
+					"createdBy": reminder.CreatedBy,
+				},
+			}
 
-		// Invia il reminder via WebSocket
-		BroadcastMessageToClients("reminder", payload)
+			// Invia il reminder via WebSocket
+			BroadcastMessageToClients("reminder", payload)
+		}
 		
 		// Marca il reminder come inviato
 		if err := rs.dbManager.MarkReminderAsFired(reminder.ID); err != nil {
 			log.Printf("Errore nel marcare il reminder %s come inviato: %v\n", reminder.ID, err)
 		}
 	}
+}
+
+// sendWhatsAppMessage invia un messaggio WhatsApp per un reminder
+func (rs *ReminderService) sendWhatsAppMessage(reminder *models.Reminder) bool {
+	// Verifica che il client WhatsApp sia inizializzato
+	if whatsapp.WhatsmeowClient == nil {
+		log.Println("Client WhatsApp non inizializzato, impossibile inviare il reminder")
+		return false
+	}
+	
+	// Verifica che il client sia connesso
+	if !whatsapp.WhatsmeowClient.IsConnected() {
+		log.Println("Client WhatsApp non connesso, impossibile inviare il reminder")
+		return false
+	}
+	
+	// Converti l'ID della chat in JID
+	chatJID, err := types.ParseJID(reminder.ChatID)
+	if err != nil {
+		log.Printf("Errore nel parsing del JID della chat per il reminder: %v\n", err)
+		return false
+	}
+	
+	// Formatta il messaggio del reminder
+	messageText := fmt.Sprintf("⏰ *REMINDER*\n\n%s\n\n_(Programmato da %s)_", 
+		reminder.Message, 
+		reminder.CreatedBy)
+	
+	// Crea il messaggio WhatsApp
+	msg := &waE2E.Message{
+		Conversation: proto.String(messageText),
+	}
+	
+	// Invia il messaggio
+	ctx := context.Background()
+	_, err = whatsapp.WhatsmeowClient.SendMessage(ctx, chatJID, msg)
+	
+	if err != nil {
+		log.Printf("Errore nell'invio del messaggio WhatsApp per il reminder: %v\n", err)
+		return false
+	}
+	
+	log.Printf("Reminder inviato con successo alla chat %s: %s\n", reminder.ChatName, reminder.Message)
+	return true
 } 
