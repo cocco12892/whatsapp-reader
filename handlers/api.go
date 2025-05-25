@@ -103,9 +103,11 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 			// []models.Message, dobbiamo assicurarci che il resto del codice sia coerente.
 			// Per semplicità, modifichiamo la variabile per riflettere il tipo restituito.
 			
+			// dbMessagesSlice è di tipo []*models.Message come da interfaccia DBManager
+			// dbMessages sarà una copia di dbMessagesSlice per permettere l'ordinamento senza modificare l'originale (se necessario)
 			dbMessages := make([]*models.Message, len(dbMessagesSlice))
 			for i := range dbMessagesSlice {
-				dbMessages[i] = &dbMessagesSlice[i]
+				dbMessages[i] = dbMessagesSlice[i] // Corretto: dbMessagesSlice[i] è già *models.Message
 			}
 
 
