@@ -601,3 +601,37 @@ func (m *MySQLManager) GetMessageByID(messageID string) (*models.Message, error)
 	
 	return &msg, nil
 }
+
+// LoadRecentChatMessages carica i messaggi recenti di una chat dal database a partire da un certo timestamp
+func (m *MySQLManager) LoadRecentChatMessages(chatID string, since time.Time) ([]*models.Message, error) {
+	rows, err := m.db.Query(`
+		SELECT id, chat_id, chat_name, sender, sender_name, content, timestamp, 
+			is_media, media_path, is_edited, is_deleted, is_reply, 
+			reply_to_message_id, reply_to_sender, reply_to_content, 
+			protocol_message_type, protocol_message_name, image_hash
+		FROM messages
+		WHERE chat_id = ? AND timestamp >= ?
+		ORDER BY timestamp ASC
+	`, chatID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*models.Message
+	for rows.Next() {
+		var msg models.Message
+		if err := rows.Scan(
+			&msg.ID, &msg.Chat, &msg.ChatName, &msg.Sender, &msg.SenderName,
+			&msg.Content, &msg.Timestamp, &msg.IsMedia, &msg.MediaPath,
+			&msg.IsEdited, &msg.IsDeleted, &msg.IsReply, &msg.ReplyToMessageID,
+			&msg.ReplyToSender, &msg.ReplyToContent, &msg.ProtocolMessageType,
+			&msg.ProtocolMessageName, &msg.ImageHash,
+		); err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+
+	return messages, nil
+}

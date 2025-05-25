@@ -45,8 +45,8 @@ type DBManager interface {
 	UpdateMessageStatus(messageID, status string) error
 	UpdateMessageContent(messageID, newText string, editedAt time.Time) error
 	DeleteMessage(messageID string) error
-	// Aggiungi altri metodi necessari, come il caricamento di un singolo messaggio per ID
 	GetMessageByID(messageID string) (*models.Message, error)
+	LoadRecentChatMessages(chatID string, since time.Time) ([]*models.Message, error) // Aggiunto per messaggi recenti
 }
 
 // SetupAPIRoutes configura tutte le rotte API
@@ -82,10 +82,15 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 			return
 		}
 
-		// Per ogni chat, carica l'ultimo messaggio
+		// Per ogni chat, carica l'ultimo messaggio delle ultime 2 ore
+		twoHoursAgo := time.Now().Add(-2 * time.Hour)
 		for _, chat := range chatList {
-			dbMessages, err := dbManager.LoadChatMessages(chat.ID)
+			dbMessages, err := dbManager.LoadRecentChatMessages(chat.ID, twoHoursAgo)
 			if err != nil {
+				// Logga l'errore ma continua, così la chat viene comunque listata
+				fmt.Printf("Errore nel caricamento dei messaggi recenti per la chat %s: %v\n", chat.ID, err)
+				// Assicurati che chat.Messages sia vuoto se ci sono stati errori o non ci sono messaggi
+				chat.Messages = []models.Message{} 
 				continue
 			}
 
