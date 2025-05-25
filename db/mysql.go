@@ -6,6 +6,7 @@ import (
 	"time"
 	_ "github.com/go-sql-driver/mysql"
 	"whatsapp-reader/models"
+	"github.com/google/uuid"
 )
 
 type MySQLManager struct {
@@ -123,6 +124,23 @@ func (m *MySQLManager) InitTables() error {
 	`)
 	if err != nil {
 		return fmt.Errorf("errore nella creazione della tabella message_notes: %v", err)
+	}
+
+	// Tabella per i reminder
+	_, err = m.db.Exec(`
+		CREATE TABLE IF NOT EXISTS reminders (
+			id VARCHAR(255) PRIMARY KEY,
+			chat_id VARCHAR(255) NOT NULL,
+			chat_name VARCHAR(255) NOT NULL,
+			message TEXT NOT NULL,
+			scheduled_time TIMESTAMP NOT NULL,
+			created_at TIMESTAMP NOT NULL,
+			created_by VARCHAR(255) NOT NULL,
+			is_fired BOOLEAN NOT NULL
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("errore nella creazione della tabella reminders: %v", err)
 	}
 
 	return nil
@@ -634,4 +652,147 @@ func (m *MySQLManager) LoadRecentChatMessages(chatID string, since time.Time) ([
 	}
 
 	return messages, nil
+}
+
+// SaveReminder salva un reminder nel database
+func (m *MySQLManager) SaveReminder(reminder *models.Reminder) error {
+	// Se il reminder non ha un ID, generane uno
+	if reminder.ID == "" {
+		reminder.ID = uuid.New().String()
+	}
+	
+	// Se non è impostato CreatedAt, impostalo a now
+	if reminder.CreatedAt.IsZero() {
+		reminder.CreatedAt = time.Now()
+	}
+	
+	_, err := m.db.Exec(`
+		INSERT INTO reminders (
+			id, chat_id, chat_name, message, scheduled_time, 
+			created_at, created_by, is_fired
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		reminder.ID, reminder.ChatID, reminder.ChatName, reminder.Message,
+		reminder.ScheduledTime, reminder.CreatedAt, reminder.CreatedBy, reminder.IsFired,
+	)
+	
+	return err
+}
+
+// UpdateReminder aggiorna un reminder esistente
+func (m *MySQLManager) UpdateReminder(reminder *models.Reminder) error {
+	_, err := m.db.Exec(`
+		UPDATE reminders SET 
+			chat_id = ?, 
+			chat_name = ?, 
+			message = ?, 
+			scheduled_time = ?, 
+			created_by = ?, 
+			is_fired = ?
+		WHERE id = ?
+	`,
+		reminder.ChatID, reminder.ChatName, reminder.Message,
+		reminder.ScheduledTime, reminder.CreatedBy, reminder.IsFired,
+		reminder.ID,
+	)
+	
+	return err
+}
+
+// DeleteReminder elimina un reminder dal database
+func (m *MySQLManager) DeleteReminder(reminderID string) error {
+	_, err := m.db.Exec("DELETE FROM reminders WHERE id = ?", reminderID)
+	return err
+}
+
+// GetReminderByID ottiene un reminder specifico dal database
+func (m *MySQLManager) GetReminderByID(reminderID string) (*models.Reminder, error) {
+	var reminder models.Reminder
+	
+	err := m.db.QueryRow(`
+		SELECT id, chat_id, chat_name, message, scheduled_time, 
+			created_at, created_by, is_fired
+		FROM reminders
+		WHERE id = ?
+	`, reminderID).Scan(
+		&reminder.ID, &reminder.ChatID, &reminder.ChatName, &reminder.Message,
+		&reminder.ScheduledTime, &reminder.CreatedAt, &reminder.CreatedBy, &reminder.IsFired,
+	)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("reminder non trovato")
+		}
+		return nil, err
+	}
+	
+	return &reminder, nil
+}
+
+// GetChatReminders ottiene tutti i reminder per una chat specifica
+func (m *MySQLManager) GetChatReminders(chatID string) ([]*models.Reminder, error) {
+	rows, err := m.db.Query(`
+		SELECT id, chat_id, chat_name, message, scheduled_time, 
+			created_at, created_by, is_fired
+		FROM reminders
+		WHERE chat_id = ?
+		ORDER BY scheduled_time ASC
+	`, chatID)
+	
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var reminders []*models.Reminder
+	for rows.Next() {
+		var reminder models.Reminder
+		if err := rows.Scan(
+			&reminder.ID, &reminder.ChatID, &reminder.ChatName, &reminder.Message,
+			&reminder.ScheduledTime, &reminder.CreatedAt, &reminder.CreatedBy, &reminder.IsFired,
+		); err != nil {
+			return nil, err
+		}
+		reminders = append(reminders, &reminder)
+	}
+	
+	return reminders, nil
+}
+
+// GetDueReminders ottiene tutti i reminder scaduti e non ancora inviati
+func (m *MySQLManager) GetDueReminders() ([]*models.Reminder, error) {
+	now := time.Now()
+	
+	rows, err := m.db.Query(`
+		SELECT id, chat_id, chat_name, message, scheduled_time, 
+			created_at, created_by, is_fired
+		FROM reminders
+		WHERE scheduled_time <= ? AND is_fired = false
+		ORDER BY scheduled_time ASC
+	`, now)
+	
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var reminders []*models.Reminder
+	for rows.Next() {
+		var reminder models.Reminder
+		if err := rows.Scan(
+			&reminder.ID, &reminder.ChatID, &reminder.ChatName, &reminder.Message,
+			&reminder.ScheduledTime, &reminder.CreatedAt, &reminder.CreatedBy, &reminder.IsFired,
+		); err != nil {
+			return nil, err
+		}
+		reminders = append(reminders, &reminder)
+	}
+	
+	return reminders, nil
+}
+
+// MarkReminderAsFired marca un reminder come inviato
+func (m *MySQLManager) MarkReminderAsFired(reminderID string) error {
+	_, err := m.db.Exec("UPDATE reminders SET is_fired = true WHERE id = ?", reminderID)
+	return err
 }

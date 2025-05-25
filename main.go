@@ -47,6 +47,9 @@ var (
 	
 	// Istanza del client WhatsApp wrapper
 	whatsAppClientInstance *whatsapp.Client
+	
+	// Servizio per i reminder
+	reminderService *handlers.ReminderService
 )
 
 func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup bool) (string, error) {
@@ -1000,6 +1003,11 @@ func main() {
 	// Configura le rotte HTTP aggiuntive
 	handlers.SetupRoutes(router)
 	
+	// Inizializza e avvia il servizio dei reminder
+	reminderService = handlers.NewReminderService(dbManager)
+	reminderService.Start()
+	fmt.Println("Servizio reminder avviato - controllo ogni minuto")
+	
 	// Avvia il server HTTP in una goroutine
 	go func() {
 		port := ":8080"
@@ -1018,6 +1026,12 @@ func main() {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
+	
+	fmt.Println("Arresto del servizio reminder...")
+	if reminderService != nil {
+		reminderService.Stop()
+	}
+	fmt.Println("Servizio reminder fermato.")
 	
 	fmt.Println("Disconnessione del client WhatsApp...")
 	if whatsAppClientInstance != nil {

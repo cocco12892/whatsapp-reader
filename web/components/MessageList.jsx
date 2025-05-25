@@ -193,6 +193,23 @@ const filteredMessages = messages.filter(message => {
   return isNotProtocolMessage && isValidContent && !isDuplicate;
 });
 
+// Avviso per indicare che vengono mostrati solo i messaggi delle ultime 2 ore
+const TimeRestrictionNotice = () => (
+  <Box sx={{ 
+    padding: '8px', 
+    backgroundColor: 'rgba(255, 193, 7, 0.1)', 
+    borderRadius: '4px', 
+    margin: '8px 0', 
+    display: 'flex', 
+    alignItems: 'center', 
+    justifyContent: 'center'
+  }}>
+    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px', textAlign: 'center' }}>
+      <i>Visualizzando solo i messaggi delle ultime 2 ore</i>
+    </Typography>
+  </Box>
+);
+
 // Group reactions by message ID
 const reactions = {};
 messages.forEach(message => {
@@ -1067,6 +1084,9 @@ return (
       </Box>
     )}
     
+    {/* Avviso limitazione messaggi alle ultime 2 ore */}
+    <TimeRestrictionNotice />
+    
     {filteredMessages.map((message) => {
       const isRecorded = recordedMessages.has(message.id);
       const isNoted = notedMessages.has(message.id);
@@ -1079,16 +1099,23 @@ return (
             sx={{
               p: 1.5,
               borderRadius: 2,
-              backgroundColor: notedMessages.has(message.id)
-                ? 'rgba(200, 255, 200, 0.3)' // Soft green background for noted messages
-                : isRecorded 
-                  ? 'rgba(255, 192, 203, 0.3)' // Soft pink background for recorded messages
-                  : getSpecialSenderStyle(message.sender) || 'background.paper',
+              backgroundColor: message.isReminder
+                ? 'rgba(255, 193, 7, 0.2)' // Background color for reminder messages
+                : notedMessages.has(message.id)
+                  ? 'rgba(200, 255, 200, 0.3)' // Soft green background for noted messages
+                  : isRecorded 
+                    ? 'rgba(255, 192, 203, 0.3)' // Soft pink background for recorded messages
+                    : getSpecialSenderStyle(message.sender) || 'background.paper',
               position: 'relative',
               maxWidth: '80%',
-              float: isSpecialSender(message.sender) ? 'right' : 'left',
+              float: message.isReminder 
+                ? 'none' 
+                : isSpecialSender(message.sender) 
+                  ? 'right' 
+                  : 'left',
               clear: 'both',
               mb: 2,
+              mx: message.isReminder ? 'auto' : 0, // Center reminder messages
               opacity: lastSeenMessages && chat && lastSeenMessages[chat.id] && 
                 new Date(message.timestamp) <= new Date(lastSeenMessages[chat.id]) ? 0.8 : 1,
               transform: 'translateY(0)',
@@ -1104,11 +1131,13 @@ return (
                 boxShadow: 2,
                 animation: 'none'
               },
-              border: isRecorded
-                ? '2px solid rgba(255, 20, 147, 0.5)' // More vibrant pink border for recorded messages
-                : isNoted
-                  ? '2px solid rgba(76, 175, 80, 0.5)' // More vibrant green border for noted messages
-                  : 'none'
+              border: message.isReminder
+                ? '2px solid rgba(255, 193, 7, 0.5)' // Yellow border for reminders
+                : isRecorded
+                  ? '2px solid rgba(255, 20, 147, 0.5)' // More vibrant pink border for recorded messages
+                  : isNoted
+                    ? '2px solid rgba(76, 175, 80, 0.5)' // More vibrant green border for noted messages
+                    : 'none'
             }}
             onContextMenu={(e) => handleContextMenu(e, message.id)}
             tabIndex={0}
@@ -1250,6 +1279,21 @@ return (
               >
                 <span role="img" aria-label="deleted" style={{ fontSize: '1.1rem' }}>🗑️</span>
                 (Questo messaggio è stato eliminato)
+              </Typography>
+              ) : message.isReminder ? (
+              // Se è un messaggio di reminder, mostralo con stile speciale
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  fontWeight: 'medium',
+                  color: 'warning.dark',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <span role="img" aria-label="reminder" style={{ fontSize: '1.1rem' }}>⏰</span>
+                <span style={{ fontWeight: 'bold' }}>Reminder:</span> {message.message}
               </Typography>
               ) : (
               <>

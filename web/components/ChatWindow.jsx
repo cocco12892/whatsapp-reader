@@ -6,6 +6,8 @@ import SendIcon from '@mui/icons-material/Send';
 import CloseIcon from '@mui/icons-material/Close';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ImageIcon from '@mui/icons-material/Image';
+import AlarmIcon from '@mui/icons-material/Alarm';
+import ReminderDialog from './ReminderDialog';
 
 // Utilizziamo React.memo per evitare re-render inutili
 const ChatWindow = React.memo(function ChatWindow({ 
@@ -16,13 +18,15 @@ const ChatWindow = React.memo(function ChatWindow({
   handleImageClick, 
   lastSeenMessages,
   seenMessages,
-  isLoadingMessages
+  isLoadingMessages,
+  API_BASE_URL
 }) {
   const [chatSynonym, setChatSynonym] = useState('');
   const [synonymDialogOpen, setSynonymDialogOpen] = useState(false);
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
   
   // Nuovo state per la gestione delle immagini
   const [selectedImage, setSelectedImage] = useState(null);
@@ -307,6 +311,15 @@ const ChatWindow = React.memo(function ChatWindow({
                 sx={{ color: 'white', opacity: 0.8 }}
               >
                 <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Gestisci reminder">
+              <IconButton 
+                size="small" 
+                onClick={() => setReminderDialogOpen(true)}
+                sx={{ color: 'white', opacity: 0.8 }}
+              >
+                <AlarmIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
@@ -621,6 +634,15 @@ const ChatWindow = React.memo(function ChatWindow({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ReminderDialog Component */}
+      <ReminderDialog
+        open={reminderDialogOpen}
+        onClose={() => setReminderDialogOpen(false)}
+        chatId={chat.id}
+        chatName={chatSynonym || chat.name}
+        API_BASE_URL={API_BASE_URL}
+      />
 
       {/* Stili globali per l'effetto drag-and-drop e zoom immagini */}
       <style jsx global>{`

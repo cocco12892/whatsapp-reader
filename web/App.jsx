@@ -975,6 +975,68 @@ function App() {
               });
               break;
               
+            case 'reminder':
+              console.log('Reminder ricevuto:', data.payload);
+              const { chatId: reminderChatId, reminderMessage } = data.payload;
+              
+              if (!reminderChatId || !reminderMessage) {
+                console.warn("Dati del reminder incompleti nel payload");
+                return;
+              }
+              
+              // Verifica se la chat esiste
+              const reminderChatExists = chats.some(chat => chat.id === reminderChatId);
+              if (!reminderChatExists) {
+                console.log(`Chat ${reminderChatId} non trovata per il reminder, ignoro`);
+                return;
+              }
+              
+              // Aggiungi il messaggio di reminder alla chat
+              setChats(prevChats => {
+                // Trova la chat a cui appartiene il reminder
+                const chatIndex = prevChats.findIndex(chat => chat.id === reminderChatId);
+                if (chatIndex === -1) return prevChats;
+                
+                // Crea una copia dell'array delle chat
+                const updatedChats = [...prevChats];
+                
+                // Crea una copia profonda della chat da aggiornare
+                const updatedChat = JSON.parse(JSON.stringify(updatedChats[chatIndex]));
+                
+                // Aggiungi il nuovo messaggio di reminder
+                const reminderMsg = {
+                  ...reminderMessage,
+                  isSystemMessage: true,
+                  isReminder: true,
+                  sender: 'system',
+                  senderName: 'Sistema',
+                  chat: reminderChatId,
+                  chatName: updatedChat.name
+                };
+                
+                updatedChat.messages = [...updatedChat.messages, reminderMsg];
+                
+                // Aggiorna la chat
+                updatedChats[chatIndex] = updatedChat;
+                
+                // Aumenta il contatore dei messaggi non letti
+                setUnreadMessages(prev => ({
+                  ...prev,
+                  [reminderChatId]: (prev[reminderChatId] || 0) + 1
+                }));
+                
+                // Riproduci un suono di notifica
+                try {
+                  const audio = new Audio('/notification.mp3');
+                  audio.play();
+                } catch (error) {
+                  console.warn('Impossibile riprodurre il suono di notifica:', error);
+                }
+                
+                return updatedChats;
+              });
+              break;
+              
             // Altri case...
             default:
               console.log('Messaggio WebSocket di tipo sconosciuto:', data);
@@ -1241,6 +1303,7 @@ function App() {
                       setChatSynonym={setChatSynonym}
                       removeChatSynonym={removeChatSynonym}
                       isLoadingMessages={isCurrentlyFetchingRef.current && (!chat.messages || chat.messages.length === 0)}
+                      API_BASE_URL={API_BASE_URL}
                     />
                   ))}
                 </Box>

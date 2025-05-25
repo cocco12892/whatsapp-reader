@@ -46,7 +46,16 @@ type DBManager interface {
 	UpdateMessageContent(messageID, newText string, editedAt time.Time) error
 	DeleteMessage(messageID string) error
 	GetMessageByID(messageID string) (*models.Message, error)
-	LoadRecentChatMessages(chatID string, since time.Time) ([]*models.Message, error) // Aggiunto per messaggi recenti
+	LoadRecentChatMessages(chatID string, since time.Time) ([]*models.Message, error)
+	
+	// Reminder operations
+	SaveReminder(reminder *models.Reminder) error
+	UpdateReminder(reminder *models.Reminder) error
+	DeleteReminder(reminderID string) error
+	GetReminderByID(reminderID string) (*models.Reminder, error)
+	GetChatReminders(chatID string) ([]*models.Reminder, error)
+	GetDueReminders() ([]*models.Reminder, error)
+	MarkReminderAsFired(reminderID string) error
 }
 
 // SetupAPIRoutes configura tutte le rotte API
@@ -148,15 +157,18 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 	router.GET("/api/chats/:id/messages", func(c *gin.Context) {
 		chatID := c.Param("id")
 
-		// Carica i messaggi dal database
-		dbMessages, err := dbManager.LoadChatMessages(chatID)
+		// Limita i messaggi alle ultime 2 ore
+		twoHoursAgo := time.Now().Add(-2 * time.Hour)
+		
+		// Carica i messaggi dal database (solo ultimi 2 ore)
+		dbMessages, err := dbManager.LoadRecentChatMessages(chatID, twoHoursAgo)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento dei messaggi: %v", err)})
 			return
 		}
 
 		if len(dbMessages) == 0 {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata o nessun messaggio"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Chat non trovata o nessun messaggio nelle ultime 2 ore"})
 			return
 		}
 
@@ -367,6 +379,125 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 				break
 			}
 		}
+	})
+
+	// API endpoints per i reminder
+	
+	// GET /api/chats/:id/reminders - Ottieni tutti i reminder per una chat
+	router.GET("/api/chats/:id/reminders", func(c *gin.Context) {
+		chatID := c.Param("id")
+		
+		reminders, err := dbManager.GetChatReminders(chatID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento dei reminder: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, reminders)
+	})
+	
+	// POST /api/chats/:id/reminders - Crea un nuovo reminder per una chat
+	router.POST("/api/chats/:id/reminders", func(c *gin.Context) {
+		chatID := c.Param("id")
+		
+		var reminderData struct {
+			Message       string    `json:"message" binding:"required"`
+			ScheduledTime time.Time `json:"scheduled_time" binding:"required"`
+			CreatedBy     string    `json:"created_by"`
+		}
+		
+		if err := c.BindJSON(&reminderData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido o dati mancanti"})
+			return
+		}
+		
+		// Carica la chat per ottenere il nome
+		chats, err := dbManager.LoadChats()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel caricamento delle chat: %v", err)})
+			return
+		}
+		
+		var chatName string
+		for _, chat := range chats {
+			if chat.ID == chatID {
+				chatName = chat.Name
+				break
+			}
+		}
+		
+		if chatName == "" {
+			chatName = "Chat sconosciuta" // Fallback se la chat non viene trovata
+		}
+		
+		// Crea il nuovo reminder
+		reminder := &models.Reminder{
+			ChatID:        chatID,
+			ChatName:      chatName,
+			Message:       reminderData.Message,
+			ScheduledTime: reminderData.ScheduledTime,
+			CreatedAt:     time.Now(),
+			CreatedBy:     reminderData.CreatedBy,
+			IsFired:       false,
+		}
+		
+		if err := dbManager.SaveReminder(reminder); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nel salvataggio del reminder: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusCreated, reminder)
+	})
+	
+	// PUT /api/reminders/:id - Aggiorna un reminder esistente
+	router.PUT("/api/reminders/:id", func(c *gin.Context) {
+		reminderID := c.Param("id")
+		
+		// Ottieni il reminder esistente
+		existingReminder, err := dbManager.GetReminderByID(reminderID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Reminder non trovato: %v", err)})
+			return
+		}
+		
+		var reminderData struct {
+			Message       string    `json:"message"`
+			ScheduledTime time.Time `json:"scheduled_time"`
+		}
+		
+		if err := c.BindJSON(&reminderData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON non valido"})
+			return
+		}
+		
+		// Aggiorna i campi modificabili
+		if reminderData.Message != "" {
+			existingReminder.Message = reminderData.Message
+		}
+		
+		if !reminderData.ScheduledTime.IsZero() {
+			existingReminder.ScheduledTime = reminderData.ScheduledTime
+		}
+		
+		// Salva le modifiche
+		if err := dbManager.UpdateReminder(existingReminder); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'aggiornamento del reminder: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, existingReminder)
+	})
+	
+	// DELETE /api/reminders/:id - Elimina un reminder
+	router.DELETE("/api/reminders/:id", func(c *gin.Context) {
+		reminderID := c.Param("id")
+		
+		if err := dbManager.DeleteReminder(reminderID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Errore nell'eliminazione del reminder: %v", err)})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Reminder eliminato con successo"})
 	})
 }
 
