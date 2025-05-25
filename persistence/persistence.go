@@ -106,6 +106,30 @@ func (pm *PersistenceManager) LoadChatMessages(chatID string) ([]models.Message,
 	return messages, err
 }
 
+// LoadRecentChatMessages carica i messaggi di una chat più recenti di 'since'
+func (pm *PersistenceManager) LoadRecentChatMessages(chatID string, since time.Time) ([]models.Message, error) {
+	var messages []models.Message
+
+	err := pm.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket(messagesBucket)
+		cursor := bucket.Cursor()
+
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			var msg models.Message
+			if err := decodeBinary(v, &msg); err != nil {
+				// Considera di loggare l'errore o gestirlo diversamente
+				continue
+			}
+			if msg.Chat == chatID && msg.Timestamp.After(since) {
+				messages = append(messages, msg)
+			}
+		}
+		return nil
+	})
+
+	return messages, err
+}
+
 // Cancella un messaggio
 func (pm *PersistenceManager) DeleteMessage(messageID string) error {
 	return pm.db.Update(func(tx *bbolt.Tx) error {

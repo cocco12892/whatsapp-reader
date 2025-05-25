@@ -82,16 +82,32 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 			return
 		}
 
-		// Per ogni chat, carica tutti i messaggi
+		// Per ogni chat, carica l'ultimo messaggio delle ultime 2 ore
+		twoHoursAgo := time.Now().Add(-2 * time.Hour)
 		for _, chat := range chatList {
-			dbMessages, err := dbManager.LoadChatMessages(chat.ID)
+			dbMessagesSlice, err := dbManager.LoadRecentChatMessages(chat.ID, twoHoursAgo)
 			if err != nil {
 				// Logga l'errore ma continua, così la chat viene comunque listata
-				fmt.Printf("Errore nel caricamento dei messaggi per la chat %s: %v\n", chat.ID, err)
+				fmt.Printf("Errore nel caricamento dei messaggi recenti per la chat %s: %v\n", chat.ID, err)
 				// Assicurati che chat.Messages sia vuoto se ci sono stati errori o non ci sono messaggi
-				chat.Messages = []models.Message{} 
+				chat.Messages = []models.Message{}
 				continue
 			}
+
+			// Converti []models.Message in []*models.Message per la logica successiva, se necessario,
+			// o adatta la logica successiva per usare []models.Message.
+			// Per ora, assumiamo che dbMessages debba essere []*models.Message per compatibilità con il codice esistente.
+			// Tuttavia, LoadRecentChatMessages ora restituisce []models.Message, quindi dobbiamo adattare.
+			// La conversione diretta a []*models.Message non è necessaria se la logica sottostante può gestire []models.Message.
+			// Il codice originale usava dbMessages []*models.Message, quindi se LoadRecentChatMessages restituisce
+			// []models.Message, dobbiamo assicurarci che il resto del codice sia coerente.
+			// Per semplicità, modifichiamo la variabile per riflettere il tipo restituito.
+			
+			dbMessages := make([]*models.Message, len(dbMessagesSlice))
+			for i := range dbMessagesSlice {
+				dbMessages[i] = &dbMessagesSlice[i]
+			}
+
 
 			if len(dbMessages) > 0 {
 				// Ordina i messaggi per timestamp (più recente prima)
