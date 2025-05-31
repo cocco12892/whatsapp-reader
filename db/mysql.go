@@ -133,10 +133,17 @@ func (m *MySQLManager) InitTables() error {
 			chat_id VARCHAR(255) NOT NULL,
 			chat_name VARCHAR(255) NOT NULL,
 			message TEXT NOT NULL,
-			scheduled_time TIMESTAMP NOT NULL,
+			scheduled_time TIMESTAMP NOT NULL COMMENT 'Quando il reminder dovrebbe essere inviato',
 			created_at TIMESTAMP NOT NULL,
 			created_by VARCHAR(255) NOT NULL,
-			is_fired BOOLEAN NOT NULL
+			is_fired BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Manteniamo per backward compatibility',
+			status VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT 'Stato: pending, sent, failed, cancelled',
+			sent_at TIMESTAMP NULL COMMENT 'Quando il reminder è stato effettivamente inviato',
+			attempt_count INT NOT NULL DEFAULT 0 COMMENT 'Numero di tentativi di invio',
+			last_error TEXT NULL COMMENT 'Ultimo errore in caso di fallimento',
+			INDEX idx_reminders_status (status),
+			INDEX idx_reminders_scheduled_time_status (scheduled_time, status),
+			INDEX idx_reminders_sent_at (sent_at)
 		)
 	`)
 	if err != nil {
@@ -666,14 +673,22 @@ func (m *MySQLManager) SaveReminder(reminder *models.Reminder) error {
 		reminder.CreatedAt = time.Now()
 	}
 	
+	// Imposta valori di default se non specificati
+	if reminder.Status == "" {
+		reminder.Status = models.ReminderStatusPending
+	}
+	
 	_, err := m.db.Exec(`
 		INSERT INTO reminders (
 			id, chat_id, chat_name, message, scheduled_time, 
-			created_at, created_by, is_fired
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			created_at, created_by, is_fired, status, sent_at, 
+			attempt_count, last_error
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		reminder.ID, reminder.ChatID, reminder.ChatName, reminder.Message,
-		reminder.ScheduledTime, reminder.CreatedAt, reminder.CreatedBy, reminder.IsFired,
+		reminder.ScheduledTime, reminder.CreatedAt, reminder.CreatedBy, 
+		reminder.IsFired, reminder.Status, reminder.SentAt, 
+		reminder.AttemptCount, reminder.LastError,
 	)
 	
 	return err
@@ -688,12 +703,17 @@ func (m *MySQLManager) UpdateReminder(reminder *models.Reminder) error {
 			message = ?, 
 			scheduled_time = ?, 
 			created_by = ?, 
-			is_fired = ?
+			is_fired = ?,
+			status = ?,
+			sent_at = ?,
+			attempt_count = ?,
+			last_error = ?
 		WHERE id = ?
 	`,
 		reminder.ChatID, reminder.ChatName, reminder.Message,
 		reminder.ScheduledTime, reminder.CreatedBy, reminder.IsFired,
-		reminder.ID,
+		reminder.Status, reminder.SentAt, reminder.AttemptCount, 
+		reminder.LastError, reminder.ID,
 	)
 	
 	return err
@@ -708,15 +728,20 @@ func (m *MySQLManager) DeleteReminder(reminderID string) error {
 // GetReminderByID ottiene un reminder specifico dal database
 func (m *MySQLManager) GetReminderByID(reminderID string) (*models.Reminder, error) {
 	var reminder models.Reminder
+	var sentAt sql.NullTime
+	var lastError sql.NullString
 	
 	err := m.db.QueryRow(`
 		SELECT id, chat_id, chat_name, message, scheduled_time, 
-			created_at, created_by, is_fired
+			created_at, created_by, is_fired, status, sent_at, 
+			attempt_count, last_error
 		FROM reminders
 		WHERE id = ?
 	`, reminderID).Scan(
 		&reminder.ID, &reminder.ChatID, &reminder.ChatName, &reminder.Message,
-		&reminder.ScheduledTime, &reminder.CreatedAt, &reminder.CreatedBy, &reminder.IsFired,
+		&reminder.ScheduledTime, &reminder.CreatedAt, &reminder.CreatedBy, 
+		&reminder.IsFired, &reminder.Status, &sentAt, 
+		&reminder.AttemptCount, &lastError,
 	)
 	
 	if err != nil {
@@ -726,6 +751,14 @@ func (m *MySQLManager) GetReminderByID(reminderID string) (*models.Reminder, err
 		return nil, err
 	}
 	
+	// Gestione dei campi nullable
+	if sentAt.Valid {
+		reminder.SentAt = &sentAt.Time
+	}
+	if lastError.Valid {
+		reminder.LastError = lastError.String
+	}
+	
 	return &reminder, nil
 }
 
@@ -733,7 +766,8 @@ func (m *MySQLManager) GetReminderByID(reminderID string) (*models.Reminder, err
 func (m *MySQLManager) GetChatReminders(chatID string) ([]*models.Reminder, error) {
 	rows, err := m.db.Query(`
 		SELECT id, chat_id, chat_name, message, scheduled_time, 
-			created_at, created_by, is_fired
+			created_at, created_by, is_fired, status, sent_at, 
+			attempt_count, last_error
 		FROM reminders
 		WHERE chat_id = ?
 		ORDER BY scheduled_time ASC
@@ -747,12 +781,26 @@ func (m *MySQLManager) GetChatReminders(chatID string) ([]*models.Reminder, erro
 	var reminders []*models.Reminder
 	for rows.Next() {
 		var reminder models.Reminder
+		var sentAt sql.NullTime
+		var lastError sql.NullString
+		
 		if err := rows.Scan(
 			&reminder.ID, &reminder.ChatID, &reminder.ChatName, &reminder.Message,
-			&reminder.ScheduledTime, &reminder.CreatedAt, &reminder.CreatedBy, &reminder.IsFired,
+			&reminder.ScheduledTime, &reminder.CreatedAt, &reminder.CreatedBy, 
+			&reminder.IsFired, &reminder.Status, &sentAt, 
+			&reminder.AttemptCount, &lastError,
 		); err != nil {
 			return nil, err
 		}
+		
+		// Gestione dei campi nullable
+		if sentAt.Valid {
+			reminder.SentAt = &sentAt.Time
+		}
+		if lastError.Valid {
+			reminder.LastError = lastError.String
+		}
+		
 		reminders = append(reminders, &reminder)
 	}
 	
@@ -763,11 +811,16 @@ func (m *MySQLManager) GetChatReminders(chatID string) ([]*models.Reminder, erro
 func (m *MySQLManager) GetDueReminders() ([]*models.Reminder, error) {
 	now := time.Now()
 	
+	// Log del momento del controllo
+	fmt.Printf("MySQL GetDueReminders: controllo alle %s (timezone: %s)\n", 
+		now.Format("2006-01-02 15:04:05"), now.Location().String())
+	
 	rows, err := m.db.Query(`
 		SELECT id, chat_id, chat_name, message, scheduled_time, 
-			created_at, created_by, is_fired
+			created_at, created_by, is_fired, status, sent_at, 
+			attempt_count, last_error
 		FROM reminders
-		WHERE scheduled_time <= ? AND is_fired = false
+		WHERE scheduled_time <= ? AND status = 'pending'
 		ORDER BY scheduled_time ASC
 	`, now)
 	
@@ -779,20 +832,153 @@ func (m *MySQLManager) GetDueReminders() ([]*models.Reminder, error) {
 	var reminders []*models.Reminder
 	for rows.Next() {
 		var reminder models.Reminder
+		var sentAt sql.NullTime
+		var lastError sql.NullString
+		
 		if err := rows.Scan(
 			&reminder.ID, &reminder.ChatID, &reminder.ChatName, &reminder.Message,
-			&reminder.ScheduledTime, &reminder.CreatedAt, &reminder.CreatedBy, &reminder.IsFired,
+			&reminder.ScheduledTime, &reminder.CreatedAt, &reminder.CreatedBy, 
+			&reminder.IsFired, &reminder.Status, &sentAt, 
+			&reminder.AttemptCount, &lastError,
 		); err != nil {
 			return nil, err
 		}
+		
+		// Gestione dei campi nullable
+		if sentAt.Valid {
+			reminder.SentAt = &sentAt.Time
+		}
+		if lastError.Valid {
+			reminder.LastError = lastError.String
+		}
+		
+		// Log dettagliato di ogni reminder trovato
+		fmt.Printf("MySQL GetDueReminders: trovato reminder %s per chat %s, scheduled=%s, status=%s, attempts=%d\n",
+			reminder.ID, reminder.ChatID, 
+			reminder.ScheduledTime.Format("2006-01-02 15:04:05"), 
+			reminder.Status, reminder.AttemptCount)
+		
 		reminders = append(reminders, &reminder)
 	}
+	
+	fmt.Printf("MySQL GetDueReminders: totale %d reminder da processare\n", len(reminders))
 	
 	return reminders, nil
 }
 
-// MarkReminderAsFired marca un reminder come inviato
+// MarkReminderAsProcessing marca un reminder come in elaborazione
+func (m *MySQLManager) MarkReminderAsProcessing(reminderID string, attemptCount int) error {
+	fmt.Printf("MySQL MarkReminderAsProcessing: marcando reminder %s come in elaborazione (tentativo %d)\n", 
+		reminderID, attemptCount)
+	
+	result, err := m.db.Exec(`
+		UPDATE reminders 
+		SET status = 'processing', attempt_count = ? 
+		WHERE id = ? AND status = 'pending'
+	`, attemptCount, reminderID)
+	
+	if err != nil {
+		fmt.Printf("MySQL MarkReminderAsProcessing: errore nell'aggiornamento del reminder %s: %v\n", reminderID, err)
+		return err
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		fmt.Printf("MySQL MarkReminderAsProcessing: errore nel contare le righe aggiornate per reminder %s: %v\n", reminderID, err)
+		return err
+	}
+	
+	if rowsAffected == 0 {
+		return fmt.Errorf("reminder %s non è più pending o non esiste", reminderID)
+	}
+	
+	fmt.Printf("MySQL MarkReminderAsProcessing: reminder %s marcato come in elaborazione, righe aggiornate: %d\n", reminderID, rowsAffected)
+	return nil
+}
+
+// MarkReminderAsSent marca un reminder come inviato con successo
+func (m *MySQLManager) MarkReminderAsSent(reminderID string) error {
+	now := time.Now()
+	fmt.Printf("MySQL MarkReminderAsSent: marcando reminder %s come inviato alle %s\n", 
+		reminderID, now.Format("2006-01-02 15:04:05"))
+	
+	result, err := m.db.Exec(`
+		UPDATE reminders 
+		SET status = 'sent', is_fired = true, sent_at = ? 
+		WHERE id = ?
+	`, now, reminderID)
+	
+	if err != nil {
+		fmt.Printf("MySQL MarkReminderAsSent: errore nell'aggiornamento del reminder %s: %v\n", reminderID, err)
+		return err
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		fmt.Printf("MySQL MarkReminderAsSent: errore nel contare le righe aggiornate per reminder %s: %v\n", reminderID, err)
+		return err
+	}
+	
+	fmt.Printf("MySQL MarkReminderAsSent: reminder %s marcato come inviato, righe aggiornate: %d\n", reminderID, rowsAffected)
+	
+	return nil
+}
+
+// MarkReminderAsFailed marca un reminder come fallito
+func (m *MySQLManager) MarkReminderAsFailed(reminderID string, errorMsg string) error {
+	fmt.Printf("MySQL MarkReminderAsFailed: marcando reminder %s come fallito: %s\n", reminderID, errorMsg)
+	
+	result, err := m.db.Exec(`
+		UPDATE reminders 
+		SET status = 'failed', last_error = ?, attempt_count = attempt_count + 1 
+		WHERE id = ?
+	`, errorMsg, reminderID)
+	
+	if err != nil {
+		fmt.Printf("MySQL MarkReminderAsFailed: errore nell'aggiornamento del reminder %s: %v\n", reminderID, err)
+		return err
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		fmt.Printf("MySQL MarkReminderAsFailed: errore nel contare le righe aggiornate per reminder %s: %v\n", reminderID, err)
+		return err
+	}
+	
+	fmt.Printf("MySQL MarkReminderAsFailed: reminder %s marcato come fallito, righe aggiornate: %d\n", reminderID, rowsAffected)
+	
+	return nil
+}
+
+// IncrementReminderAttempt incrementa il contatore dei tentativi
+func (m *MySQLManager) IncrementReminderAttempt(reminderID string) error {
+	fmt.Printf("MySQL IncrementReminderAttempt: incrementando tentativi per reminder %s\n", reminderID)
+	
+	result, err := m.db.Exec(`
+		UPDATE reminders 
+		SET attempt_count = attempt_count + 1 
+		WHERE id = ?
+	`, reminderID)
+	
+	if err != nil {
+		fmt.Printf("MySQL IncrementReminderAttempt: errore nell'aggiornamento del reminder %s: %v\n", reminderID, err)
+		return err
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		fmt.Printf("MySQL IncrementReminderAttempt: errore nel contare le righe aggiornate per reminder %s: %v\n", reminderID, err)
+		return err
+	}
+	
+	fmt.Printf("MySQL IncrementReminderAttempt: tentativo incrementato per reminder %s, righe aggiornate: %d\n", reminderID, rowsAffected)
+	
+	return nil
+}
+
+// MarkReminderAsFired marca un reminder come inviato (backward compatibility)
+// DEPRECATED: utilizzare MarkReminderAsSent al posto di questa funzione
 func (m *MySQLManager) MarkReminderAsFired(reminderID string) error {
-	_, err := m.db.Exec("UPDATE reminders SET is_fired = true WHERE id = ?", reminderID)
-	return err
+	fmt.Printf("MySQL MarkReminderAsFired: (DEPRECATED) usando MarkReminderAsSent per reminder %s\n", reminderID)
+	return m.MarkReminderAsSent(reminderID)
 }

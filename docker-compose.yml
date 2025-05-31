@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-container
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: whatsapp_viewer
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - whatsapp-net
+    restart: unless-stopped
+
+  whatsapp-reader:
+    build: .
+    container_name: whatsapp-reader
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ""
+      DB_NAME: whatsapp_viewer
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      # Volume per persistenza sessione WhatsApp (IMPORTANTE!)
+      - whatsapp_session:/app/session
+      # Volume per media files
+      - media_files:/app/MediaFiles
+      # Volume per profile images
+      - profile_images:/app/ProfileImages
+    networks:
+      - whatsapp-net
+    depends_on:
+      - mysql
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    driver: local
+  whatsapp_session:
+    driver: local
+  media_files:
+    driver: local
+  profile_images:
+    driver: local
+
+networks:
+  whatsapp-net:
+    driver: bridge 

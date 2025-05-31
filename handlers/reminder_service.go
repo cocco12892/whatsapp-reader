@@ -70,6 +70,10 @@ func (rs *ReminderService) Stop() {
 
 // checkReminders controlla i reminder scaduti e li invia
 func (rs *ReminderService) checkReminders() {
+	now := time.Now()
+	log.Printf("Controllo reminder alle %s (timezone: %s)", 
+		now.Format("2006-01-02 15:04:05"), now.Location().String())
+	
 	// Ottieni i reminder scaduti
 	dueReminders, err := rs.dbManager.GetDueReminders()
 	if err != nil {
@@ -83,36 +87,92 @@ func (rs *ReminderService) checkReminders() {
 
 	log.Printf("Trovati %d reminder da inviare\n", len(dueReminders))
 
-	// Invia ciascun reminder
+	// Raggruppa i reminder per chat per evitare invii multipli contemporanei
+	remindersByChat := make(map[string][]*models.Reminder)
 	for _, reminder := range dueReminders {
-		// Invia il reminder via WhatsApp (messaggio reale)
-		sent := rs.sendWhatsAppMessage(reminder)
-		
-		// Invia anche la notifica via WebSocket per aggiornare l'interfaccia
-		if sent {
-			// Crea un payload per il reminder
-			payload := map[string]interface{}{
-				"chatId":      reminder.ChatID,
-				"reminderMessage": map[string]interface{}{
-					"id":        fmt.Sprintf("reminder_%s", reminder.ID),
-					"message":   reminder.Message,
-					"timestamp": time.Now(),
-					"senderName": "Sistema",
-					"isSystemMessage": true,
-					"isReminder": true,
-					"scheduledTime": reminder.ScheduledTime,
-					"createdBy": reminder.CreatedBy,
-				},
-			}
+		remindersByChat[reminder.ChatID] = append(remindersByChat[reminder.ChatID], reminder)
+	}
 
-			// Invia il reminder via WebSocket
-			BroadcastMessageToClients("reminder", payload)
+	// Invia i reminder chat per chat con un piccolo delay tra le chat
+	for chatID, chatReminders := range remindersByChat {
+		log.Printf("Invio %d reminder per la chat %s", len(chatReminders), chatID)
+		
+		for i, reminder := range chatReminders {
+			// Log dettagliato del reminder
+			log.Printf("Invio reminder %s: scheduled_time=%s, now=%s, status=%s", 
+				reminder.ID, 
+				reminder.ScheduledTime.Format("2006-01-02 15:04:05"), 
+				now.Format("2006-01-02 15:04:05"),
+				reminder.Status)
+			
+			// Doppio controllo: verifica che il reminder non sia già stato inviato
+			// durante questa esecuzione (race condition protection)
+			currentReminder, err := rs.dbManager.GetReminderByID(reminder.ID)
+			if err != nil {
+				log.Printf("Errore nel verificare lo stato del reminder %s: %v", reminder.ID, err)
+				continue
+			}
+			
+			if currentReminder.Status != models.ReminderStatusPending {
+				log.Printf("Reminder %s non è più pending (status=%s), salto", reminder.ID, currentReminder.Status)
+				continue
+			}
+			
+			// Incrementa il contatore dei tentativi
+			attemptCount := currentReminder.AttemptCount + 1
+			
+			// Prova a marcare il reminder come in elaborazione
+			err = rs.dbManager.MarkReminderAsProcessing(reminder.ID, attemptCount)
+			if err != nil {
+				log.Printf("Errore nel marcare il reminder %s come in elaborazione: %v\n", reminder.ID, err)
+				continue
+			}
+			
+			// Invia il reminder via WhatsApp (messaggio reale)
+			sent := rs.sendWhatsAppMessage(reminder)
+			
+			// Aggiorna lo stato finale in base al risultato
+			if sent {
+				// Marca come inviato con successo
+				if err := rs.dbManager.MarkReminderAsSent(reminder.ID); err != nil {
+					log.Printf("Errore nel marcare il reminder %s come inviato: %v\n", reminder.ID, err)
+				}
+				
+				// Invia anche la notifica via WebSocket per aggiornare l'interfaccia
+				payload := map[string]interface{}{
+					"chatId":      reminder.ChatID,
+					"reminderMessage": map[string]interface{}{
+						"id":        fmt.Sprintf("reminder_%s", reminder.ID),
+						"message":   reminder.Message,
+						"timestamp": time.Now(),
+						"senderName": "Sistema",
+						"isSystemMessage": true,
+						"isReminder": true,
+						"scheduledTime": reminder.ScheduledTime,
+						"createdBy": reminder.CreatedBy,
+					},
+				}
+
+				// Invia il reminder via WebSocket
+				BroadcastMessageToClients("reminder", payload)
+				
+				log.Printf("Reminder %s inviato con successo", reminder.ID)
+			} else {
+				// Marca come fallito
+				if err := rs.dbManager.MarkReminderAsFailed(reminder.ID, "Errore nell'invio WhatsApp"); err != nil {
+					log.Printf("Errore nel marcare il reminder %s come fallito: %v", reminder.ID, err)
+				}
+				log.Printf("Fallimento nell'invio del reminder %s", reminder.ID)
+			}
+			
+			// Piccolo delay tra i reminder della stessa chat per evitare spam
+			if i < len(chatReminders)-1 {
+				time.Sleep(500 * time.Millisecond)
+			}
 		}
 		
-		// Marca il reminder come inviato
-		if err := rs.dbManager.MarkReminderAsFired(reminder.ID); err != nil {
-			log.Printf("Errore nel marcare il reminder %s come inviato: %v\n", reminder.ID, err)
-		}
+		// Delay più lungo tra chat diverse
+		time.Sleep(1 * time.Second)
 	}
 }
 

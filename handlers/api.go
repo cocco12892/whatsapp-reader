@@ -55,6 +55,14 @@ type DBManager interface {
 	GetReminderByID(reminderID string) (*models.Reminder, error)
 	GetChatReminders(chatID string) ([]*models.Reminder, error)
 	GetDueReminders() ([]*models.Reminder, error)
+	
+	// New reminder state management functions
+	MarkReminderAsSent(reminderID string) error
+	MarkReminderAsProcessing(reminderID string, attemptCount int) error
+	MarkReminderAsFailed(reminderID string, errorMsg string) error
+	IncrementReminderAttempt(reminderID string) error
+	
+	// Backward compatibility
 	MarkReminderAsFired(reminderID string) error
 }
 

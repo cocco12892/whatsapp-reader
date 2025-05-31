@@ -1,0 +1,50 @@
+# Git files
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Development files
+.DS_Store
+.vscode
+.idea
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Database files (will be created in container)
+*.db
+
+# Node modules (will be installed during build)
+node_modules
+
+# Build artifacts
+dist
+build
+
+# Cache directories
+.vite
+.aider.tags.cache.v3
+.aider.tags.cache.v4
+
+# Debug files
+Screenshot_debug
+
+# IDE files
+*.swp
+*.swo
+
+# OS files
+Thumbs.db
+
+# Aider files
+.aider.chat.history.md
+.aider.input.history
+
+# Exclude problematic Go files
+old_main.go
+api_client.go 

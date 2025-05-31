@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 )
 
 // Configurazione del database
@@ -26,18 +27,68 @@ type Config struct {
 	Server   ServerConfig   `json:"server"`
 }
 
-// Carica la configurazione dal file
+// Carica la configurazione dal file o dalle variabili di ambiente
 func LoadConfig(filePath string) (*Config, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("errore nell'apertura del file di configurazione: %v", err)
-	}
-	defer file.Close()
-
 	var config Config
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
-		return nil, fmt.Errorf("errore nella decodifica del file di configurazione: %v", err)
+	
+	// Prima prova a caricare dal file se esiste
+	if _, err := os.Stat(filePath); err == nil {
+		file, err := os.Open(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("errore nell'apertura del file di configurazione: %v", err)
+		}
+		defer file.Close()
+
+		decoder := json.NewDecoder(file)
+		if err := decoder.Decode(&config); err != nil {
+			return nil, fmt.Errorf("errore nella decodifica del file di configurazione: %v", err)
+		}
+	}
+	
+	// Sovrascrivi con le variabili di ambiente se presenti
+	if dbHost := os.Getenv("DB_HOST"); dbHost != "" {
+		config.Database.Host = dbHost
+	}
+	
+	if dbPortStr := os.Getenv("DB_PORT"); dbPortStr != "" {
+		if dbPort, err := strconv.Atoi(dbPortStr); err == nil {
+			config.Database.Port = dbPort
+		}
+	}
+	
+	if dbUser := os.Getenv("DB_USER"); dbUser != "" {
+		config.Database.User = dbUser
+	}
+	
+	if dbPassword := os.Getenv("DB_PASSWORD"); dbPassword != "" {
+		config.Database.Password = dbPassword
+	}
+	
+	if dbName := os.Getenv("DB_NAME"); dbName != "" {
+		config.Database.DBName = dbName
+	}
+	
+	if serverPortStr := os.Getenv("PORT"); serverPortStr != "" {
+		if serverPort, err := strconv.Atoi(serverPortStr); err == nil {
+			config.Server.Port = serverPort
+		}
+	}
+	
+	// Valori di default se non specificati
+	if config.Database.Host == "" {
+		config.Database.Host = "localhost"
+	}
+	if config.Database.Port == 0 {
+		config.Database.Port = 3306
+	}
+	if config.Database.User == "" {
+		config.Database.User = "root"
+	}
+	if config.Database.DBName == "" {
+		config.Database.DBName = "whatsapp_viewer"
+	}
+	if config.Server.Port == 0 {
+		config.Server.Port = 8080
 	}
 
 	return &config, nil
@@ -45,6 +96,6 @@ func LoadConfig(filePath string) (*Config, error) {
 
 // Ottieni la stringa di connessione al database
 func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true", 
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&loc=Local", 
 		c.User, c.Password, c.Host, c.Port, c.DBName)
 }

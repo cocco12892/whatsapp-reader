@@ -748,10 +748,27 @@ func main() {
 		return
 	}
 	
+	// Applica le migration automatiche
+	if err := dbManager.ApplyMigrations(); err != nil {
+		fmt.Println("Errore nell'applicazione delle migration:", err)
+		return
+	}
+	
 	// Inizializza il client WhatsApp
 	// 1. Crea il container per lo store (useremo SQLite)
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
-	storeContainer, err := sqlstore.New("sqlite3", "file:whatsmeow_store.db?_foreign_keys=on", dbLog)
+	
+	// Crea la directory per la sessione se non esiste (per compatibilità locale)
+	sessionDir := "/app/session"
+	if _, err := os.Stat(sessionDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(sessionDir, 0755); err != nil {
+			log.Printf("Avviso: impossibile creare directory sessione %s: %v (continuo con directory corrente)", sessionDir, err)
+			sessionDir = "."
+		}
+	}
+	
+	sessionPath := filepath.Join(sessionDir, "whatsmeow_store.db")
+	storeContainer, err := sqlstore.New("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", sessionPath), dbLog)
 	if err != nil {
 		log.Fatalf("Errore nella creazione del container SQL per Whatsmeow: %v", err)
 	}
