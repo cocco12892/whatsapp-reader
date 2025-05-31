@@ -1,9 +1,9 @@
 package db
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -12,6 +12,7 @@ type Migration struct {
 	Version     int
 	Description string
 	SQL         string
+	SQLStatements []string // Per supportare multiple statements
 }
 
 // Tutte le migration disponibili in ordine di versione
@@ -25,32 +26,32 @@ var migrations = []Migration{
 	{
 		Version:     2,
 		Description: "Add reminder enhanced fields",
-		SQL: `
-		-- Aggiungi i nuovi campi alla tabella reminders se non esistono già
-		ALTER TABLE reminders 
-		ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending' NOT NULL,
-		ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP NULL,
-		ADD COLUMN IF NOT EXISTS attempt_count INT DEFAULT 0 NOT NULL,
-		ADD COLUMN IF NOT EXISTS last_error TEXT NULL;
-
-		-- Aggiorna i reminder esistenti per impostare il nuovo status basato su is_fired
-		UPDATE reminders 
-		SET status = CASE 
-			WHEN is_fired = true THEN 'sent'
-			ELSE 'pending'
-		END
-		WHERE status = 'pending' AND (is_fired = true OR is_fired = false);
-
-		-- Per i reminder già inviati, imposta sent_at uguale a created_at se sent_at è NULL
-		UPDATE reminders 
-		SET sent_at = created_at
-		WHERE is_fired = true AND sent_at IS NULL;
-
-		-- Crea indici per migliorare le performance se non esistono
-		CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status);
-		CREATE INDEX IF NOT EXISTS idx_reminders_scheduled_time_status ON reminders(scheduled_time, status);
-		CREATE INDEX IF NOT EXISTS idx_reminders_sent_at ON reminders(sent_at);
-		`,
+		SQLStatements: []string{
+			// Aggiungi i nuovi campi alla tabella reminders
+			`ALTER TABLE reminders 
+			ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending' NOT NULL,
+			ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP NULL,
+			ADD COLUMN IF NOT EXISTS attempt_count INT DEFAULT 0 NOT NULL,
+			ADD COLUMN IF NOT EXISTS last_error TEXT NULL`,
+			
+			// Aggiorna i reminder esistenti per impostare il nuovo status
+			`UPDATE reminders 
+			SET status = CASE 
+				WHEN is_fired = true THEN 'sent'
+				ELSE 'pending'
+			END
+			WHERE status = 'pending' AND (is_fired = true OR is_fired = false)`,
+			
+			// Per i reminder già inviati, imposta sent_at uguale a created_at
+			`UPDATE reminders 
+			SET sent_at = created_at
+			WHERE is_fired = true AND sent_at IS NULL`,
+			
+			// Crea indici per migliorare le performance
+			`CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status)`,
+			`CREATE INDEX IF NOT EXISTS idx_reminders_scheduled_time_status ON reminders(scheduled_time, status)`,
+			`CREATE INDEX IF NOT EXISTS idx_reminders_sent_at ON reminders(sent_at)`,
+		},
 	},
 }
 
@@ -127,11 +128,28 @@ func (m *MySQLManager) applyMigration(migration Migration) error {
 	}
 	defer tx.Rollback() // Rollback automatico se non viene fatto commit
 	
-	// Applica la migration SQL (se non è vuota)
-	if migration.SQL != "" && migration.SQL != `-- Questa migration è già applicata durante InitTables()
+	// Determina quali SQL statements eseguire
+	var sqlStatements []string
+	
+	if len(migration.SQLStatements) > 0 {
+		// Usa l'array di statements se disponibile
+		sqlStatements = migration.SQLStatements
+	} else if migration.SQL != "" && migration.SQL != `-- Questa migration è già applicata durante InitTables()
 		-- Inserita qui solo per tracking delle versioni` {
-		if _, err := tx.Exec(migration.SQL); err != nil {
-			return fmt.Errorf("errore nell'esecuzione SQL: %v", err)
+		// Fallback al campo SQL singolo, diviso per ';'
+		sqlStatements = strings.Split(migration.SQL, ";")
+	}
+	
+	// Esegui ogni statement SQL separatamente
+	for i, sqlStatement := range sqlStatements {
+		sqlStatement = strings.TrimSpace(sqlStatement)
+		if sqlStatement == "" || strings.HasPrefix(sqlStatement, "--") {
+			continue // Salta statement vuoti o commenti
+		}
+		
+		log.Printf("   Eseguendo statement %d di %d...", i+1, len(sqlStatements))
+		if _, err := tx.Exec(sqlStatement); err != nil {
+			return fmt.Errorf("errore nell'esecuzione dello statement %d: %v\nSQL: %s", i+1, err, sqlStatement)
 		}
 	}
 	

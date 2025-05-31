@@ -13,7 +13,7 @@ RUN go mod download
 COPY . .
 
 # Build the Go application with CGO enabled for SQLite support
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o whatsapp-reader .
+RUN CGO_ENABLED=1 go build -o whatsapp-reader .
 
 # Build stage for Node.js frontend
 FROM node:20-alpine AS node-builder
@@ -48,6 +48,8 @@ COPY config.json /app/
 RUN mkdir -p /app/session /app/ProfileImages /app/MediaFiles /app/MediaFiles/Images /app/MediaFiles/Videos /app/MediaFiles/Audio /app/MediaFiles/Documents
 
 # Environment variables for database configuration
+# These variables are intentionally configurable and will be overridden 
+# at runtime through CapRover or docker-compose for security
 # These can be overridden at runtime
 ENV DB_HOST=localhost
 ENV DB_PORT=3306
