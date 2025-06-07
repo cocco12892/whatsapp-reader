@@ -1,0 +1,46 @@
+# Backend-only Dockerfile
+FROM golang:1.24-alpine AS builder
+WORKDIR /app
+
+# Install build dependencies for CGO (needed for SQLite)
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+# Copy Go module files and download dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code (exclude web frontend)
+COPY . .
+RUN rm -rf web/ node_modules/ package*.json vite.config.js
+
+# Build the Go application with CGO enabled for SQLite support
+RUN CGO_ENABLED=1 go build -o whatsapp-reader .
+
+# Final stage
+FROM alpine:latest
+WORKDIR /app
+
+# Install CA certificates and SQLite runtime for HTTPS requests and database
+RUN apk --no-cache add ca-certificates tzdata sqlite
+
+# Copy the built binary
+COPY --from=builder /app/whatsapp-reader /app/
+# Copy config files
+COPY config.json /app/
+
+# Create directories for data persistence
+RUN mkdir -p /app/session /app/ProfileImages /app/MediaFiles /app/MediaFiles/Images /app/MediaFiles/Videos /app/MediaFiles/Audio /app/MediaFiles/Documents
+
+# Environment variables for database configuration
+ENV DB_HOST=localhost
+ENV DB_PORT=3306
+ENV DB_USER=root
+ENV DB_PASSWORD=
+ENV DB_NAME=whatsapp_viewer
+
+# Default port (can be overridden)
+EXPOSE 8080
+ENV PORT=8080
+
+# Run the application
+CMD ["/app/whatsapp-reader"] 

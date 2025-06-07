@@ -30,5 +30,13 @@ func ServeProfileImage(c *gin.Context) {
 func SetupRoutes(router *gin.Engine) {
 	// Route per servire le immagini del profilo
 	router.GET("/profile-images/:type/*file", ServeProfileImage)
+	
+	// Health check endpoint per monitoring
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"service": "whatsapp-reader-backend",
+		})
+	})
 }
 

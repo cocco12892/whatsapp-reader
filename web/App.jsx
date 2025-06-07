@@ -61,11 +61,12 @@ function App() {
 
   // WebSocket URL basato sull'URL corrente
   const WS_URL = useMemo(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Usa l'host corrente, ma assicurati di usare la porta corretta (8080)
-    const host = window.location.hostname;
-    const port = 8080; // Porta fissa per il backend
-    return `${protocol}//${host}:${port}/ws`;
+    // In produzione, usa variabili d'ambiente
+    const backendHost = import.meta.env.VITE_BACKEND_URL || window.location.hostname;
+    const backendPort = import.meta.env.VITE_BACKEND_PORT || 8080;
+    const protocol = import.meta.env.VITE_BACKEND_PROTOCOL || (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
+    
+    return `${protocol}//${backendHost}:${backendPort}/ws`;
   }, []);
 
   const [chats, setChats] = useState([]);

@@ -1037,7 +1037,7 @@ func main() {
 	}()
 	
 	fmt.Println("Server API avviato su http://localhost:8080")
-	fmt.Println("Interfaccia web disponibile su http://localhost:8080/web")
+	fmt.Println("Interfaccia web disponibile su http://localhost:8080/ e http://localhost:8080/web")
 	
 	// Gestisci chiusura corretta
 	c := make(chan os.Signal)

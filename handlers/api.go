@@ -68,9 +68,9 @@ type DBManager interface {
 
 // SetupAPIRoutes configura tutte le rotte API
 func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
-	// Abilita CORS
+	// Abilita CORS per frontend separato
 	router.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*") // In produzione: specifica il dominio del frontend
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -81,12 +81,15 @@ func SetupAPIRoutes(router *gin.Engine, dbManager DBManager) {
 		c.Next()
 	})
 
-	// Servi file statici (per l'interfaccia web)
-	router.Static("/web", "./web")
+	// Servi solo file media e risorse backend
 	router.Static("/images", "./Immagini")
 	router.Static("/profile-images/users", "./ProfileImages/Users")
 	router.Static("/profile-images/groups", "./ProfileImages/Groups")
 	router.Static("/audio", "./Messaggi Vocali")
+	router.Static("/media/images", "./MediaFiles/Images")
+	router.Static("/media/videos", "./MediaFiles/Videos")
+	router.Static("/media/audio", "./MediaFiles/Audio")
+	router.Static("/media/documents", "./MediaFiles/Documents")
 
 	// API per ottenere le ultime chat
 	router.GET("/api/chats", func(c *gin.Context) {
