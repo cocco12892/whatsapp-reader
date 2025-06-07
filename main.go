@@ -770,7 +770,9 @@ func main() {
 	sessionPath := filepath.Join(sessionDir, "whatsmeow_store.db")
 	storeContainer, err := sqlstore.New("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", sessionPath), dbLog)
 	if err != nil {
-		log.Fatalf("Errore nella creazione del container SQL per Whatsmeow: %v", err)
+		fmt.Printf("Errore nella creazione del container SQL per Whatsmeow: %v\n", err)
+		fmt.Println("Continuo l'avvio del server senza WhatsApp. Le API funzioneranno ma l'invio messaggi fallirà.")
+		storeContainer = nil // Assicuriamoci che sia nil per i controlli successivi
 	}
 
 	// 2. Definisci l'handler degli eventi qui in main.go
@@ -995,20 +997,26 @@ func main() {
 	// Controlla se siamo già loggati (Store.ID non è nil)
 	if whatsAppClientInstance.Client.Store.ID == nil {
 		fmt.Println("Autenticazione richiesta. Scansiona il codice QR con WhatsApp.")
-		// WaitForQRCode ora gestirà internamente GetQRChannel e la chiamata a Connect()
-		if err := whatsAppClientInstance.WaitForQRCode(); err != nil {
-			log.Fatalf("Errore durante l'autenticazione QR code: %v", err)
-		}
-		// Se WaitForQRCode ha successo, la connessione è stabilita e il login è completato.
-		fmt.Println("Autenticazione QR completata e client connesso.")
+		fmt.Println("ATTENZIONE: WhatsApp non è autenticato. Le API funzioneranno ma l'invio messaggi fallirà.")
+		fmt.Println("Per autenticare, connettiti al container e scansiona il QR code.")
+		// NON blocchiamo l'avvio del server
+		go func() {
+			if err := whatsAppClientInstance.WaitForQRCode(); err != nil {
+				fmt.Printf("Errore durante l'autenticazione QR code: %v\n", err)
+			} else {
+				fmt.Println("Autenticazione QR completata e client connesso.")
+			}
+		}()
 	} else {
 		fmt.Printf("Client WhatsApp già loggato con ID: %s\n", whatsAppClientInstance.Client.Store.ID.String())
 		// Se già loggato, dobbiamo comunque connetterci.
 		// Il metodo Connect del wrapper registra l'handler e connette il client whatsmeow.
 		if err := whatsAppClientInstance.Connect(); err != nil {
-			log.Fatalf("Errore nella connessione del client WhatsApp (già loggato): %v", err)
+			fmt.Printf("Errore nella connessione del client WhatsApp (già loggato): %v\n", err)
+			fmt.Println("Continuo l'avvio del server senza WhatsApp connesso.")
+		} else {
+			fmt.Println("Client WhatsApp (già loggato) connesso.")
 		}
-		fmt.Println("Client WhatsApp (già loggato) connesso.")
 	}
 	
 	// Configura il server API
@@ -1031,6 +1039,7 @@ func main() {
 		if config != nil {
 			port = fmt.Sprintf(":%d", config.Server.Port)
 		}
+		fmt.Printf("Avvio server HTTP sulla porta %s...\n", port)
 		if err := router.Run(port); err != nil {
 			fmt.Printf("Errore nell'avvio del server: %v\n", err)
 		}
@@ -1038,6 +1047,7 @@ func main() {
 	
 	fmt.Println("Server API avviato su http://localhost:8080")
 	fmt.Println("Interfaccia web disponibile su http://localhost:8080/ e http://localhost:8080/web")
+	fmt.Println("NOTA: Se WhatsApp non è connesso, l'invio messaggi fallirà con errore 500")
 	
 	// Gestisci chiusura corretta
 	c := make(chan os.Signal)
