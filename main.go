@@ -50,6 +50,9 @@ var (
 	
 	// Servizio per i reminder
 	reminderService *handlers.ReminderService
+	
+	// Servizio per gli alert automatici
+	alertService *handlers.AlertService
 )
 
 func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup bool) (string, error) {
@@ -1033,6 +1036,11 @@ func main() {
 	reminderService.Start()
 	fmt.Println("Servizio reminder avviato - controllo ogni minuto")
 	
+	// Inizializza e avvia il servizio degli alert automatici
+	alertService = handlers.NewAlertService("393472195905@s.whatsapp.net")
+	alertService.Start()
+	fmt.Println("🤖 Servizio alert automatico avviato - polling ogni 30 secondi")
+	
 	// Avvia il server HTTP in una goroutine
 	go func() {
 		port := ":8080"
@@ -1059,6 +1067,12 @@ func main() {
 		reminderService.Stop()
 	}
 	fmt.Println("Servizio reminder fermato.")
+	
+	fmt.Println("Arresto del servizio alert automatico...")
+	if alertService != nil {
+		alertService.Stop()
+	}
+	fmt.Println("Servizio alert automatico fermato.")
 	
 	fmt.Println("Disconnessione del client WhatsApp...")
 	if whatsAppClientInstance != nil {
