@@ -6,11 +6,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dop251/goja"
+	"github.com/fogleman/gg"
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
@@ -25,6 +30,7 @@ type AlertService struct {
 	processedAlerts    map[string]bool
 	eventDataCache     map[string]interface{}
 	eventDataTimestamp map[string]int64
+	recentAlerts       map[string]int64 // Traccia alert recenti per evitare duplicati
 	whatsappChatID     string
 }
 
@@ -40,7 +46,7 @@ type Alert struct {
 	Points      string  `json:"points"`
 	ChangeFrom  string  `json:"changeFrom"`
 	ChangeTo    string  `json:"changeTo"`
-	Starts      int64   `json:"starts"`
+	Starts      string  `json:"starts"`
 }
 
 // EventData rappresenta i dati dell'evento da swordfish
@@ -54,10 +60,11 @@ func NewAlertService(whatsappChatID string) *AlertService {
 	return &AlertService{
 		isRunning:          false,
 		stopChan:           make(chan struct{}),
-		lastCursor:         1743067773853, // Valore di default
+		lastCursor:         1750064426000, // 9:00 UTC (16 June 2025)
 		processedAlerts:    make(map[string]bool),
 		eventDataCache:     make(map[string]interface{}),
 		eventDataTimestamp: make(map[string]int64),
+		recentAlerts:       make(map[string]int64),
 		whatsappChatID:     whatsappChatID,
 	}
 }
@@ -137,17 +144,19 @@ func (as *AlertService) checkAlerts() {
 
 	log.Printf("📊 Trovati %d nuovi alert", len(result.Data))
 
-	// Aggiorna il cursor
+	// Aggiorna il cursor PRIMA di processare per evitare di riprocessare gli stessi alert
+	maxTimestamp := as.lastCursor
 	for _, alert := range result.Data {
 		timestamp, err := strconv.ParseInt(strings.Split(alert.ID, "-")[0], 10, 64)
-		if err == nil && timestamp > as.lastCursor {
-			as.lastCursor = timestamp
+		if err == nil && timestamp > maxTimestamp {
+			maxTimestamp = timestamp
 		}
 	}
+	as.lastCursor = maxTimestamp
 
 	// Processa ogni alert
 	for _, alert := range result.Data {
-		// Evita duplicati
+		// Evita duplicati basati sull'ID
 		if as.processedAlerts[alert.ID] {
 			continue
 		}
@@ -186,7 +195,15 @@ func (as *AlertService) processAlert(alert Alert) bool {
 
 	if nvp > currentOdds {
 		log.Printf("✅ Alert positivo! NVP: %.2f > Quote: %.2f", nvp, currentOdds)
+		
+		// Controlla se abbiamo già inviato un alert simile negli ultimi 5 minuti
+		if as.isDuplicateAlert(alert) {
+			log.Printf("🔄 Alert duplicato ignorato per %s vs %s (%s %s)", alert.Home, alert.Away, alert.LineType, alert.Outcome)
+			return true
+		}
+		
 		as.sendWhatsAppNotification(alert, nvp)
+		as.markAlertAsSent(alert)
 		return true
 	} else {
 		log.Printf("⚠️ Alert negativo. NVP: %.2f <= Quote: %.2f", nvp, currentOdds)
@@ -194,13 +211,43 @@ func (as *AlertService) processAlert(alert Alert) bool {
 	}
 }
 
+// isDuplicateAlert controlla se un alert simile è stato inviato negli ultimi 5 minuti
+func (as *AlertService) isDuplicateAlert(alert Alert) bool {
+	// Crea una chiave unica basata su partita + tipo di scommessa + punti
+	key := fmt.Sprintf("%s-%s-%s-%s-%s", alert.Home, alert.Away, alert.LineType, alert.Outcome, alert.Points)
+	
+	now := time.Now().Unix()
+	
+	// Controlla se esiste un alert recente (5 minuti = 300 secondi)
+	if lastSent, exists := as.recentAlerts[key]; exists {
+		if now-lastSent < 300 {
+			return true
+		}
+	}
+	
+	// Pulisci alert vecchi (oltre 5 minuti)
+	for k, timestamp := range as.recentAlerts {
+		if now-timestamp >= 300 {
+			delete(as.recentAlerts, k)
+		}
+	}
+	
+	return false
+}
+
+// markAlertAsSent marca un alert come inviato
+func (as *AlertService) markAlertAsSent(alert Alert) {
+	key := fmt.Sprintf("%s-%s-%s-%s-%s", alert.Home, alert.Away, alert.LineType, alert.Outcome, alert.Points)
+	as.recentAlerts[key] = time.Now().Unix()
+}
+
 // getEventData ottieni dati dell'evento con cache
 func (as *AlertService) getEventData(eventID string) (map[string]interface{}, error) {
 	now := time.Now().Unix()
 
-	// Controlla cache (5 minuti)
+	// Controlla cache (10 secondi)
 	if cached, exists := as.eventDataCache[eventID]; exists {
-		if timestamp, ok := as.eventDataTimestamp[eventID]; ok && now-timestamp < 300 {
+		if timestamp, ok := as.eventDataTimestamp[eventID]; ok && now-timestamp < 10 {
 			return cached.(map[string]interface{}), nil
 		}
 	}
@@ -234,43 +281,115 @@ func (as *AlertService) getEventData(eventID string) (map[string]interface{}, er
 	return result.Data, nil
 }
 
-// calculateNVP calcola il No Vig Price usando JavaScript
+// calculateNVP calcola il No Vig Price usando l'algoritmo Power Method (same as frontend)
 func (as *AlertService) calculateNVP(alert Alert, eventData map[string]interface{}) (float64, error) {
 	vm := goja.New()
 
-	// Definisci le funzioni di calcolo NVP in JavaScript
+	// ALGORITMO POWER METHOD (identico al frontend per consistenza)
 	jsCode := `
-	function calculateTwoWayNVP(homeOdds, awayOdds) {
-		const homeProb = 1 / homeOdds;
-		const awayProb = 1 / awayOdds;
-		const totalProb = homeProb + awayProb;
+	// Power Method NVP Calculation (same as frontend)
+	function calculateNVPValues(odds, tolerance = 0.0001, maxIterations = 100) {
+		// Extract odds and convert to probabilities
+		const probabilities = {};
+		let totalProbability = 0;
 		
-		const trueHomeProb = homeProb / totalProb;
-		const trueAwayProb = awayProb / totalProb;
+		for (const [key, value] of Object.entries(odds)) {
+			if (value !== undefined && value > 0) {
+				probabilities[key] = 1 / value;
+				totalProbability += probabilities[key];
+			}
+		}
+		
+		// Calculate bookmaker's margin
+		const margin = totalProbability - 1;
+		
+		// Convert to array for processing
+		const probabilityValues = Object.values(probabilities);
+		
+		// Apply power method to remove vigorish
+		const fairProbabilities = powerMethod(probabilityValues, tolerance, maxIterations);
+		
+		// Convert fair probabilities back to odds (NVP)
+		const nvpValues = {};
+		const keys = Object.keys(probabilities);
+		
+		fairProbabilities.forEach((fairProb, index) => {
+			nvpValues[keys[index]] = 1 / fairProb;
+		});
 		
 		return {
-			homeNVP: 1 / trueHomeProb,
-			awayNVP: 1 / trueAwayProb
+			nvp: nvpValues,
+			fairProbabilities: fairProbabilities.reduce((obj, prob, i) => {
+				obj[keys[i]] = prob;
+				return obj;
+			}, {}),
+			rawProbabilities: probabilities,
+			margin: margin * 100
 		};
 	}
 
-	function calculateThreeWayNVP(homeOdds, drawOdds, awayOdds) {
-		const homeProb = 1 / homeOdds;
-		const drawProb = 1 / drawOdds;
-		const awayProb = 1 / awayOdds;
-		const totalProb = homeProb + drawProb + awayProb;
+	function powerMethod(probabilities, tolerance, maxIterations) {
+		let r = 1; // Initial exponent
+		let adjustedProbs = probabilities.map(p => Math.pow(p, r));
 		
-		const trueHomeProb = homeProb / totalProb;
-		const trueDrawProb = drawProb / totalProb;
-		const trueAwayProb = awayProb / totalProb;
+		for (let i = 0; i < maxIterations; i++) {
+			// Calculate difference from 1
+			const sumProbs = adjustedProbs.reduce((sum, p) => sum + p, 0);
+			const diff = sumProbs - 1;
+			
+			// If close enough to 1, we're done
+			if (Math.abs(diff) < tolerance) {
+				break;
+			}
+			
+			// Calculate gradient for Newton-Raphson method
+			const gradient = probabilities.reduce(
+				(sum, p) => sum + Math.log(p) * Math.pow(p, r), 
+				0
+			);
+			
+			// Adjust r using Newton-Raphson step
+			r -= diff / gradient;
+			
+			// Recalculate probabilities with new r
+			adjustedProbs = probabilities.map(p => Math.pow(p, r));
+		}
 		
+		return adjustedProbs;
+	}
+
+	// Calculate NVP for a 2-way market (spreads, totals)
+	function calculateTwoWayNVP(home, away) {
+		const odds = {
+			home: parseFloat(home),
+			away: parseFloat(away)
+		};
+		
+		const result = calculateNVPValues(odds);
 		return {
-			homeNVP: 1 / trueHomeProb,
-			drawNVP: 1 / trueDrawProb,
-			awayNVP: 1 / trueAwayProb
+			homeNVP: result.nvp.home,
+			awayNVP: result.nvp.away,
+			margin: result.margin
 		};
 	}
-	`
+
+	// Calculate NVP for a 3-way market (moneyline with draw)
+	function calculateThreeWayNVP(home, draw, away) {
+		const odds = {
+			home: parseFloat(home),
+			draw: parseFloat(draw),
+			away: parseFloat(away)
+		};
+		
+		const result = calculateNVPValues(odds);
+		return {
+			homeNVP: result.nvp.home,
+			drawNVP: result.nvp.draw,
+			awayNVP: result.nvp.away,
+			margin: result.margin
+		};
+	}
+	`;
 
 	_, err := vm.RunString(jsCode)
 	if err != nil {
@@ -318,13 +437,46 @@ func (as *AlertService) calculateNVP(alert Alert, eventData map[string]interface
 			const nvp = calculateTwoWayNVP(spreads[pointsKey].home, spreads[pointsKey].away);
 			nvpValue = outcome.toLowerCase().includes('home') ? nvp.homeNVP : nvp.awayNVP;
 		}
-	} else if (lineType === 'TOTAL') {
+	} else if (lineType === 'TOTAL' || lineType === 'total') {
 		const totals = period0.totals || {};
-		const pointsKey = points || Object.keys(totals)[0];
 		
-		if (totals[pointsKey] && totals[pointsKey].over && totals[pointsKey].under) {
-			const nvp = calculateTwoWayNVP(totals[pointsKey].over, totals[pointsKey].under);
+		// Migliora il parsing dei punti (same logic as frontend)
+		let pointsKey = points;
+		
+		// Se points è undefined o vuoto, prova a estrarre dal lineType
+		if (!pointsKey && lineType) {
+			const match = lineType.match(/total\s+(over|under)\s+([\d.]+)/i);
+			if (match) {
+				pointsKey = match[2];
+			}
+		}
+		
+		// Se non abbiamo punti, prendi il primo disponibile
+		if (!pointsKey) {
+			pointsKey = Object.keys(totals)[0];
+		}
+		
+		// Assicurati che pointsKey sia una stringa per il matching
+		const pointsStr = String(pointsKey);
+		
+		if (totals[pointsStr] && totals[pointsStr].over && totals[pointsStr].under) {
+			const overOdds = parseFloat(totals[pointsStr].over);
+			const underOdds = parseFloat(totals[pointsStr].under);
+			
+			const nvp = calculateTwoWayNVP(overOdds, underOdds);
 			nvpValue = outcome.toLowerCase().includes('over') ? nvp.homeNVP : nvp.awayNVP;
+		} else {
+			// Prova a cercare con conversione numerica (fallback come frontend)
+			const numericPoints = parseFloat(pointsStr);
+			const alternativeKey = Object.keys(totals).find(key => parseFloat(key) === numericPoints);
+			
+			if (alternativeKey && totals[alternativeKey] && totals[alternativeKey].over && totals[alternativeKey].under) {
+				const overOdds = parseFloat(totals[alternativeKey].over);
+				const underOdds = parseFloat(totals[alternativeKey].under);
+				
+				const nvp = calculateTwoWayNVP(overOdds, underOdds);
+				nvpValue = outcome.toLowerCase().includes('over') ? nvp.homeNVP : nvp.awayNVP;
+			}
 		}
 	}
 
@@ -336,7 +488,8 @@ func (as *AlertService) calculateNVP(alert Alert, eventData map[string]interface
 		return 0, fmt.Errorf("errore nel calcolo NVP: %v", err)
 	}
 
-	if result.ToFloat() == 0 {
+	// Controlla se il risultato è null/undefined piuttosto che solo 0
+	if result.ToFloat() == 0 && result.String() != "0" {
 		return 0, fmt.Errorf("NVP non calcolabile per questo tipo di scommessa")
 	}
 
@@ -347,21 +500,54 @@ func (as *AlertService) calculateNVP(alert Alert, eventData map[string]interface
 func (as *AlertService) sendWhatsAppNotification(alert Alert, nvp float64) {
 	log.Printf("📱 Sending WhatsApp notification for alert: %s", alert.ID)
 
-	// Prepara il messaggio
+	// Estrai timestamp dall'ID dell'alert (formato: 1750058615638-0)
+	var alertTime time.Time
+	if parts := strings.Split(alert.ID, "-"); len(parts) > 0 {
+		if timestamp, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
+			alertTime = time.Unix(timestamp/1000, 0)
+		}
+	}
+	if alertTime.IsZero() {
+		alertTime = time.Now() // Fallback se non riesce a parsare
+	}
+
+	// Estrai timestamp della partita dal campo "starts"
+	var matchTime time.Time
+	if alert.Starts != "" {
+		if timestamp, err := strconv.ParseInt(alert.Starts, 10, 64); err == nil {
+			matchTime = time.Unix(timestamp/1000, 0)
+		}
+	}
+
+	// Calcola il drop percentuale dalla quota iniziale a quella attuale
+	fromOdds := parseFloat(alert.ChangeFrom)
+	toOdds := parseFloat(alert.ChangeTo)
+	dropPercentage := ((fromOdds - toOdds) / fromOdds) * 100
+
+	// Prepara il messaggio con le date
 	message := fmt.Sprintf("🚨 *ALERT POSITIVO!*\n\n"+
 		"📊 *MATCH*: %s vs %s\n"+
 		"🏆 *LEAGUE*: %s\n"+
+		"⏰ *ALERT TIME*: %s\n"+
+		"🕐 *MATCH START*: %s\n"+
 		"📈 *FROM*: %s\n"+
 		"📉 *TO*: %s\n"+
 		"🔢 *NVP*: %.2f\n"+
-		"💰 *EDGE*: %.2f%%\n"+
+		"📉 *DROP*: %.2f%%\n"+
 		"🎯 *BET*: %s %s %s",
 		alert.Home, alert.Away,
 		alert.LeagueName,
+		alertTime.Format("15:04:05 02/01/2006"),
+		func() string {
+			if matchTime.IsZero() {
+				return "N/A"
+			}
+			return matchTime.Format("15:04:05 02/01/2006")
+		}(),
 		alert.ChangeFrom,
 		alert.ChangeTo,
 		nvp,
-		((nvp/parseFloat(alert.ChangeTo))-1)*100,
+		dropPercentage,
 		alert.LineType, alert.Outcome, alert.Points)
 
 	// Invia messaggio via API interna
@@ -384,8 +570,432 @@ func (as *AlertService) sendWhatsAppNotification(alert Alert, nvp float64) {
 
 	log.Printf("✅ Messaggio WhatsApp inviato con successo!")
 
-	// TODO: Generare e inviare il grafico
-	// as.sendChart(alert)
+	// Genera e invia il grafico
+	as.sendChart(alert, nvp)
+}
+
+// sendChart genera e invia il grafico dell'evento
+func (as *AlertService) sendChart(alert Alert, nvp float64) {
+	log.Printf("📈 Generating chart for alert: %s", alert.ID)
+
+	// Ottieni dati dell'evento per il grafico
+	eventData, err := as.getEventData(alert.EventID)
+	if err != nil {
+		log.Printf("❌ Errore nel recupero dati per grafico: %v", err)
+		return
+	}
+
+	// Genera l'immagine del grafico
+	chartPath, err := as.generateChartImage(alert, eventData, nvp)
+	if err != nil {
+		log.Printf("❌ Errore nella generazione del grafico: %v", err)
+		return
+	}
+
+	// Invia l'immagine via WhatsApp
+	err = as.sendImageToWhatsApp(chartPath, alert)
+	if err != nil {
+		log.Printf("❌ Errore nell'invio dell'immagine: %v", err)
+		return
+	}
+
+	// Rimuovi il file temporaneo
+	os.Remove(chartPath)
+	log.Printf("✅ Grafico inviato con successo!")
+}
+
+// generateChartImage genera un grafico sparkline dell'andamento delle quote
+func (as *AlertService) generateChartImage(alert Alert, eventData map[string]interface{}, nvp float64) (string, error) {
+	const width, height = 800, 800 // Immagine quadrata
+	dc := gg.NewContext(width, height)
+
+	// Sfondo gradient
+	for i := 0; i < height; i++ {
+		alpha := float64(i) / float64(height)
+		dc.SetRGB(0.05+alpha*0.05, 0.08+alpha*0.08, 0.12+alpha*0.08)
+		dc.DrawLine(0, float64(i), float64(width), float64(i))
+		dc.Stroke()
+	}
+
+	// Estrai i dati storici
+	periods, ok := eventData["periods"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("dati dei periodi non trovati")
+	}
+	
+	period0, ok := periods["num_0"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("dati del periodo 0 non trovati")
+	}
+
+	history, ok := period0["history"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("dati storici non trovati")
+	}
+
+	// Header
+	dc.SetRGB(1, 1, 1)
+	title := fmt.Sprintf("%s vs %s", alert.Home, alert.Away)
+	dc.DrawStringAnchored(title, float64(width)/2, 30, 0.5, 0.5)
+	
+	dc.SetRGB(0.8, 0.8, 0.8)
+	league := fmt.Sprintf("🏆 %s", alert.LeagueName)
+	dc.DrawStringAnchored(league, float64(width)/2, 55, 0.5, 0.5)
+
+	// Info alert
+	dc.SetRGB(0.2, 0.4, 0.6)
+	dc.DrawRoundedRectangle(50, 80, float64(width-100), 40, 8)
+	dc.Fill()
+	
+	dc.SetRGB(1, 1, 1)
+	alertInfo := fmt.Sprintf("🚨 %s %s %s | FROM: %s → TO: %s | NVP: %.2f", 
+		alert.LineType, alert.Outcome, alert.Points, alert.ChangeFrom, alert.ChangeTo, nvp)
+	dc.DrawStringAnchored(alertInfo, float64(width)/2, 100, 0.5, 0.5)
+
+	// Estrai i dati storici per l'alert specifico
+	chartData, err := as.extractHistoricalData(history, alert)
+	if err != nil {
+		return "", fmt.Errorf("errore nell'estrazione dati storici: %v", err)
+	}
+
+	if len(chartData) == 0 {
+		// Nessun dato storico, mostra solo info alert
+		dc.SetRGB(0.8, 0.8, 0.8)
+		dc.DrawStringAnchored("Nessun dato storico disponibile", float64(width)/2, float64(height)/2, 0.5, 0.5)
+	} else {
+		// Disegna il grafico sparkline - usa più spazio verticale per formato quadrato
+		as.drawSparklineChart(dc, chartData, alert, nvp, 140, float64(width-100), float64(height-180))
+	}
+
+	// Timestamp
+	dc.SetRGB(0.6, 0.6, 0.6)
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	dc.DrawStringAnchored("Generated: "+timestamp, float64(width)/2, float64(height)-20, 0.5, 0.5)
+
+	// Salva l'immagine
+	chartDir := "./charts"
+	if err := os.MkdirAll(chartDir, 0755); err != nil {
+		return "", fmt.Errorf("errore nella creazione directory charts: %v", err)
+	}
+
+	filename := fmt.Sprintf("alert_%s_%d.png", alert.EventID, time.Now().Unix())
+	chartPath := filepath.Join(chartDir, filename)
+	
+	if err := dc.SavePNG(chartPath); err != nil {
+		return "", fmt.Errorf("errore nel salvataggio del grafico: %v", err)
+	}
+
+	return chartPath, nil
+}
+
+// ChartDataPoint rappresenta un punto nel grafico
+type ChartDataPoint struct {
+	Timestamp int64
+	Odds      float64
+	Limit     float64
+}
+
+// extractHistoricalData estrae i dati storici per l'alert specifico
+func (as *AlertService) extractHistoricalData(history map[string]interface{}, alert Alert) ([]ChartDataPoint, error) {
+	var rawData []interface{}
+	
+	// Estrai i dati in base al tipo di alert
+	switch strings.ToUpper(alert.LineType) {
+	case "MONEYLINE", "MONEY_LINE":
+		moneyline, ok := history["moneyline"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("dati moneyline non trovati")
+		}
+		
+		outcome := strings.ToLower(alert.Outcome)
+		if outcome == "home" || strings.Contains(outcome, "home") {
+			if data, ok := moneyline["home"].([]interface{}); ok {
+				rawData = data
+			}
+		} else if outcome == "away" || strings.Contains(outcome, "away") {
+			if data, ok := moneyline["away"].([]interface{}); ok {
+				rawData = data
+			}
+		} else if outcome == "draw" || strings.Contains(outcome, "draw") {
+			if data, ok := moneyline["draw"].([]interface{}); ok {
+				rawData = data
+			}
+		}
+		
+	case "SPREAD", "SPREADS":
+		spreads, ok := history["spreads"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("dati spreads non trovati")
+		}
+		
+		points := alert.Points
+		if points == "" {
+			// Prendi il primo spread disponibile
+			for k := range spreads {
+				points = k
+				break
+			}
+		}
+		
+		if spreadData, ok := spreads[points].(map[string]interface{}); ok {
+			outcome := strings.ToLower(alert.Outcome)
+			if outcome == "home" || strings.Contains(outcome, "home") {
+				if data, ok := spreadData["home"].([]interface{}); ok {
+					rawData = data
+				}
+			} else if outcome == "away" || strings.Contains(outcome, "away") {
+				if data, ok := spreadData["away"].([]interface{}); ok {
+					rawData = data
+				}
+			}
+		}
+		
+	case "TOTAL", "TOTALS":
+		totals, ok := history["totals"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("dati totals non trovati")
+		}
+		
+		points := alert.Points
+		var totalData map[string]interface{}
+		var found bool
+		
+		// Prova prima con la chiave esatta
+		if totalData, found = totals[points].(map[string]interface{}); !found {
+			// Prova solo con varianti logiche dello stesso numero
+			if _, err := strconv.ParseFloat(points, 64); err == nil {
+				// Prova con formato alternativo (3.5 -> "3.5", 3 -> "3.0")
+				variants := []string{}
+				if strings.Contains(points, ".") {
+					// Se ha decimali, prova senza decimali se è .0
+					if strings.HasSuffix(points, ".0") {
+						variants = append(variants, strings.TrimSuffix(points, ".0"))
+					}
+				} else {
+					// Se non ha decimali, prova con .0
+					variants = append(variants, points+".0")
+				}
+				
+				for _, variant := range variants {
+					if totalData, found = totals[variant].(map[string]interface{}); found {
+						break
+					}
+				}
+			}
+			
+			// Se ancora non trovato e points è vuoto, prendi il primo disponibile
+			if !found && points == "" {
+				for _, v := range totals {
+					if totalData, found = v.(map[string]interface{}); found {
+						break
+					}
+				}
+			}
+		}
+		
+		if found {
+			outcome := strings.ToLower(alert.Outcome)
+			if outcome == "over" || strings.Contains(outcome, "over") {
+				if data, ok := totalData["over"].([]interface{}); ok {
+					rawData = data
+				}
+			} else if outcome == "under" || strings.Contains(outcome, "under") {
+				if data, ok := totalData["under"].([]interface{}); ok {
+					rawData = data
+				}
+			}
+		}
+	}
+	
+	if len(rawData) == 0 {
+		return nil, fmt.Errorf("nessun dato storico trovato per %s %s %s", alert.LineType, alert.Outcome, alert.Points)
+	}
+	
+	// Converti i dati grezzi in ChartDataPoint
+	var chartData []ChartDataPoint
+	for _, item := range rawData {
+		if dataArray, ok := item.([]interface{}); ok && len(dataArray) >= 3 {
+			timestamp, _ := dataArray[0].(float64)
+			odds, _ := dataArray[1].(float64)
+			limit, _ := dataArray[2].(float64)
+			
+			if odds > 0 { // Filtra quote valide
+				chartData = append(chartData, ChartDataPoint{
+					Timestamp: int64(timestamp),
+					Odds:      odds,
+					Limit:     limit,
+				})
+			}
+		}
+	}
+	
+	// Ordina per timestamp
+	sort.Slice(chartData, func(i, j int) bool {
+		return chartData[i].Timestamp < chartData[j].Timestamp
+	})
+	
+	return chartData, nil
+}
+
+// drawSparklineChart disegna il grafico sparkline
+func (as *AlertService) drawSparklineChart(dc *gg.Context, data []ChartDataPoint, alert Alert, nvp float64, startY float64, chartWidth float64, chartHeight float64) {
+	if len(data) == 0 {
+		return
+	}
+	
+	// Margini
+	margin := 50.0
+	plotX := margin
+	plotY := startY + 20
+	plotWidth := chartWidth - 2*margin
+	plotHeight := chartHeight - 60
+	
+	// Trova min/max per scaling delle quote
+	minOdds := data[0].Odds
+	maxOdds := data[0].Odds
+	
+	for _, point := range data {
+		if point.Odds < minOdds {
+			minOdds = point.Odds
+		}
+		if point.Odds > maxOdds {
+			maxOdds = point.Odds
+		}
+	}
+	
+	// Aggiungi padding ai valori
+	oddsRange := maxOdds - minOdds
+	if oddsRange < 0.1 {
+		oddsRange = 0.1
+	}
+	minOdds -= oddsRange * 0.1
+	maxOdds += oddsRange * 0.1
+	
+	// Disegna sfondo del grafico
+	dc.SetRGB(0.15, 0.15, 0.2)
+	dc.DrawRectangle(plotX, plotY, plotWidth, plotHeight)
+	dc.Fill()
+	
+	// Disegna bordo
+	dc.SetRGB(0.4, 0.4, 0.4)
+	dc.SetLineWidth(1)
+	dc.DrawRectangle(plotX, plotY, plotWidth, plotHeight)
+	dc.Stroke()
+	
+	// Disegna griglia
+	dc.SetRGB(0.3, 0.3, 0.3)
+	dc.SetLineWidth(0.5)
+	for i := 1; i < 5; i++ {
+		y := plotY + float64(i)*plotHeight/5
+		dc.DrawLine(plotX, y, plotX+plotWidth, y)
+		dc.Stroke()
+	}
+	
+	// Disegna la linea delle quote
+	dc.SetRGB(0.2, 0.8, 0.2) // Verde
+	dc.SetLineWidth(2)
+	
+	// Usa l'indice dei dati invece del timestamp per l'asse X
+	for i := 0; i < len(data)-1; i++ {
+		x1 := plotX + float64(i)/float64(len(data)-1)*plotWidth
+		y1 := plotY + plotHeight - (data[i].Odds-minOdds)/(maxOdds-minOdds)*plotHeight
+		
+		x2 := plotX + float64(i+1)/float64(len(data)-1)*plotWidth
+		y2 := plotY + plotHeight - (data[i+1].Odds-minOdds)/(maxOdds-minOdds)*plotHeight
+		
+		dc.DrawLine(x1, y1, x2, y2)
+		dc.Stroke()
+	}
+	
+	// Aggiungi punti sui dati per evidenziare i valori
+	dc.SetRGB(0.1, 0.6, 0.1)
+	for i, point := range data {
+		x := plotX + float64(i)/float64(len(data)-1)*plotWidth
+		y := plotY + plotHeight - (point.Odds-minOdds)/(maxOdds-minOdds)*plotHeight
+		dc.DrawCircle(x, y, 2)
+		dc.Fill()
+	}
+	
+
+	
+	// Linea NVP (giallo)
+	if nvp > 0 {
+		y := plotY + plotHeight - (nvp-minOdds)/(maxOdds-minOdds)*plotHeight
+		dc.SetRGB(1, 1, 0.2)
+		dc.SetLineWidth(2)
+		dc.SetDash(5, 5)
+		dc.DrawLine(plotX, y, plotX+plotWidth, y)
+		dc.Stroke()
+		dc.SetDash() // Reset dash
+	}
+	
+	// Labels degli assi
+	dc.SetRGB(0.8, 0.8, 0.8)
+	
+	// Y-axis labels (odds)
+	for i := 0; i <= 4; i++ {
+		y := plotY + plotHeight - float64(i)*plotHeight/4
+		odds := minOdds + float64(i)*(maxOdds-minOdds)/4
+		dc.DrawStringAnchored(fmt.Sprintf("%.2f", odds), plotX-10, y, 1, 0.5)
+	}
+	
+	// Legenda
+	legendY := plotY + plotHeight + 30
+	dc.SetRGB(0.2, 0.8, 0.2)
+	dc.DrawLine(plotX, legendY, plotX+20, legendY)
+	dc.Stroke()
+	dc.SetRGB(0.8, 0.8, 0.8)
+	dc.DrawStringAnchored("Quote", plotX+25, legendY, 0, 0.5)
+	
+	dc.SetRGB(1, 1, 0.2)
+	dc.SetDash(5, 5)
+	dc.DrawLine(plotX+80, legendY, plotX+100, legendY)
+	dc.Stroke()
+	dc.SetDash()
+	dc.DrawStringAnchored("NVP", plotX+105, legendY, 0, 0.5)
+}
+
+// sendImageToWhatsApp invia un'immagine via WhatsApp
+func (as *AlertService) sendImageToWhatsApp(imagePath string, alert Alert) error {
+	// Leggi il file immagine
+	imageData, err := os.ReadFile(imagePath)
+	if err != nil {
+		return fmt.Errorf("errore nella lettura dell'immagine: %v", err)
+	}
+
+	// Parse del JID
+	chatJID, err := types.ParseJID(as.whatsappChatID)
+	if err != nil {
+		return fmt.Errorf("errore nel parsing del JID: %v", err)
+	}
+
+	// Upload dell'immagine
+	uploaded, err := whatsapp.WhatsmeowClient.Upload(context.Background(), imageData, whatsmeow.MediaImage)
+	if err != nil {
+		return fmt.Errorf("errore nell'upload dell'immagine: %v", err)
+	}
+
+	// Crea il messaggio immagine
+	imageMsg := &waE2E.Message{
+		ImageMessage: &waE2E.ImageMessage{
+			URL:           proto.String(uploaded.URL),
+			DirectPath:    proto.String(uploaded.DirectPath),
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      proto.String("image/png"),
+			FileEncSHA256: uploaded.FileEncSHA256,
+			FileSHA256:    uploaded.FileSHA256,
+			FileLength:    proto.Uint64(uint64(len(imageData))),
+			Caption:       proto.String(fmt.Sprintf("📊 Chart for %s vs %s\n🎯 %s %s", alert.Home, alert.Away, alert.LineType, alert.Outcome)),
+		},
+	}
+
+	// Invia il messaggio
+	_, err = whatsapp.WhatsmeowClient.SendMessage(context.Background(), chatJID, imageMsg)
+	if err != nil {
+		return fmt.Errorf("errore nell'invio del messaggio immagine: %v", err)
+	}
+
+	return nil
 }
 
 // parseFloat helper per convertire stringhe in float

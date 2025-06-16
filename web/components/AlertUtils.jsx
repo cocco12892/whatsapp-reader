@@ -301,15 +301,68 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
           nvp.homeNVP : nvp.awayNVP;
       }
     }
-    else if (alert.lineType === 'TOTAL') {
+    else if (alert.lineType === 'TOTAL' || alert.lineType === 'total') {
       const totals = period0.totals || {};
-      const points = alert.points || Object.keys(totals)[0];
       
-      if (totals[points] && totals[points].over && totals[points].under) {
-        const nvp = calculateTwoWayNVP(totals[points].over, totals[points].under);
+      // Migliora il parsing dei punti
+      let points = alert.points;
+      
+      // Se points è undefined o vuoto, prova a estrarre dal lineType
+      if (!points && alert.lineType) {
+        const match = alert.lineType.match(/total\s+(over|under)\s+([\d.]+)/i);
+        if (match) {
+          points = match[2];
+        }
+      }
+      
+      // Se non abbiamo punti, prendi il primo disponibile
+      if (!points) {
+        points = Object.keys(totals)[0];
+      }
+      
+      // Assicurati che points sia una stringa per il matching
+      const pointsStr = String(points);
+      
+      console.log(`🔍 TOTAL DEBUG - Alert ID: ${alert.id}`);
+      console.log(`   - Alert points: "${alert.points}"`);
+      console.log(`   - Calculated points: "${pointsStr}"`);
+      console.log(`   - Available totals:`, Object.keys(totals));
+      console.log(`   - Looking for totals["${pointsStr}"]`);
+      
+      if (totals[pointsStr] && totals[pointsStr].over && totals[pointsStr].under) {
+        const overOdds = parseFloat(totals[pointsStr].over);
+        const underOdds = parseFloat(totals[pointsStr].under);
         
+        console.log(`   - Found odds: over=${overOdds}, under=${underOdds}`);
+        
+        const nvp = calculateTwoWayNVP(overOdds, underOdds);
+        
+        // calculateTwoWayNVP restituisce stringhe, non numeri!
         nvpValue = alert.outcome.toLowerCase().includes('over') ? 
-          nvp.homeNVP : nvp.awayNVP;
+          parseFloat(nvp.homeNVP) : parseFloat(nvp.awayNVP);
+          
+        console.log(`   - NVP calculated: ${nvpValue.toFixed(3)} for outcome "${alert.outcome}"`);
+        console.log(`   - Alert changeTo: ${alert.changeTo}`);
+        console.log(`   - Difference: ${(nvpValue - parseFloat(alert.changeTo)).toFixed(3)}`);
+      } else {
+        console.log(`   - ❌ No data found for points "${pointsStr}"`);
+        console.log(`   - Available points:`, Object.keys(totals));
+        
+        // Prova a cercare con conversione numerica
+        const numericPoints = parseFloat(pointsStr);
+        const alternativeKey = Object.keys(totals).find(key => parseFloat(key) === numericPoints);
+        
+        if (alternativeKey) {
+          console.log(`   - 🔄 Trying alternative key: "${alternativeKey}"`);
+          const overOdds = parseFloat(totals[alternativeKey].over);
+          const underOdds = parseFloat(totals[alternativeKey].under);
+          
+          const nvp = calculateTwoWayNVP(overOdds, underOdds);
+          nvpValue = alert.outcome.toLowerCase().includes('over') ? 
+            parseFloat(nvp.homeNVP) : parseFloat(nvp.awayNVP);
+            
+          console.log(`   - ✅ Alternative calculation successful: ${nvpValue.toFixed(3)}`);
+        }
       }
     }
     
@@ -317,6 +370,11 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
     if (nvpValue && (alert.lineType === 'MONEYLINE' || alert.lineType === 'money_line') && 
         (alert.outcome.toLowerCase().includes('home') || alert.outcome.toLowerCase().includes('away'))) {
 
+      // 🚫 TEMPORANEAMENTE DISABILITATO - Fix API endpoint prima
+      console.log(`📱 Alert positivo rilevato per ${alert.home} vs ${alert.away} - NVP: ${nvpValue} vs Quote: ${alert.changeTo}`);
+      console.log(`💡 Invio notifica disabilitato temporaneamente - attivare dopo fix API`);
+      
+      /* COMMENTATO TEMPORANEAMENTE
       // Verifica se la partita è tra più di un giorno
       const now = Date.now();
       const matchTime = parseInt(alert.starts);
@@ -363,6 +421,7 @@ export const calculateAlertNVP = async (alert, calculateTwoWayNVP, calculateThre
       } else {
         console.log(`Alert non inviato per EventID ${alert.eventId}: la partita è tra più di un giorno (${new Date(matchTime).toLocaleString()})`);
       }
+      */
     }
     
     return nvpValue;
@@ -404,15 +463,14 @@ export const sendAlertNotification = async (alert, chatId) => {
     // Add a 500ms delay between requests to avoid rate limiting
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Send text message
+    // Create FormData to match backend API expectations
+    const formData = new FormData();
+    formData.append('text', message);  // Backend expects 'text' field
+    
+    // Send text message using FormData
     const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/send`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        content: message
-      }),
+      body: formData  // Send as FormData, not JSON
     });
     
     if (!response.ok) {
@@ -562,15 +620,67 @@ export const addNVPToAlerts = async (alertsList, nvpCache, calculateTwoWayNVP, c
           nvp.homeNVP : nvp.awayNVP;
       }
     }
-    else if (alert.lineType === 'TOTAL') {
+    else if (alert.lineType === 'TOTAL' || alert.lineType === 'total') {
       const totals = period0.totals || {};
-      const points = alert.points || Object.keys(totals)[0];
       
-      if (totals[points] && totals[points].over && totals[points].under) {
-        const nvp = calculateTwoWayNVP(totals[points].over, totals[points].under);
+      // Migliora il parsing dei punti
+      let points = alert.points;
+      
+      // Se points è undefined o vuoto, prova a estrarre dal lineType
+      if (!points && alert.lineType) {
+        const match = alert.lineType.match(/total\s+(over|under)\s+([\d.]+)/i);
+        if (match) {
+          points = match[2];
+        }
+      }
+      
+      // Se non abbiamo punti, prendi il primo disponibile
+      if (!points) {
+        points = Object.keys(totals)[0];
+      }
+      
+      // Assicurati che points sia una stringa per il matching
+      const pointsStr = String(points);
+      
+      console.log(`🔍 TOTAL DEBUG - Alert ID: ${alert.id}`);
+      console.log(`   - Alert points: "${alert.points}"`);
+      console.log(`   - Calculated points: "${pointsStr}"`);
+      console.log(`   - Available totals:`, Object.keys(totals));
+      console.log(`   - Looking for totals["${pointsStr}"]`);
+      
+      if (totals[pointsStr] && totals[pointsStr].over && totals[pointsStr].under) {
+        const overOdds = parseFloat(totals[pointsStr].over);
+        const underOdds = parseFloat(totals[pointsStr].under);
+        
+        console.log(`   - Found odds: over=${overOdds}, under=${underOdds}`);
+        
+        const nvp = calculateTwoWayNVP(overOdds, underOdds);
         
         nvpValue = alert.outcome.toLowerCase().includes('over') ? 
-          nvp.homeNVP : nvp.awayNVP;
+          parseFloat(nvp.homeNVP) : parseFloat(nvp.awayNVP);
+          
+        console.log(`   - NVP calculated: ${nvpValue.toFixed(3)} for outcome "${alert.outcome}"`);
+        console.log(`   - Alert changeTo: ${alert.changeTo}`);
+        console.log(`   - Difference: ${(nvpValue - parseFloat(alert.changeTo)).toFixed(3)}`);
+      } else {
+        console.log(`   - ❌ No data found for points "${pointsStr}"`);
+        console.log(`   - Available points:`, Object.keys(totals));
+        
+        // Prova a cercare con conversione numerica
+        const numericPoints = parseFloat(pointsStr);
+        const alternativeKey = Object.keys(totals).find(key => parseFloat(key) === numericPoints);
+        
+        if (alternativeKey) {
+          console.log(`   - 🔄 Trying alternative key: "${alternativeKey}"`);
+          const overOdds = parseFloat(totals[alternativeKey].over);
+          const underOdds = parseFloat(totals[alternativeKey].under);
+          
+          const nvp = calculateTwoWayNVP(overOdds, underOdds);
+          nvpValue = alert.outcome.toLowerCase().includes('over') ? 
+            parseFloat(nvp.homeNVP) : parseFloat(nvp.awayNVP);
+            
+          console.log(`   - ✅ Alternative calculation successful: ${nvpValue.toFixed(3)}`);
+        }
       }
     }
     

@@ -27,30 +27,38 @@ var migrations = []Migration{
 		Version:     2,
 		Description: "Add reminder enhanced fields",
 		SQLStatements: []string{
-			// Aggiungi i nuovi campi alla tabella reminders
-			`ALTER TABLE reminders 
-			ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending' NOT NULL,
-			ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP NULL,
-			ADD COLUMN IF NOT EXISTS attempt_count INT DEFAULT 0 NOT NULL,
-			ADD COLUMN IF NOT EXISTS last_error TEXT NULL`,
+			// Aggiungi status column
+			`ALTER TABLE reminders ADD COLUMN status VARCHAR(20) DEFAULT 'pending' NOT NULL`,
+			
+			// Aggiungi sent_at column
+			`ALTER TABLE reminders ADD COLUMN sent_at TIMESTAMP NULL`,
+			
+			// Aggiungi attempt_count column  
+			`ALTER TABLE reminders ADD COLUMN attempt_count INT DEFAULT 0 NOT NULL`,
+			
+			// Aggiungi last_error column
+			`ALTER TABLE reminders ADD COLUMN last_error TEXT NULL`,
 			
 			// Aggiorna i reminder esistenti per impostare il nuovo status
 			`UPDATE reminders 
 			SET status = CASE 
-				WHEN is_fired = true THEN 'sent'
+				WHEN is_fired = 1 THEN 'sent'
 				ELSE 'pending'
-			END
-			WHERE status = 'pending' AND (is_fired = true OR is_fired = false)`,
+			END`,
 			
 			// Per i reminder già inviati, imposta sent_at uguale a created_at
 			`UPDATE reminders 
 			SET sent_at = created_at
-			WHERE is_fired = true AND sent_at IS NULL`,
+			WHERE is_fired = 1 AND sent_at IS NULL`,
 			
-			// Crea indici per migliorare le performance
-			`CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status)`,
-			`CREATE INDEX IF NOT EXISTS idx_reminders_scheduled_time_status ON reminders(scheduled_time, status)`,
-			`CREATE INDEX IF NOT EXISTS idx_reminders_sent_at ON reminders(sent_at)`,
+			// Crea indice status
+			`CREATE INDEX idx_reminders_status ON reminders(status)`,
+			
+			// Crea indice composto
+			`CREATE INDEX idx_reminders_scheduled_time_status ON reminders(scheduled_time, status)`,
+			
+			// Crea indice sent_at
+			`CREATE INDEX idx_reminders_sent_at ON reminders(sent_at)`,
 		},
 	},
 }
