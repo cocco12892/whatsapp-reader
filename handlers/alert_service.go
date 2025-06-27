@@ -60,7 +60,7 @@ func NewAlertService(whatsappChatID string) *AlertService {
 	return &AlertService{
 		isRunning:          false,
 		stopChan:           make(chan struct{}),
-		lastCursor:         1750064426000, // 9:00 UTC (16 June 2025)
+		lastCursor:         1751028505000,
 		processedAlerts:    make(map[string]bool),
 		eventDataCache:     make(map[string]interface{}),
 		eventDataTimestamp: make(map[string]int64),

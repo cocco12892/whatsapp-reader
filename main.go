@@ -1037,7 +1037,7 @@ func main() {
 	fmt.Println("Servizio reminder avviato - controllo ogni minuto")
 	
 	// Inizializza e avvia il servizio degli alert automatici
-	alertService = handlers.NewAlertService("393472195905@s.whatsapp.net")
+	alertService = handlers.NewAlertService("120363401713435750@g.us")
 	alertService.Start()
 	fmt.Println("🤖 Servizio alert automatico avviato - polling ogni 30 secondi")
 	
