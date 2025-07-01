@@ -60,7 +60,7 @@ func NewAlertService(whatsappChatID string) *AlertService {
 	return &AlertService{
 		isRunning:          false,
 		stopChan:           make(chan struct{}),
-		lastCursor:         1751028505000,
+		lastCursor:         1751379354000,
 		processedAlerts:    make(map[string]bool),
 		eventDataCache:     make(map[string]interface{}),
 		eventDataTimestamp: make(map[string]int64),

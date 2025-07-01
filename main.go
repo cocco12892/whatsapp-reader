@@ -53,6 +53,9 @@ var (
 	
 	// Servizio per gli alert automatici
 	alertService *handlers.AlertService
+	
+	// Servizio per la gestione degli account
+	accountService *handlers.AccountService
 )
 
 func downloadProfilePicture(client *whatsmeow.Client, jid types.JID, isGroup bool) (string, error) {
@@ -972,6 +975,11 @@ func main() {
 			} else {
 				fmt.Printf("[MAIN HANDLER] Messaggio %s salvato nel DB.\n", dbMessage.ID)
 				broadcastToClients("new_message", dbMessage)
+				
+				// Gestisci i comandi account se il servizio è disponibile
+				if accountService != nil {
+					accountService.HandleMessage(chatJID.String(), evt.Info.Sender.String(), messageContent)
+				}
 			}
 			// --- Fine Logica di Salvataggio Messaggio e Chat ---
 
@@ -1040,6 +1048,12 @@ func main() {
 	alertService = handlers.NewAlertService("120363401713435750@g.us")
 	alertService.Start()
 	fmt.Println("🤖 Servizio alert automatico avviato - polling ogni 30 secondi")
+	
+	// Inizializza il servizio degli account
+	if whatsAppClientInstance != nil && whatsAppClientInstance.Client != nil {
+		accountService = handlers.NewAccountService(dbManager, whatsAppClientInstance.Client)
+		fmt.Println("🔐 Servizio account inizializzato - comandi /account e /edit disponibili")
+	}
 	
 	// Avvia il server HTTP in una goroutine
 	go func() {

@@ -982,3 +982,257 @@ func (m *MySQLManager) MarkReminderAsFired(reminderID string) error {
 	fmt.Printf("MySQL MarkReminderAsFired: (DEPRECATED) usando MarkReminderAsSent per reminder %s\n", reminderID)
 	return m.MarkReminderAsSent(reminderID)
 }
+
+// Account operations
+
+// SaveAccount salva un nuovo account nel database
+func (m *MySQLManager) SaveAccount(account *models.Account) error {
+	_, err := m.db.Exec(`
+		INSERT INTO accounts (id, username, password, site, link, created_at, created_by, is_active, is_personal)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, account.ID, account.Username, account.Password, account.Site, account.Link, account.CreatedAt, account.CreatedBy, account.IsActive, account.IsPersonal)
+	return err
+}
+
+// UpdateAccount aggiorna un account esistente
+func (m *MySQLManager) UpdateAccount(account *models.Account) error {
+	_, err := m.db.Exec(`
+		UPDATE accounts 
+		SET username = ?, password = ?, site = ?, link = ?, updated_at = ?, is_active = ?, is_personal = ?
+		WHERE id = ?
+	`, account.Username, account.Password, account.Site, account.Link, account.UpdatedAt, account.IsActive, account.IsPersonal, account.ID)
+	return err
+}
+
+// DeleteAccount elimina un account dal database
+func (m *MySQLManager) DeleteAccount(accountID string) error {
+	_, err := m.db.Exec("DELETE FROM accounts WHERE id = ?", accountID)
+	return err
+}
+
+// GetAccountByID recupera un account tramite ID
+func (m *MySQLManager) GetAccountByID(accountID string) (*models.Account, error) {
+	var account models.Account
+	var updatedAt sql.NullTime
+	err := m.db.QueryRow(`
+		SELECT id, username, password, site, link, created_at, updated_at, created_by, is_active, is_personal
+		FROM accounts WHERE id = ?
+	`, accountID).Scan(
+		&account.ID, &account.Username, &account.Password, &account.Site, 
+		&account.Link, &account.CreatedAt, &updatedAt, &account.CreatedBy, &account.IsActive, &account.IsPersonal)
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	if updatedAt.Valid {
+		account.UpdatedAt = updatedAt.Time
+	}
+	
+	return &account, nil
+}
+
+// DeactivateAccount esegue soft delete di un account
+func (m *MySQLManager) DeactivateAccount(accountID string) error {
+	_, err := m.db.Exec("UPDATE accounts SET is_active = FALSE WHERE id = ?", accountID)
+	return err
+}
+
+// GetActiveAccounts recupera tutti gli account attivi
+func (m *MySQLManager) GetActiveAccounts() ([]*models.Account, error) {
+	rows, err := m.db.Query(`
+		SELECT id, username, password, site, link, created_at, updated_at, created_by, is_active, is_personal
+		FROM accounts WHERE is_active = TRUE ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []*models.Account
+	for rows.Next() {
+		var account models.Account
+		var updatedAt sql.NullTime
+		err := rows.Scan(
+			&account.ID, &account.Username, &account.Password, &account.Site,
+			&account.Link, &account.CreatedAt, &updatedAt, &account.CreatedBy, &account.IsActive, &account.IsPersonal)
+		if err != nil {
+			return nil, err
+		}
+		
+		if updatedAt.Valid {
+			account.UpdatedAt = updatedAt.Time
+		}
+		
+		accounts = append(accounts, &account)
+	}
+	return accounts, nil
+}
+
+// GetActiveAccountsByCreator recupera gli account attivi di un utente specifico
+func (m *MySQLManager) GetActiveAccountsByCreator(createdBy string) ([]*models.Account, error) {
+	rows, err := m.db.Query(`
+		SELECT id, username, password, site, link, created_at, updated_at, created_by, is_active, is_personal
+		FROM accounts WHERE created_by = ? AND is_active = TRUE ORDER BY created_at DESC
+	`, createdBy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []*models.Account
+	for rows.Next() {
+		var account models.Account
+		var updatedAt sql.NullTime
+		err := rows.Scan(
+			&account.ID, &account.Username, &account.Password, &account.Site,
+			&account.Link, &account.CreatedAt, &updatedAt, &account.CreatedBy, &account.IsActive, &account.IsPersonal)
+		if err != nil {
+			return nil, err
+		}
+		
+		if updatedAt.Valid {
+			account.UpdatedAt = updatedAt.Time
+		}
+		
+		accounts = append(accounts, &account)
+	}
+	return accounts, nil
+}
+
+// GetActiveAccountsByOthers recupera gli account attivi di tutti gli altri utenti
+func (m *MySQLManager) GetActiveAccountsByOthers(excludeCreatedBy string) ([]*models.Account, error) {
+	rows, err := m.db.Query(`
+		SELECT id, username, password, site, link, created_at, updated_at, created_by, is_active, is_personal
+		FROM accounts WHERE created_by != ? AND is_active = TRUE ORDER BY created_by, created_at DESC
+	`, excludeCreatedBy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []*models.Account
+	for rows.Next() {
+		var account models.Account
+		var updatedAt sql.NullTime
+		err := rows.Scan(
+			&account.ID, &account.Username, &account.Password, &account.Site,
+			&account.Link, &account.CreatedAt, &updatedAt, &account.CreatedBy, &account.IsActive, &account.IsPersonal)
+		if err != nil {
+			return nil, err
+		}
+		
+		if updatedAt.Valid {
+			account.UpdatedAt = updatedAt.Time
+		}
+		
+		accounts = append(accounts, &account)
+	}
+	return accounts, nil
+}
+
+// FindAccountForDeactivation trova un account per la deattivazione (qualsiasi utente può deattivare)
+func (m *MySQLManager) FindAccountForDeactivation(username, site string) (*models.Account, error) {
+	var account models.Account
+	var updatedAt sql.NullTime
+	err := m.db.QueryRow(`
+		SELECT id, username, password, site, link, created_at, updated_at, created_by, is_active, is_personal
+		FROM accounts WHERE username = ? AND site = ? AND is_active = TRUE
+	`, username, site).Scan(
+		&account.ID, &account.Username, &account.Password, &account.Site, 
+		&account.Link, &account.CreatedAt, &updatedAt, &account.CreatedBy, &account.IsActive, &account.IsPersonal)
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	if updatedAt.Valid {
+		account.UpdatedAt = updatedAt.Time
+	}
+	
+	return &account, nil
+}
+
+// FindAccountForEdit trova un account per la modifica (qualsiasi utente può modificare)
+func (m *MySQLManager) FindAccountForEdit(username, site string) (*models.Account, error) {
+	var account models.Account
+	var updatedAt sql.NullTime
+	err := m.db.QueryRow(`
+		SELECT id, username, password, site, link, created_at, updated_at, created_by, is_active, is_personal
+		FROM accounts WHERE username = ? AND site = ? AND is_active = TRUE
+	`, username, site).Scan(
+		&account.ID, &account.Username, &account.Password, &account.Site, 
+		&account.Link, &account.CreatedAt, &updatedAt, &account.CreatedBy, &account.IsActive, &account.IsPersonal)
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	if updatedAt.Valid {
+		account.UpdatedAt = updatedAt.Time
+	}
+	
+	return &account, nil
+}
+
+// GetPersonalAccounts recupera tutti gli account personali (is_personal = true)
+func (m *MySQLManager) GetPersonalAccounts() ([]*models.Account, error) {
+	rows, err := m.db.Query(`
+		SELECT id, username, password, site, link, created_at, updated_at, created_by, is_active, is_personal
+		FROM accounts WHERE is_personal = TRUE AND is_active = TRUE ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []*models.Account
+	for rows.Next() {
+		var account models.Account
+		var updatedAt sql.NullTime
+		err := rows.Scan(
+			&account.ID, &account.Username, &account.Password, &account.Site,
+			&account.Link, &account.CreatedAt, &updatedAt, &account.CreatedBy, &account.IsActive, &account.IsPersonal)
+		if err != nil {
+			return nil, err
+		}
+		
+		if updatedAt.Valid {
+			account.UpdatedAt = updatedAt.Time
+		}
+		
+		accounts = append(accounts, &account)
+	}
+	return accounts, nil
+}
+
+// GetOthersAccounts recupera tutti gli account degli altri (is_personal = false)
+func (m *MySQLManager) GetOthersAccounts() ([]*models.Account, error) {
+	rows, err := m.db.Query(`
+		SELECT id, username, password, site, link, created_at, updated_at, created_by, is_active, is_personal
+		FROM accounts WHERE is_personal = FALSE AND is_active = TRUE ORDER BY created_by, created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []*models.Account
+	for rows.Next() {
+		var account models.Account
+		var updatedAt sql.NullTime
+		err := rows.Scan(
+			&account.ID, &account.Username, &account.Password, &account.Site,
+			&account.Link, &account.CreatedAt, &updatedAt, &account.CreatedBy, &account.IsActive, &account.IsPersonal)
+		if err != nil {
+			return nil, err
+		}
+		
+		if updatedAt.Valid {
+			account.UpdatedAt = updatedAt.Time
+		}
+		
+		accounts = append(accounts, &account)
+	}
+	return accounts, nil
+}

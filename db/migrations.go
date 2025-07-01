@@ -61,6 +61,48 @@ var migrations = []Migration{
 			`CREATE INDEX idx_reminders_sent_at ON reminders(sent_at)`,
 		},
 	},
+	{
+		Version:     3,
+		Description: "Add accounts table",
+		SQLStatements: []string{
+			`CREATE TABLE IF NOT EXISTS accounts (
+				id VARCHAR(255) PRIMARY KEY,
+				username VARCHAR(255) NOT NULL,
+				password VARCHAR(255) NOT NULL,
+				site VARCHAR(255) NOT NULL,
+				link TEXT,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NULL,
+				created_by VARCHAR(255) NOT NULL,
+				INDEX idx_accounts_username (username),
+				INDEX idx_accounts_site (site),
+				INDEX idx_accounts_created_by (created_by)
+			)`,
+		},
+	},
+	{
+		Version:     4,
+		Description: "Add is_active field to accounts table",
+		SQLStatements: []string{
+			`ALTER TABLE accounts ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE`,
+			`CREATE INDEX idx_accounts_active ON accounts(is_active)`,
+		},
+	},
+	{
+		Version:     5,
+		Description: "Add is_personal field to accounts table",
+		SQLStatements: []string{
+			`ALTER TABLE accounts ADD COLUMN is_personal BOOLEAN NOT NULL DEFAULT TRUE`,
+			`CREATE INDEX idx_accounts_personal ON accounts(is_personal)`,
+		},
+	},
+	{
+		Version:     6,
+		Description: "Update existing accounts to set correct is_personal values",
+		SQLStatements: []string{
+			`UPDATE accounts SET is_personal = FALSE WHERE created_by = '393472195905@s.whatsapp.net'`,
+		},
+	},
 }
 
 // ApplyMigrations applica tutte le migration necessarie

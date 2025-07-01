@@ -64,6 +64,21 @@ type DBManager interface {
 	
 	// Backward compatibility
 	MarkReminderAsFired(reminderID string) error
+	
+	// Account operations
+	SaveAccount(account *models.Account) error
+	UpdateAccount(account *models.Account) error
+	DeleteAccount(accountID string) error
+	DeactivateAccount(accountID string) error
+	GetAccountByID(accountID string) (*models.Account, error)
+	GetActiveAccounts() ([]*models.Account, error)
+	GetActiveAccountsByCreator(createdBy string) ([]*models.Account, error)
+	GetActiveAccountsByOthers(excludeCreatedBy string) ([]*models.Account, error)
+	FindAccountForDeactivation(username, site string) (*models.Account, error)
+	FindAccountForEdit(username, site string) (*models.Account, error)
+	// New is_personal based methods
+	GetPersonalAccounts() ([]*models.Account, error)
+	GetOthersAccounts() ([]*models.Account, error)
 }
 
 // SetupAPIRoutes configura tutte le rotte API
